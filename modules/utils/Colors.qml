@@ -60,6 +60,7 @@ Item{
     readonly property string surfaceContainerHighest: currentTheme.surfaceContainerHighest
 
     readonly property string wallpaper: currentTheme.wallpaper || ""
+    readonly property string sourceWallpaper: (currentTheme.sourceWallpaper ?? "") || wallpaper
 }
 
 

@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nebula — a desktop shell for Hyprland</title>
+<meta name="description" content="Nebula is a desktop shell for Hyprland built with Quickshell: bar, dashboard, launcher, notification shade, lock screen and a widget canvas.">
+<link rel="icon" href="assets/img/favicon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="assets/css/site.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<main id="main">
+
+<section class="hero">
+  <div class="wrap">
+    <h1>A complete desktop shell for Hyprland</h1>
+    <p class="lede">Bar, dashboard, launcher, notification shade, lock screen and a
+      widget canvas you arrange yourself. One Quickshell process, configured from
+      a settings panel rather than a dotfile.</p>
+
+    <div class="cmd">
+      <code><span class="pr">$ </span>bash &lt;(curl -fsSL https://raw.githubusercontent.com/iamSt3el/Nebula/master/install.sh)</code>
+      <button type="button">Copy</button>
+    </div>
+
+    <div class="herolinks">
+      <a class="btn solid" href="install.html">Install guide</a>
+      <a class="btn" href="showcase.html">See the screenshots</a>
+      <a class="btn" href="https://youtu.be/bYuwrP-WTCs" rel="noopener">Watch the tour</a>
+    </div>
+
+    <div class="frame">
+      <img src="assets/img/showcase/dashboard.jpg"
+           srcset="assets/img/showcase/dashboard@small.jpg 960w, assets/img/showcase/dashboard.jpg 1920w"
+           sizes="(max-width: 980px) 100vw, 1116px"
+           width="1920" height="1080" fetchpriority="high"
+           alt="The Nebula dashboard: volume and brightness sliders, quick toggles for Wi-Fi and Bluetooth, power profile selector, and a notification shade showing a screenshot notification.">
+    </div>
+    <p class="cap">The dashboard and notification shade, opened from the bar.</p>
+  </div>
+</section>
+
+<section class="section tint">
+  <div class="wrap">
+    <h2>One launcher, five modes</h2>
+    <p class="sub">The prefix you type decides what the window searches, so there is
+      no second tool to bind and no mode to switch into.</p>
+
+    <div class="modes">
+      <div class="mode"><span class="pfx none">none</span><b>Applications</b><em>firefox</em></div>
+      <div class="mode"><span class="pfx">=</span><b>Calculator and unit conversion</b><em>= 100 usd to inr</em></div>
+      <div class="mode"><span class="pfx">&gt;</span><b>Shell command</b><em>&gt;systemctl suspend</em></div>
+      <div class="mode"><span class="pfx">:</span><b>Emoji</b><em>:fire</em></div>
+      <div class="mode"><span class="pfx">w</span><b>Open windows</b><em>w term</em></div>
+    </div>
+
+    <p style="margin-top:26px;font-size:15px;color:var(--outline)">
+      Applications support fuzzy search, pinning and categories.
+      <a href="launcher.html">Read the launcher page</a>
+    </p>
+  </div>
+</section>
+
+<section class="section">
+  <div class="wrap">
+    <h2>What you get</h2>
+
+    <div class="bands">
+      <div class="band">
+        <h3>Shell</h3>
+        <p>A <b>bar</b> in pill or full-width form, plus a slim secondary bar for your
+          other monitors. A <b>dashboard</b> with sliders, quick toggles and power
+          profiles. An Android-style <b>notification shade</b> that groups by app and
+          expands per group. A <b>workspace overview</b>, a <b>dock</b> with hover
+          previews, brightness and volume <b>OSDs</b>, a <b>lock screen</b> and a
+          session menu.</p>
+        <p>There is also an optional <b>greetd greeter</b> (<code>greeter.qml</code>)
+          if you want the login screen to match the rest.</p>
+      </div>
+
+      <div class="band">
+        <h3>Widgets</h3>
+        <p>A full-screen canvas you arrange yourself: <b>analog and digital clocks</b>,
+          date cards, <b>weather</b>, system and network monitors, battery,
+          temperature, media players, a <b>CAVA spectrum</b>, sticky notes, tasks, a
+          pomodoro timer, RSS, moon phase and a sun arc.</p>
+      </div>
+
+      <div class="band">
+        <h3>Tools</h3>
+        <p><b>Nebula Drop</b> moves files between your phone and PC over Wi-Fi. The
+          shell serves a token-scoped page and shows a QR code, so there is nothing to
+          install on the phone.</p>
+        <p>Plus a <b>clipboard manager</b> with image previews, <b>screenshots</b>
+          through grimblast and swappy, native <b>screen recording</b> with a live
+          pill, a <b>wallpaper picker</b> that searches Wallhaven, a live
+          <b>disk treemap</b>, calendar holidays detected from your timezone, a
+          cheat sheet, a music visualizer and a game mode.</p>
+      </div>
+
+      <div class="band">
+        <h3>Theming</h3>
+        <p>Colours are extracted from your wallpaper with
+          <b>materialyoucolor</b> and written to
+          <code>~/.cache/quickshell/colors.json</code>. The shell retints itself, and
+          other apps can follow: btop, kitty, GTK, Qt, waybar, tmux and starship each
+          pick it up through their own template. <a href="theming.html">How that
+          works</a></p>
+      </div>
+
+      <div class="band">
+        <h3>Settings</h3>
+        <p>Everything is configured in the shell itself — Theme, Appearance, Sound,
+          Media, Networking, Bluetooth, Notifications, Weather, Widgets, Sleep
+          and Storage — and stored in
+          <code>~/.cache/quickshell/settings.json</code>. There is no config file to
+          learn.</p>
+      </div>
+    </div>
+
+    <div class="frame" style="margin-top:64px">
+      <img src="assets/img/showcase/widgets.jpg"
+           srcset="assets/img/showcase/widgets@small.jpg 960w, assets/img/showcase/widgets.jpg 1920w"
+           sizes="(max-width: 980px) 100vw, 1116px"
+           width="1920" height="1080" loading="lazy"
+           alt="The Nebula widget canvas showing an analog clock, a weather forecast chart, a date card and a sunrise arc over a mountain wallpaper.">
+    </div>
+    <p class="cap">The widget canvas. <a href="showcase.html">More screenshots</a></p>
+  </div>
+</section>
+
+<section class="section tint">
+  <div class="wrap">
+    <h2>Documentation</h2>
+    <p class="sub">Nebula is only the shell. It does not ship, generate or edit your
+      Hyprland config — these pages cover what you wire up yourself.</p>
+
+    <div class="dgrid">
+      <a href="install.html"><b>Install</b><span>The one-line installer, what it touches, and installing by hand from a clone.</span></a>
+      <a href="hyprland.html"><b>Hyprland setup</b><span>Autostart and environment lines, in both hyprlang and Lua syntax.</span></a>
+      <a href="keybindings.html"><b>Keybindings</b><span>Every global shortcut the shell registers, and how to bind keys to them.</span></a>
+      <a href="launcher.html"><b>Launcher</b><span>The five modes in detail, pinning, categories and the emoji index.</span></a>
+      <a href="widgets.html"><b>Widget canvas</b><span>Placing widgets, and what each one shows.</span></a>
+      <a href="settings.html"><b>Settings</b><span>Every panel in the settings window and where its state lives.</span></a>
+      <a href="theming.html"><b>Theming other apps</b><span>Rendering colors.json into btop, kitty, GTK, waybar, tmux and starship.</span></a>
+      <a href="filedrop.html"><b>Nebula Drop</b><span>Sending files between your phone and PC over Wi-Fi.</span></a>
+      <a href="dependencies.html"><b>Dependencies</b><span>The full pacman and AUR lists, the Python venv, and optional extras.</span></a>
+      <a href="troubleshooting.html"><b>Troubleshooting</b><span>Blank bars, a missing venv, greeter permissions and other known snags.</span></a>
+      <a href="showcase.html"><b>Showcase</b><span>Screenshots of every part of the shell.</span></a>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer class="sitefoot">
+  <div class="wrap">
+    <div class="row">
+      <a href="https://github.com/iamSt3el/Nebula" rel="noopener">GitHub</a>
+      <a href="https://youtu.be/bYuwrP-WTCs" rel="noopener">Video tour</a>
+      <a href="https://quickshell.outfoxxed.me" rel="noopener">Quickshell</a>
+      <span>GPL-3.0</span>
+    </div>
+    <div class="row">
+      <span>Thanks to end_4, soramane and outfoxxed. Made with ♥ and too many late nights.</span>
+    </div>
+  </div>
+</footer>
+
+<script src="assets/js/site.js"></script>
+</body>
+</html>

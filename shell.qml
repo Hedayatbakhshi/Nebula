@@ -10,7 +10,6 @@ import qs.modules.components.Setting
 import qs.modules.components.Osd
 import qs.modules.components.WallpaperSelector
 import qs.modules.components.MusicVis
-import qs.modules.components.Dock
 import qs.modules.components.Widgets
 import qs.modules.components.ToolsWidget
 import qs.modules.components.ShutdownWindow
@@ -18,22 +17,15 @@ import qs.modules.components.Screenshot
 import qs.modules.components.GameMode
 import qs.modules.components.CheatSheet
 import qs.modules.components.Overview
-import qs.modules.components.Ai
 import qs.modules.components.Welcome
-import qs.modules.components.Wallpaper
 import qs.modules.customComponents
 import qs.modules.services
 import qs.modules.settings
 
 ShellRoot{
-    Variants{
-        model: Quickshell.screens
-        delegate: WallpaperLayer{}
-    }
+    DockServices{}
 
-    DepthToast{}
-
-    DockPanel{}
+    LockSelector{}
 
     Variants{
         model: Quickshell.screens
@@ -57,6 +49,7 @@ ShellRoot{
     AppLauncher{}
     SettingsPanel{}
     ToolsWidget{}
+
     Shutdown{}
     Loader{
         active: SettingsConfig.general.musicVisOn && !ServiceGameMode.hideWidgets
@@ -71,8 +64,16 @@ ShellRoot{
     
 
 
-    WidgetScreen{
-        visible: !ServiceGameMode.hideWidgets
+    Loader{
+        active: SettingsConfig.widgets.showWidgets ?? true
+        onActiveChanged: if (!active) {
+            GlobalStates.widgetEditMode = false
+            GlobalStates.widgetTextFocus = false
+            GlobalStates.desktopCursorActive = false
+        }
+        sourceComponent: WidgetScreen{
+            visible: !ServiceGameMode.hideWidgets
+        }
     }
 
     // Game mode confirmation pill — must outlive everything else it hides
@@ -99,9 +100,6 @@ ShellRoot{
 
     // Workspace manager with live previews — hyprctl dispatch global quickshell:overview
     Overview {}
-
-    // Type or dictate a prompt into claude.ai — hyprctl dispatch global quickshell:ai
-    AiPanel {}
 
     WelcomePanel {}
 

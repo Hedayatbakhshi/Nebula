@@ -16,9 +16,10 @@ WidgetHost {
     // Previews read canned values and never start the pollers
     readonly property var si: root.preview ? PreviewData : ServiceSystemInfo
 
-    // Not yet on the WidgetSizes ladder — see the size audit
-    implicitWidth: 265
-    implicitHeight: 288
+    tile: WidgetSizes.large
+    resizable: true
+    minSpan: Qt.size(3, 3)
+    maxSpan: Qt.size(5, 4)
 
     // TrapezoidChart binds to an array, unlike CustomSparkline's addValue ring
     // buffer, so the history lives here now
@@ -50,7 +51,7 @@ WidgetHost {
     Rectangle {
         anchors.fill: parent
         radius: 24
-        color: Colors.surface
+        color: WidgetSizes.cardColor
 
         ColumnLayout {
             anchors.fill: parent
@@ -265,6 +266,7 @@ WidgetHost {
 
                 Item {
                     Layout.fillWidth: true
+                    Layout.fillHeight: true
                     implicitHeight: 30
 
                     CustomSparkline {

@@ -15,21 +15,24 @@ Item{
     anchors.centerIn: parent
     implicitWidth: row.implicitWidth
 
-    property string hourDigit1: {
-        var h = ServiceClock.hour > 12 ? ServiceClock.hour - 12 : ServiceClock.hour;
-        if(h === 0) h = 12; 
-        return Math.floor(h / 10).toString();
+    property bool use24: false
+
+    readonly property int shownHour: {
+        const h = parseInt(ServiceClock.hour)
+        if (root.use24)
+            return h
+        const m = h % 12
+        return m === 0 ? 12 : m
     }
 
-    property string hourDigit2: {
-        var h = ServiceClock.hour > 12 ? ServiceClock.hour - 12 : ServiceClock.hour;
-        if(h === 0) h = 12;
-        return (h % 10).toString();
-    }
+    property string hourDigit1: Math.floor(root.shownHour / 10).toString()
+    property string hourDigit2: (root.shownHour % 10).toString()
     property string minuteDigit1: ServiceClock.minute[0];
     property string minuteDigit2: ServiceClock.minute[1];
     property real fontSize: 30
-    property real fontX: 5
+    property real fontX: 3
+    property real ring: 2
+    property int ringSteps: 12
 
 
 
@@ -65,15 +68,30 @@ Item{
 
                 CustomText {
                     id: child
-                    content: hourDigit2
-                    size: root.fontSize + 10
-                    x: text1.implicitWidth - root.fontX
-                    y: -5
-                    font.family: SettingsConfig.general.displayFont ?? "Titan One"
-                    color: "white"
-                    style: Text.Raised
-                    styleColor: Colors.outline
+                    content: root.hourDigit2
+                    size: root.fontSize
                     weight: 600
+                    color: "white"
+                    font.family: SettingsConfig.general.displayFont ?? "Titan One"
+                    x: text1.implicitWidth - root.fontX
+                }
+
+                Repeater {
+                    model: root.ringSteps
+
+                    CustomText {
+                        required property int index
+
+                        readonly property real angle: index * 2 * Math.PI / root.ringSteps
+
+                        content: root.hourDigit2
+                        size: root.fontSize
+                        weight: 600
+                        color: "white"
+                        font.family: SettingsConfig.general.displayFont ?? "Titan One"
+                        x: text1.implicitWidth - root.fontX + root.ring * Math.cos(angle)
+                        y: root.ring * Math.sin(angle)
+                    }
                 }
             }
 
@@ -138,15 +156,30 @@ Item{
 
                 CustomText {
                     id: child2
-                    content: minuteDigit2
-                    size: root.fontSize + 10
-                    x: text2.implicitWidth - root.fontX
-                    y: -5
-                    font.family: SettingsConfig.general.displayFont ?? "Titan One"
-                    color: "white"
-                    style: Text.Raised
-                    styleColor: Colors.outline
+                    content: root.minuteDigit2
+                    size: root.fontSize
                     weight: 600
+                    color: "white"
+                    font.family: SettingsConfig.general.displayFont ?? "Titan One"
+                    x: text2.implicitWidth - root.fontX
+                }
+
+                Repeater {
+                    model: root.ringSteps
+
+                    CustomText {
+                        required property int index
+
+                        readonly property real angle: index * 2 * Math.PI / root.ringSteps
+
+                        content: root.minuteDigit2
+                        size: root.fontSize
+                        weight: 600
+                        color: "white"
+                        font.family: SettingsConfig.general.displayFont ?? "Titan One"
+                        x: text2.implicitWidth - root.fontX + root.ring * Math.cos(angle)
+                        y: root.ring * Math.sin(angle)
+                    }
                 }
             }
 

@@ -61,15 +61,7 @@ Scope {
                         width: parent.width
                         height: parent.height
                         context: lockContext
-
-                        NumberAnimation on y {
-                            from: -1200; to: 0; running: true
-                            duration: 600; easing.type: Easing.OutCubic
-                        }
-                        NumberAnimation on y {
-                            from: 0; to: -1200; running: root.startAnimation
-                            duration: 600; easing.type: Easing.InCubic
-                        }
+                        exiting: root.startAnimation
                     }
                 }
             }

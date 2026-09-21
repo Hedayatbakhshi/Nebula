@@ -12,9 +12,12 @@ WidgetHost {
     id: root
     configKey: "headlines"
     tile: WidgetSizes.wide
+    resizable: true
+    minSpan: Qt.size(3, 2)
+    maxSpan: Qt.size(6, 5)
     defaultPos: Qt.point(620, 900)
 
-    readonly property int pageSize: 3
+    readonly property int pageSize: Math.max(1, Math.floor((root.height - 64) / 42))
 
     readonly property var sampleHeadlines: [
         { title: "Markets close higher as inflation eases for a third month" },
@@ -52,7 +55,7 @@ WidgetHost {
     Rectangle {
         anchors.fill: parent
         radius: WidgetSizes.radius
-        color: Colors.surface
+        color: WidgetSizes.cardColor
 
         // ── Header ────────────────────────────────────────────────────
         RowLayout {

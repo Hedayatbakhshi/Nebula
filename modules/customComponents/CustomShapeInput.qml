@@ -9,6 +9,9 @@ FocusScope {
     property alias text: textInput.text
     property string placeholderText: ""
     property color placeholderColor: Colors.outline
+    property color accentColor: Colors.primary
+    property string placeholderFamily: ""
+    property int placeholderSize: 20
 
     signal accepted()
 
@@ -90,7 +93,8 @@ FocusScope {
         anchors.verticalCenter: parent.verticalCenter
         text: root.placeholderText
         color: root.placeholderColor
-        font.pixelSize: 20
+        font.pixelSize: root.placeholderSize
+        font.family: root.placeholderFamily !== "" ? root.placeholderFamily : font.family
         visible: textInput.length === 0
     }
 
@@ -114,7 +118,7 @@ FocusScope {
                 anchors.centerIn: parent
                 width: 30
                 height: 30
-                color: Colors.primary
+                color: root.accentColor
                 roundedPolygon: root.shapeGetters[model.shapeIndex]()
 
                 Behavior on scale {
@@ -141,7 +145,7 @@ FocusScope {
         width: 2
         height: 30
         radius: 1
-        color: Colors.primary
+        color: root.accentColor
         visible: textInput.activeFocus
 
         SequentialAnimation on opacity {

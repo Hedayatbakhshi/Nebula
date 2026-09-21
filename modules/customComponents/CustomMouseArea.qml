@@ -9,6 +9,8 @@ MouseArea {
     id: root
     anchors.fill: parent
 
+    cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
+
     property real radius:            0
     property real topLeftRadius:     radius
     property real topRightRadius:    radius

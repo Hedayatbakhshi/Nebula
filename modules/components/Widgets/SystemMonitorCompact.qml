@@ -15,18 +15,20 @@ WidgetHost {
 
     // Previews read canned values and never start the pollers
     readonly property var si: root.preview ? PreviewData : ServiceSystemInfo
-    implicitWidth: 240
-    implicitHeight: 210
+    tile: WidgetSizes.wide
+    resizable: true
+    minSpan: Qt.size(3, 2)
+    maxSpan: Qt.size(5, 2)
 
     Rectangle {
         anchors.fill: parent
         radius: 24
-        color: Colors.surface
+        color: WidgetSizes.cardColor
 
         ColumnLayout {
             anchors.fill: parent
             anchors.margins: 16
-            spacing: 10
+            spacing: 8
 
             // ── Header ────────────────────────────────────────────────
             RowLayout {

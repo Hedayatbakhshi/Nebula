@@ -2,11 +2,13 @@ pragma Singleton
 pragma ComponentBehavior: Bound
 
 import Quickshell
+import Quickshell.Io
 import QtQuick
 import Quickshell.Widgets
 import Quickshell.Wayland
 import qs.modules.utils
 import qs.modules.settings
+import "../components/Bar/BarOps.js" as BarOps
 
 Singleton{
     id: root
@@ -102,7 +104,7 @@ Singleton{
             console.warn("ServiceApps.launch: no desktop entry for", appId)
             return false
         }
-        entry.execute()
+        root.run(entry)
         return true
     }
 
@@ -133,6 +135,63 @@ Singleton{
             SettingsConfig.general = Object.assign({}, SettingsConfig.general, {pinnedApps: SettingsConfig.general.pinnedApps.filter(id => id.toLowerCase() !== appId.toLowerCase())})
         else
             SettingsConfig.general = Object.assign({}, SettingsConfig.general, {pinnedApps: [...SettingsConfig.general.pinnedApps, appId]})
+    }
+
+    function movePin(appId: string, index: int): void {
+        SettingsConfig.general = Object.assign({}, SettingsConfig.general,
+            {pinnedApps: BarOps.movePin(SettingsConfig.general.pinnedApps, appId, index)})
+    }
+
+    function pinById(appId: string): void {
+        if (!isPinnedById(appId))
+            togglePinById(appId)
+    }
+
+    function unpinById(appId: string): void {
+        if (isPinnedById(appId))
+            togglePinById(appId)
+    }
+
+    property var usage: ({})
+
+    FileView {
+        id: usageFile
+        path: Quickshell.env("HOME") + "/.cache/quickshell/app-usage.json"
+        onLoaded: {
+            try {
+                root.usage = JSON.parse(text()) ?? {}
+            } catch (e) {
+                root.usage = {}
+            }
+        }
+    }
+
+    Timer {
+        id: usageWrite
+        interval: 1000
+        onTriggered: usageFile.setText(JSON.stringify(root.usage))
+    }
+
+    function run(entry): void {
+        if (!entry)
+            return
+        const next = Object.assign({}, root.usage)
+        const prev = next[entry.id] ?? { count: 0, last: 0 }
+        next[entry.id] = { count: prev.count + 1, last: Date.now() }
+        root.usage = next
+        usageWrite.restart()
+        entry.execute()
+    }
+
+    function byUsage(apps): var {
+        const u = root.usage
+        return Array.prototype.slice.call(apps).sort((a, b) =>
+            ((u[b.id] ? u[b.id].count : 0) - (u[a.id] ? u[a.id].count : 0)) || a.name.localeCompare(b.name))
+    }
+
+    function recent(n: int): var {
+        const u = root.usage
+        return root.list.filter(a => !!u[a.id]).sort((a, b) => u[b.id].last - u[a.id].last).slice(0, n)
     }
 
     function updateSearch(searchText){

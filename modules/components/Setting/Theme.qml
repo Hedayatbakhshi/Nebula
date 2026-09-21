@@ -315,7 +315,7 @@ Item {
                             onCurrentValChanged: {
                                 if (currentVal && currentVal !== SettingsConfig.theme.matugenScheme) {
                                     SettingsConfig.theme = Object.assign({}, SettingsConfig.theme, { matugenScheme: currentVal })
-                                    Quickshell.execDetached([ServiceWallpaper.wallpaperScript, Colors.wallpaper, currentVal, SettingsConfig.theme.matugenTheme, ServiceWallpaper.transitionType])
+                                    ServiceWallpaper.reapply()
                                 }
                             }
                         }
@@ -349,184 +349,235 @@ Item {
                 }
             }
 
-            // ── Wallpaper parallax ────────────────────────────────────────
-            CustomText { Layout.topMargin: 16; content: "Wallpaper Parallax"; size: 13; customColor: Colors.primary }
+            // ── Gowall ───────────────────────────────────────────────────
+            CustomText { Layout.topMargin: 16; content: "Gowall"; size: 13; customColor: Colors.primary }
+            CustomText {
+                Layout.topMargin: 2
+                content: "Repaint the wallpaper — and your icons — with a fixed color palette"
+                size: 12
+                customColor: Colors.outline
+            }
 
             ColumnLayout {
+                id: gowallGroup
                 Layout.topMargin: 6; Layout.fillWidth: true; spacing: 3
 
+                readonly property string palette: SettingsConfig.theme.gowallTheme ?? "off"
+                readonly property bool on: gowallGroup.palette !== "off"
+                readonly property bool iconsOn: SettingsConfig.theme.gowallIcons ?? false
+                readonly property bool inverted: SettingsConfig.theme.gowallInvert ?? false
+                readonly property bool shellOn: SettingsConfig.theme.gowallShell ?? false
+
                 CustomCard {
-                    autoRadius: false; topRadius: 20
-                    bottomRadius: (SettingsConfig.parallax?.enabled ?? true) ? 5 : 20
+                    autoRadius: false; topRadius: 20; bottomRadius: 5
+
                     RowLayout {
                         Layout.fillWidth: true
                         ColumnLayout {
                             spacing: 2
-                            CustomText { content: "Depth Parallax"; size: 14 }
-                            CustomText { content: "Wallpaper shifts with the cursor while the desktop is empty"; size: 12; customColor: Colors.outline }
+                            CustomText { content: "Palette"; size: 14 }
+                            CustomText {
+                                size: 12
+                                customColor: Colors.outline
+                                content: {
+                                    if (!ServiceWallpaper.gowallChecked) return "Checking for gowall…"
+                                    if (!ServiceWallpaper.gowallAvailable) return "gowall is not installed"
+                                    if (gowallGroup.palette === "match") return "Follows the colors the shell already uses"
+                                    if (gowallGroup.on) return "Wallpaper and colors follow the " + gowallGroup.palette + " palette"
+                                    return "Off — the wallpaper keeps its own colors"
+                                }
+                            }
+                        }
+                        Item { Layout.fillWidth: true }
+                        CustomListNew {
+                            Layout.preferredWidth: 200
+                            Layout.preferredHeight: 30
+                            color: Colors.surfaceContainerHighest
+                            list: ServiceWallpaper.gowallOptions
+                            Component.onCompleted: {
+                                ServiceWallpaper.refreshGowallThemes(false)
+                                currentVal = SettingsConfig.theme.gowallTheme ?? "off"
+                                ServiceWallpaper.refreshIconPreview(currentVal)
+                            }
+                            onCurrentValChanged: {
+                                if (!currentVal || currentVal === gowallGroup.palette) return
+                                const turningOff = currentVal === "off"
+                                SettingsConfig.theme = Object.assign({}, SettingsConfig.theme, {
+                                    gowallTheme: currentVal,
+                                    gowallIcons: turningOff ? false : gowallGroup.iconsOn
+                                })
+                                if (turningOff && gowallGroup.iconsOn)
+                                    ServiceWallpaper.restoreIconTheme()
+                                ServiceWallpaper.refreshIconPreview(currentVal)
+                                ServiceWallpaper.reapply()
+                            }
+                        }
+                    }
+                }
+
+                // Invert stands on its own — a wallpaper can be flipped with no
+                // palette at all, and with one it is flipped before the recolor.
+                CustomCard {
+                    autoRadius: false; topRadius: 5
+                    bottomRadius: gowallGroup.on ? 5 : 20
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        ColumnLayout {
+                            spacing: 2
+                            CustomText { content: "Invert colors"; size: 14 }
+                            CustomText {
+                                size: 12
+                                customColor: Colors.outline
+                                content: gowallGroup.inverted
+                                    ? (gowallGroup.on ? "Wallpaper is flipped, then repainted" : "Wallpaper is flipped — daylight reads as night")
+                                    : "Flip the wallpaper's colors — a day scene becomes night"
+                            }
                         }
                         Item { Layout.fillWidth: true }
                         CustomToogle {
-                            isToggleOn: SettingsConfig.parallax?.enabled ?? true
+                            isToggleOn: gowallGroup.inverted
                             onToggled: state => {
-                                SettingsConfig.parallax = Object.assign({}, SettingsConfig.parallax, { enabled: state })
-                                if (state) ServiceWallpaper.ensureDepthMap(false)
+                                SettingsConfig.theme = Object.assign({}, SettingsConfig.theme, { gowallInvert: state })
+                                ServiceWallpaper.reapply()
                             }
                         }
                     }
                 }
 
+                // Shell colors — the palette replaces Material You as the source
+                // of the interface's own colors.
                 CustomCard {
                     autoRadius: false; topRadius: 5; bottomRadius: 5
-                    visible: SettingsConfig.parallax?.enabled ?? true
-                    RowLayout {
-                        Layout.fillWidth: true
-                        ColumnLayout {
-                            spacing: 2
-                            CustomText { content: "Motion"; size: 14 }
-                            CustomText { content: "What drives the shift"; size: 12; customColor: Colors.outline }
-                        }
-                        Item { Layout.fillWidth: true }
-                        M3ButtonGroup {
-                            model: [
-                                { value: "cursor", label: "Cursor", icon: "mouse" },
-                                { value: "drift",  label: "Drift",  icon: "animation" },
-                                { value: "music",  label: "Music",  icon: "music_note" }
-                            ]
-                            activeCheck: function(v) { return (SettingsConfig.parallax?.mode ?? "cursor") === v }
-                            onSegmentClicked: function(v) {
-                                SettingsConfig.parallax = Object.assign({}, SettingsConfig.parallax, { mode: v })
-                            }
-                        }
-                    }
-                }
+                    visible: gowallGroup.on
 
-                CustomCard {
-                    autoRadius: false; topRadius: 5; bottomRadius: 5
-                    visible: (SettingsConfig.parallax?.enabled ?? true)
-                             && (SettingsConfig.parallax?.mode ?? "cursor") === "music"
                     RowLayout {
                         Layout.fillWidth: true
                         ColumnLayout {
                             spacing: 2
-                            CustomText { content: "Music Intensity"; size: 14 }
-                            CustomText { content: "How much the beat drives the orbit"; size: 12; customColor: Colors.outline }
-                        }
-                        Item { Layout.fillWidth: true }
-                        M3Slider {
-                            Layout.preferredWidth: 160
-                            Layout.preferredHeight: 30
-                            stepCount: 5
-                            stepLabels: ["none", "light", "medium", "strong", "full"]
-                            currentStep: {
-                                const vals = [0.0, 0.3, 0.6, 0.8, 1.0]
-                                const cur = SettingsConfig.parallax?.musicIntensity ?? 0.6
-                                let best = 0
-                                for (var i = 1; i < vals.length; i++)
-                                    if (Math.abs(vals[i] - cur) < Math.abs(vals[best] - cur)) best = i
-                                return best
-                            }
-                            onStepChanged: step => {
-                                const vals = [0.0, 0.3, 0.6, 0.8, 1.0]
-                                SettingsConfig.parallax = Object.assign({}, SettingsConfig.parallax, { musicIntensity: vals[step] })
-                            }
-                        }
-                    }
-                }
-
-                CustomCard {
-                    autoRadius: false; topRadius: 5; bottomRadius: 5
-                    visible: SettingsConfig.parallax?.enabled ?? true
-                    RowLayout {
-                        Layout.fillWidth: true
-                        ColumnLayout {
-                            spacing: 2
-                            CustomText { content: "Strength"; size: 14 }
-                            CustomText { content: "How far the layers separate as the cursor moves"; size: 12; customColor: Colors.outline }
-                        }
-                        Item { Layout.fillWidth: true }
-                        M3Slider {
-                            Layout.preferredWidth: 160
-                            Layout.preferredHeight: 30
-                            stepCount: 5
-                            stepLabels: ["subtle", "low", "medium", "high", "extreme"]
-                            currentStep: {
-                                const vals = [0.06, 0.12, 0.2, 0.32, 0.5]
-                                const cur = SettingsConfig.parallax?.strength ?? 0.2
-                                let best = 0
-                                for (var i = 1; i < vals.length; i++)
-                                    if (Math.abs(vals[i] - cur) < Math.abs(vals[best] - cur)) best = i
-                                return best
-                            }
-                            onStepChanged: step => {
-                                const vals = [0.06, 0.12, 0.2, 0.32, 0.5]
-                                SettingsConfig.parallax = Object.assign({}, SettingsConfig.parallax, { strength: vals[step] })
-                            }
-                        }
-                    }
-                }
-
-                CustomCard {
-                    autoRadius: false; topRadius: 5; bottomRadius: 5
-                    visible: SettingsConfig.parallax?.enabled ?? true
-                    RowLayout {
-                        Layout.fillWidth: true
-                        ColumnLayout {
-                            spacing: 2
-                            CustomText { content: "Quality"; size: 14 }
-                            CustomText { content: "Ray march steps — higher is sharper but costs more GPU"; size: 12; customColor: Colors.outline }
-                        }
-                        Item { Layout.fillWidth: true }
-                        M3Slider {
-                            Layout.preferredWidth: 160
-                            Layout.preferredHeight: 30
-                            stepCount: 3
-                            stepLabels: ["low", "medium", "high"]
-                            currentStep: {
-                                const vals = [0.15, 0.3, 0.6]
-                                const cur = SettingsConfig.parallax?.quality ?? 0.3
-                                let best = 0
-                                for (var i = 1; i < vals.length; i++)
-                                    if (Math.abs(vals[i] - cur) < Math.abs(vals[best] - cur)) best = i
-                                return best
-                            }
-                            onStepChanged: step => {
-                                const vals = [0.15, 0.3, 0.6]
-                                SettingsConfig.parallax = Object.assign({}, SettingsConfig.parallax, { quality: vals[step] })
-                            }
-                        }
-                    }
-                }
-
-                CustomCard {
-                    autoRadius: false; topRadius: 5; bottomRadius: 20
-                    visible: SettingsConfig.parallax?.enabled ?? true
-                    RowLayout {
-                        Layout.fillWidth: true
-                        ColumnLayout {
-                            spacing: 2
-                            CustomText { content: "Depth Map"; size: 14 }
+                            CustomText { content: "Use palette for the shell"; size: 14 }
                             CustomText {
-                                content: ServiceWallpaper.depthBusy
-                                    ? "Generating for the current wallpaper…"
-                                    : (ServiceWallpaper.depthMapPath !== ""
-                                        ? "Ready for the current wallpaper"
-                                        : "Not generated — needs python-onnxruntime-cpu")
                                 size: 12
                                 customColor: Colors.outline
+                                content: {
+                                    if (gowallGroup.palette === "match")
+                                        return "match already is the shell's palette"
+                                    if (gowallGroup.shellOn)
+                                        return "Interface colors come from " + gowallGroup.palette + ", not the wallpaper"
+                                    return "Colors the interface from the palette instead of the wallpaper"
+                                }
                             }
                         }
                         Item { Layout.fillWidth: true }
-                        M3IconButton {
-                            implicitHeight: 32; implicitWidth: 40
-                            icon: "refresh"; iconSize: 18
-                            enabled: !ServiceWallpaper.depthBusy
-                            opacity: enabled ? 1 : 0.4
-                            onClicked: ServiceWallpaper.ensureDepthMap(true)
+                        CustomToogle {
+                            isToggleOn: gowallGroup.shellOn
+                            onToggled: state => {
+                                SettingsConfig.theme = Object.assign({}, SettingsConfig.theme, { gowallShell: state })
+                                ServiceWallpaper.reapply()
+                            }
+                        }
+                    }
+                }
+
+                // Icons — only meaningful once a palette is chosen, so it stays
+                // out of the way until then.
+                CustomCard {
+                    autoRadius: false; topRadius: 5; bottomRadius: 20
+                    visible: gowallGroup.on
+
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        spacing: 8
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            ColumnLayout {
+                                spacing: 2
+                                CustomText { content: "Recolor icons"; size: 14 }
+                                CustomText {
+                                    size: 12
+                                    customColor: Colors.outline
+                                    content: {
+                                        if (ServiceWallpaper.iconBusy)
+                                            return ServiceWallpaper.iconStatus
+                                        if (!gowallGroup.iconsOn)
+                                            return "Rebuild your icon theme in this palette (takes ~10s)"
+                                        if (ServiceWallpaper.iconThemeName.length > 0)
+                                            return "Using " + ServiceWallpaper.iconThemeName
+                                        return "Icon theme follows the palette"
+                                    }
+                                }
+                            }
+                            Item { Layout.fillWidth: true }
+                            CustomToogle {
+                                isToggleOn: gowallGroup.iconsOn
+                                onToggled: state => {
+                                    SettingsConfig.theme = Object.assign({}, SettingsConfig.theme, { gowallIcons: state })
+                                    if (state) ServiceWallpaper.buildGowallIcons(false)
+                                    else ServiceWallpaper.restoreIconTheme()
+                                }
+                            }
+                        }
+
+                        // Before / after on real icons from the theme in use.
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            Layout.topMargin: 2
+                            spacing: 6
+                            visible: ServiceWallpaper.iconPreview.length > 0
+
+                            Repeater {
+                                model: [
+                                    { label: "Original", key: "before" },
+                                    { label: gowallGroup.palette, key: "after" }
+                                ]
+
+                                RowLayout {
+                                    id: previewRow
+                                    required property var modelData
+                                    Layout.fillWidth: true
+                                    spacing: 8
+
+                                    CustomText {
+                                        Layout.preferredWidth: 64
+                                        content: previewRow.modelData.label
+                                        size: 11
+                                        customColor: Colors.outline
+                                        elide: Text.ElideRight
+                                    }
+
+                                    Repeater {
+                                        model: ServiceWallpaper.iconPreview
+
+                                        Image {
+                                            required property var modelData
+                                            Layout.preferredWidth: 34
+                                            Layout.preferredHeight: 34
+                                            source: "file://" + modelData[previewRow.modelData.key]
+                                            sourceSize: Qt.size(68, 68)
+                                            asynchronous: true
+                                            smooth: true
+                                            fillMode: Image.PreserveAspectFit
+                                        }
+                                    }
+
+                                    Item { Layout.fillWidth: true }
+                                }
+                            }
+                        }
+
+                        M3WavyProgressBar {
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: 12
+                            visible: ServiceWallpaper.iconBusy
+                            progress: ServiceWallpaper.iconProgress
+                            indeterminate: ServiceWallpaper.iconProgress <= 0
                         }
                     }
                 }
             }
+
+
 
             // ── Wallhaven ─────────────────────────────────────────────────
             CustomText { Layout.topMargin: 16; content: "Wallhaven"; size: 13; customColor: Colors.primary }

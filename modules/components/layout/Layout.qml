@@ -13,11 +13,12 @@ import qs.modules.components.ToolsWidget
 import qs.modules.components.Setting
 import qs.modules.components.Clipboard
 import qs.modules.components.Notification
-import qs.modules.components.Dock
 import qs.modules.components.Osd
 import qs.modules.components.Widgets
 import qs.modules.services
 import qs.modules.customComponents
+import "../Bar/BarPath.js" as BarPath
+import "../Bar/BarOps.js" as BarOps
 
 PanelWindow{
     id: layout
@@ -29,41 +30,253 @@ PanelWindow{
         bottom: true
     }
 
-    // true = full bar; false = secondary monitor minimal bar
     property bool isPrimary: true
 
+    readonly property bool barEditing: GlobalStates.barEditMode && isPrimary
+    readonly property bool launcherPreview: layout.barEditing && barEditor.selectedItem === "launcher"
+    readonly property string panelPreview: {
+        const k = layout.barEditing ? BarLayout.panelFor(barEditor.selectedItem) : ""
+        return k === "launcher" ? "" : k
+    }
+    readonly property bool dashPreview: layout.panelPreview !== ""
+    readonly property bool anyPreview: layout.launcherPreview || layout.dashPreview
+    readonly property string dashAnchor: {
+        const opener = layout.panelPreview === "dashboard" ? "dashboard"
+            : barEditor.selectedItem.indexOf("dash:") === 0 ? "dashboard" : barEditor.selectedItem
+        const b = BarLayout.allBlocks.find(x => x.items.indexOf(opener) >= 0)
+        return b ? b.anchor : "right"
+    }
+    readonly property bool previewRight: layout.dashPreview
+        ? layout.dashAnchor !== "left"
+        : ServiceLauncher.position === "item"
+          && BarLayout.allBlocks.some(b => b.anchor === "right" && b.items.indexOf("launcher") >= 0)
+    readonly property real popupY: topSurface.rowItem.y + Appearance.size.barHeight + (topSurface.barMode === "pill" ? 8 : 4)
+
     WlrLayershell.namespace: "quickshell:bar"
-    WlrLayershell.keyboardFocus: isPrimary && (utility.isTodoClicked || workspaces.active)
-                                 ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
+    WlrLayershell.keyboardFocus: layout.barEditing ? WlrKeyboardFocus.Exclusive
+                               : isPrimary && (GlobalStates.clipboardOpen || GlobalStates.wallpaperOpen
+                                               || GlobalStates.fileDropOpen
+                                               || GlobalStates.powerPanelOpen
+                                               || GlobalStates.dockSearchActive
+                                               || (GlobalStates.appLauncherOpen && GlobalStates.launcherHosted)) ? WlrKeyboardFocus.OnDemand
+                                                             : WlrKeyboardFocus.None
+
+    onBarEditingChanged: {
+        topSurface.floatKind = ""
+        barEditor.cancel()
+        barEditor.selectedItem = ""
+        if (layout.barEditing) drawerHost.open()
+        else drawerHost.close()
+    }
+
+    Binding {
+        target: GlobalStates
+        property: "launcherPreview"
+        value: true
+        when: layout.isPrimary && layout.launcherPreview
+    }
+
+    Binding {
+        target: GlobalStates
+        property: "previewInsetRight"
+        value: drawerHost.width + 48
+        when: layout.isPrimary && layout.launcherPreview && !layout.previewRight
+    }
+
+    Binding {
+        target: GlobalStates
+        property: "previewInsetLeft"
+        value: drawerHost.width + 48
+        when: layout.isPrimary && layout.launcherPreview && layout.previewRight
+    }
+
+    Binding {
+        target: GlobalStates
+        property: "panelPreview"
+        value: layout.panelPreview
+        when: layout.isPrimary && layout.dashPreview
+    }
+
+    HyprlandFocusGrab {
+        windows: [layout]
+        active: layout.isPrimary && GlobalStates.appLauncherOpen && GlobalStates.launcherHosted
+        onCleared: if (!active) GlobalStates.appLauncherOpen = false
+    }
 
     mask: Region{
         item: maskRect;
         intersection: Intersection.Xor;
 
-        // Primary bar clickable regions (zeroed out on secondary monitors)
-        Region{
-            x: sectionsRow.x + workspaces.x;
-            y: sectionsRow.y + workspaces.y;
-            width:  isPrimary ? workspaces.width  : 0
-            height: isPrimary ? workspaces.height : 0
+        Region {
+            readonly property Item blk: topSurface.visibleBlocks[0] ?? null
+            x: blk ? topSurface.rowItem.x + blk.parent.x + blk.x : 0
+            y: blk ? topSurface.rowItem.y + blk.y : 0
+            width:  blk && isPrimary ? blk.width  : 0
+            height: blk && isPrimary ? blk.height : 0
             intersection: Intersection.Subtract
         }
-        Region{
-            x: sectionsRow.x + utility.x
-            y: sectionsRow.y + utility.y
-            width:  isPrimary ? utility.container.width  : 0
-            height: isPrimary ? utility.container.height : 0
+        Region {
+            readonly property Item blk: topSurface.visibleBlocks[1] ?? null
+            x: blk ? topSurface.rowItem.x + blk.parent.x + blk.x : 0
+            y: blk ? topSurface.rowItem.y + blk.y : 0
+            width:  blk && isPrimary ? blk.width  : 0
+            height: blk && isPrimary ? blk.height : 0
             intersection: Intersection.Subtract
         }
-        Region{
-            x: sectionsRow.x + clock.x
-            y: sectionsRow.y + clock.y
-            width:  isPrimary ? clock.width  : 0
-            height: isPrimary ? clock.height : 0
+        Region {
+            readonly property Item blk: topSurface.visibleBlocks[2] ?? null
+            x: blk ? topSurface.rowItem.x + blk.parent.x + blk.x : 0
+            y: blk ? topSurface.rowItem.y + blk.y : 0
+            width:  blk && isPrimary ? blk.width  : 0
+            height: blk && isPrimary ? blk.height : 0
+            intersection: Intersection.Subtract
+        }
+        Region {
+            readonly property Item blk: topSurface.visibleBlocks[3] ?? null
+            x: blk ? topSurface.rowItem.x + blk.parent.x + blk.x : 0
+            y: blk ? topSurface.rowItem.y + blk.y : 0
+            width:  blk && isPrimary ? blk.width  : 0
+            height: blk && isPrimary ? blk.height : 0
+            intersection: Intersection.Subtract
+        }
+        Region {
+            readonly property Item blk: topSurface.visibleBlocks[4] ?? null
+            x: blk ? topSurface.rowItem.x + blk.parent.x + blk.x : 0
+            y: blk ? topSurface.rowItem.y + blk.y : 0
+            width:  blk && isPrimary ? blk.width  : 0
+            height: blk && isPrimary ? blk.height : 0
+            intersection: Intersection.Subtract
+        }
+        Region {
+            readonly property Item blk: topSurface.visibleBlocks[5] ?? null
+            x: blk ? topSurface.rowItem.x + blk.parent.x + blk.x : 0
+            y: blk ? topSurface.rowItem.y + blk.y : 0
+            width:  blk && isPrimary ? blk.width  : 0
+            height: blk && isPrimary ? blk.height : 0
+            intersection: Intersection.Subtract
+        }
+        Region {
+            readonly property Item blk: topSurface.visibleBlocks[6] ?? null
+            x: blk ? topSurface.rowItem.x + blk.parent.x + blk.x : 0
+            y: blk ? topSurface.rowItem.y + blk.y : 0
+            width:  blk && isPrimary ? blk.width  : 0
+            height: blk && isPrimary ? blk.height : 0
+            intersection: Intersection.Subtract
+        }
+        Region {
+            readonly property Item blk: topSurface.visibleBlocks[7] ?? null
+            x: blk ? topSurface.rowItem.x + blk.parent.x + blk.x : 0
+            y: blk ? topSurface.rowItem.y + blk.y : 0
+            width:  blk && isPrimary ? blk.width  : 0
+            height: blk && isPrimary ? blk.height : 0
             intersection: Intersection.Subtract
         }
 
-        // Secondary bar strip (full-width top strip on secondary monitors)
+        Region {
+            readonly property Item tb: topSurface.openTabs[0] ?? null
+            x: tb ? topSurface.rowItem.x + tb.parent.x + tb.x + tb.tabX : 0
+            y: tb ? topSurface.rowItem.y : 0
+            width:  tb && isPrimary ? tb.tabW : 0
+            height: tb && isPrimary ? tb.tabH : 0
+            intersection: Intersection.Subtract
+        }
+        Region {
+            readonly property Item tb: topSurface.openTabs[1] ?? null
+            x: tb ? topSurface.rowItem.x + tb.parent.x + tb.x + tb.tabX : 0
+            y: tb ? topSurface.rowItem.y : 0
+            width:  tb && isPrimary ? tb.tabW : 0
+            height: tb && isPrimary ? tb.tabH : 0
+            intersection: Intersection.Subtract
+        }
+        Region {
+            readonly property Item tb: topSurface.openTabs[2] ?? null
+            x: tb ? topSurface.rowItem.x + tb.parent.x + tb.x + tb.tabX : 0
+            y: tb ? topSurface.rowItem.y : 0
+            width:  tb && isPrimary ? tb.tabW : 0
+            height: tb && isPrimary ? tb.tabH : 0
+            intersection: Intersection.Subtract
+        }
+        Region {
+            readonly property Item tb: topSurface.openTabs[3] ?? null
+            x: tb ? topSurface.rowItem.x + tb.parent.x + tb.x + tb.tabX : 0
+            y: tb ? topSurface.rowItem.y : 0
+            width:  tb && isPrimary ? tb.tabW : 0
+            height: tb && isPrimary ? tb.tabH : 0
+            intersection: Intersection.Subtract
+        }
+
+        Region {
+            readonly property Item blk: bottomSurface.visible ? (bottomSurface.visibleBlocks[0] ?? null) : null
+            x: blk ? bottomSurface.rowItem.x + blk.parent.x + blk.x : 0
+            y: blk ? (bottomSurface.dockHidden ? layout.height - 8 : bottomSurface.rowItem.y + blk.parent.y + blk.y) : 0
+            width:  blk ? blk.width  : 0
+            height: blk ? (bottomSurface.dockHidden ? 8 : blk.height) : 0
+            intersection: Intersection.Subtract
+        }
+        Region {
+            readonly property Item blk: bottomSurface.visible ? (bottomSurface.visibleBlocks[1] ?? null) : null
+            x: blk ? bottomSurface.rowItem.x + blk.parent.x + blk.x : 0
+            y: blk ? (bottomSurface.dockHidden ? layout.height - 8 : bottomSurface.rowItem.y + blk.parent.y + blk.y) : 0
+            width:  blk ? blk.width  : 0
+            height: blk ? (bottomSurface.dockHidden ? 8 : blk.height) : 0
+            intersection: Intersection.Subtract
+        }
+        Region {
+            readonly property Item blk: bottomSurface.visible ? (bottomSurface.visibleBlocks[2] ?? null) : null
+            x: blk ? bottomSurface.rowItem.x + blk.parent.x + blk.x : 0
+            y: blk ? (bottomSurface.dockHidden ? layout.height - 8 : bottomSurface.rowItem.y + blk.parent.y + blk.y) : 0
+            width:  blk ? blk.width  : 0
+            height: blk ? (bottomSurface.dockHidden ? 8 : blk.height) : 0
+            intersection: Intersection.Subtract
+        }
+        Region {
+            readonly property Item blk: bottomSurface.visible ? (bottomSurface.visibleBlocks[3] ?? null) : null
+            x: blk ? bottomSurface.rowItem.x + blk.parent.x + blk.x : 0
+            y: blk ? (bottomSurface.dockHidden ? layout.height - 8 : bottomSurface.rowItem.y + blk.parent.y + blk.y) : 0
+            width:  blk ? blk.width  : 0
+            height: blk ? (bottomSurface.dockHidden ? 8 : blk.height) : 0
+            intersection: Intersection.Subtract
+        }
+        Region {
+            readonly property Item blk: bottomSurface.visible ? (bottomSurface.visibleBlocks[4] ?? null) : null
+            x: blk ? bottomSurface.rowItem.x + blk.parent.x + blk.x : 0
+            y: blk ? (bottomSurface.dockHidden ? layout.height - 8 : bottomSurface.rowItem.y + blk.parent.y + blk.y) : 0
+            width:  blk ? blk.width  : 0
+            height: blk ? (bottomSurface.dockHidden ? 8 : blk.height) : 0
+            intersection: Intersection.Subtract
+        }
+        Region {
+            readonly property Item blk: bottomSurface.visible ? (bottomSurface.visibleBlocks[5] ?? null) : null
+            x: blk ? bottomSurface.rowItem.x + blk.parent.x + blk.x : 0
+            y: blk ? (bottomSurface.dockHidden ? layout.height - 8 : bottomSurface.rowItem.y + blk.parent.y + blk.y) : 0
+            width:  blk ? blk.width  : 0
+            height: blk ? (bottomSurface.dockHidden ? 8 : blk.height) : 0
+            intersection: Intersection.Subtract
+        }
+        Region {
+            readonly property Item tb: bottomSurface.visible ? (bottomSurface.openTabs[0] ?? null) : null
+            x: tb ? bottomSurface.rowItem.x + tb.parent.x + tb.x + tb.tabX : 0
+            y: tb ? bottomSurface.rowItem.y + tb.parent.y + tb.y + tb.barH - tb.tabH : 0
+            width:  tb ? tb.tabW : 0
+            height: tb ? tb.tabH : 0
+            intersection: Intersection.Subtract
+        }
+        Region {
+            readonly property Item tb: bottomSurface.visible ? (bottomSurface.openTabs[1] ?? null) : null
+            x: tb ? bottomSurface.rowItem.x + tb.parent.x + tb.x + tb.tabX : 0
+            y: tb ? bottomSurface.rowItem.y + tb.parent.y + tb.y + tb.barH - tb.tabH : 0
+            width:  tb ? tb.tabW : 0
+            height: tb ? tb.tabH : 0
+            intersection: Intersection.Subtract
+        }
+
+        Region {
+            x: 0; y: 0
+            width:  layout.barEditing ? layout.width  : 0
+            height: layout.barEditing ? layout.height : 0
+            intersection: Intersection.Subtract
+        }
+
         Region{
             x: 0; y: 0
             width:  isPrimary ? 0 : layout.width
@@ -71,26 +284,32 @@ PanelWindow{
             intersection: Intersection.Subtract
         }
 
-        // Pill floating panels (dashboard / weather)
         Region {
-            x:      pillDashPanel.x
-            y:      pillDashPanel.y
-            width:  pillDashPanel.visible ? pillDashPanel.width  : 0
-            height: pillDashPanel.visible ? pillDashPanel.height : 0
+            x:      topSurface.dashCard.x
+            y:      topSurface.dashCard.y
+            width:  topSurface.dashCard.visible ? topSurface.dashCard.width  : 0
+            height: topSurface.dashCard.visible ? topSurface.dashCard.height : 0
             intersection: Intersection.Subtract
         }
         Region {
-            x:      pillWeatherPanel.x
-            y:      pillWeatherPanel.y
-            width:  pillWeatherPanel.visible ? pillWeatherPanel.width  : 0
-            height: pillWeatherPanel.visible ? pillWeatherPanel.height : 0
+            x:      topSurface.weatherCard.x
+            y:      topSurface.weatherCard.y
+            width:  topSurface.weatherCard.visible ? topSurface.weatherCard.width  : 0
+            height: topSurface.weatherCard.visible ? topSurface.weatherCard.height : 0
             intersection: Intersection.Subtract
         }
         Region {
-            x:      pillVpnPanel.x
-            y:      pillVpnPanel.y
-            width:  pillVpnPanel.visible ? pillVpnPanel.width  : 0
-            height: pillVpnPanel.visible ? pillVpnPanel.height : 0
+            x:      bottomSurface.dashCard.x
+            y:      bottomSurface.dashCard.y
+            width:  bottomSurface.dashCard.visible ? bottomSurface.dashCard.width  : 0
+            height: bottomSurface.dashCard.visible ? bottomSurface.dashCard.height : 0
+            intersection: Intersection.Subtract
+        }
+        Region {
+            x:      bottomSurface.weatherCard.x
+            y:      bottomSurface.weatherCard.y
+            width:  bottomSurface.weatherCard.visible ? bottomSurface.weatherCard.width  : 0
+            height: bottomSurface.weatherCard.visible ? bottomSurface.weatherCard.height : 0
             intersection: Intersection.Subtract
         }
 
@@ -110,7 +329,6 @@ PanelWindow{
         color: "transparent"
     }
 
-    // ── Secondary bar (shown on non-primary monitors) ──────────────────────
     SecondaryBar {
         visible: !isPrimary
     }
@@ -119,409 +337,338 @@ PanelWindow{
         id: root
         anchors.fill: parent
         visible: isPrimary
-        property real disX: 18
-        property real disY: 18
-        property real radX: 18
-        property real radY: 18
-        property real lineDis: 4
-        property real clockHeight: 0
-        property real clockWidth: clock.width
-        property real workspaceWidth: 100
-        property real utilityWidth: 100
-        property string barMode: SettingsConfig.general.barMode
-                                  ?? (SettingsConfig.general.flatBarMode === false ? "stepped" : "flat")
-        property real pillMargin:      SettingsConfig.general.pillMargin      ?? 6
-        property real pillLeftMargin:  SettingsConfig.general.pillLeftMargin  ?? 6
-        property real pillRightMargin: SettingsConfig.general.pillRightMargin ?? 6
 
-        // ── Flat bar path ───────────────────────────────────────────────────────
-        // Truly flat bar (no stepped bridges). Sections expand downward when open:
-        //   • clock expands when calendar is open (cH > wH)
-        //   • utility expands when dashboard/panel is open (uH > wH)
-        function buildFlatBarPath(dX, dY, rX, rY,
-                                  wH, wW, showArc, wpH, atBottom,
-                                  cX, cW, cH,
-                                  uX, uW, uH, uAtBottom) {
-            function A(sw, ex, ey) { return `A ${rX} ${rY} 0 0 ${sw} ${ex} ${ey} ` }
-            function L(x,  y)      { return `L ${x} ${y} ` }
-            const CW = 1, CCW = 0
-
-            const wBlockH = showArc ? wpH : wH
-
-            let p  = `M 0 ${wBlockH + dY} `
-            p += A(CW, dX, wBlockH)   // screen-edge flare, same at every height
-            if (showArc) {
-                // Landed on the screen bottom: the edge overshoots and flares back
-                // up so the block merges into it, mirroring the dashboard's
-                // corner on the utility side. Still growing: a plain rounded corner.
-                p += atBottom ? L(wW + dX, wpH) : L(wW - dX, wpH)
-                p += atBottom ? A(CW,  wW, wpH - dY)
-                              : A(CCW, wW, wpH - dY)
-                p += L(wW,           wH + dY)
-                p += A(CW,  wW + dX, wH)
-            }
-
-            // Clock section — expand downward if calendar is open, else flat
-            if (cH > wH + 2 * dY) {
-                p += L(cX - dX, wH)
-                p += A(CW,  cX,            wH + dY)   // outer corner going down
-                p += L(cX,                 cH - dY)   // clock left wall
-                p += A(CCW, cX + dX,       cH)        // clock BL corner
-                p += L(cX + cW - dX,       cH)        // clock bottom
-                p += A(CCW, cX + cW,       cH - dY)   // clock BR corner
-                p += L(cX + cW,            wH + dY)   // clock right wall (up)
-                p += A(CW,  cX + cW + dX,  wH)        // outer corner back to flat
-            }
-            // else: bar is flat through the clock area — no scallop
-
-            // Utility section — expand downward if dashboard/panel is open
-            if (uH > wH + 2 * dY) {
-                p += L(uX - dX, wH)
-                p += A(CW,  uX,      wH + dY)   // outer corner going down
-                p += L(uX,           uH - dY)   // utility left wall
-                p += uAtBottom ? A(CW,  uX - dX, uH)   // merges into the screen bottom
-                               : A(CCW, uX + dX, uH)   // still growing
-                p += L(uX + uW - dX, uH)
-                p += A(CW,  uX + uW, uH + dY)
-            } else {
-                p += L(uX + uW - dX, wH)
-                p += A(CW,  uX + uW, wH + dY)
-            }
-
-            p += L(uX + uW, 0)
-            p += L(0, 0)
-            p += L(0, wBlockH + dY)
-            return p
+        function inDrawerAt(x, y) {
+            return drawerHost.visible
+                && x >= drawerHost.x && x <= drawerHost.x + drawerHost.width
+                && y >= drawerHost.y && y <= drawerHost.y + drawerHost.height
         }
 
-        // ── Stepped bar path ────────────────────────────────────────────────────
-        // Builds the bar SVG path. Transition arcs between sections use (disY - lineDis)
-        // as their vertical offset. When lineDis == disY the offset is 0 and those arcs
-        // would bulge as semicircles; this function emits a straight L segment instead.
-        function buildBarPath(dX, dY, rX, rY, lD,
-                              wH, wW, showArc, wpH, atBottom,
-                              cX, cW, cH,
-                              uX, uW, uH, uAtBottom) {
-            const eD = dY - lD  // effectiveDis: 0 = flat bar, dY = maximum step
-
-            function A(sw, ex, ey) { return `A ${rX} ${rY} 0 0 ${sw} ${ex} ${ey} ` }
-            function L(x,  y)      { return `L ${x} ${y} ` }
-            // Transition: flat line when eD ≈ 0, proper arc otherwise
-            function T(sw, ex, ey) { return eD < 0.1 ? L(ex, ey) : A(sw, ex, ey) }
-            const CW = 1, CCW = 0
-
-            const wBlockH = showArc ? wpH : wH
-
-            const needGap = 2 * dX + 24
-            const mergeWC = (cX - wW) < needGap
-            const mergeCU = (uX - (cX + cW)) < needGap
-
-            function stepDown(atX, fromH, toH) {
-                return L(atX - dX, fromH) + A(CW, atX, fromH + dY)
-                     + L(atX, toH - dY) + A(CCW, atX + dX, toH)
+        function surfaceAt(y) {
+            if (bottomSurface.visible && BarLayout.dockOn) {
+                const bandTop = bottomSurface.rowItem.y + bottomSurface.rowItem.height - bottomSurface.barH - 40
+                if (y >= bandTop)
+                    return bottomSurface
             }
-            function stepUp(atX, fromH, toH) {
-                return A(CCW, atX, fromH - dY) + L(atX, toH + dY) + A(CW, atX + dX, toH)
-            }
-
-            let p = `M 0 ${wBlockH + dY} `
-            // bottom-left corner — screen-edge flare, same at every height
-            p += A(CW, dX, wBlockH)
-
-            if (mergeWC) {
-                if (cH - wBlockH >= 2 * dY)
-                    p += stepDown(cX, wBlockH, cH)
-                else if (wBlockH - cH >= 2 * dY)
-                    p += stepUp(wW, wBlockH, cH)
-            } else {
-                // workspaces bottom edge + right-bottom corner. Only flares once the
-                // block has landed on the screen bottom, so the curve opens into the
-                // edge instead of hanging in mid-air while it grows.
-                p += atBottom ? L(wW + dX, wBlockH) : L(wW - dX, wBlockH)
-                p += atBottom ? A(CW,  wW, wBlockH - dY)
-                              : A(CCW, wW, wBlockH - dY)
-                // workspaces right wall up to transition point
-                p += L(wW, dY)
-                // ── TRANSITION: workspace → bridge
-                p += T(CW, wW + dX, lD)
-                // bridge across to clock
-                p += L(cX - dX, lD)
-                // ── TRANSITION: bridge → clock left
-                p += T(CW, cX, dY)
-                // clock left wall + bottom-left corner
-                p += L(cX, cH - dY)
-                p += A(CCW, cX + dX, cH)
-            }
-
-            // clock bottom edge
-            p += L(cX + cW - dX, cH)
-
-            if (mergeCU) {
-                if (uH - cH >= 2 * dY)
-                    p += stepDown(uX, cH, uH)
-                else if (cH - uH >= 2 * dY)
-                    p += stepUp(cX + cW, cH, uH)
-            } else {
-                p += A(CCW, cX + cW, cH - dY)
-                p += L(cX + cW, dY)
-                // ── TRANSITION: clock → bridge
-                p += T(CW, cX + cW + dX, lD)
-                // bridge across to utility
-                p += L(uX - dX, lD)
-                // ── TRANSITION: bridge → utility left
-                p += T(CW, uX, dY)
-                // utility left wall + bottom-left corner
-                p += L(uX, uH - dY)
-                p += uAtBottom ? A(CW,  uX - dX, uH)   // merges into the screen bottom
-                               : A(CCW, uX + dX, uH)   // still growing
-            }
-            p += L(uX + uW - dX, uH)
-            p += A(CW, uX + uW, uH + dY)
-            // utility right wall up, top edge, left wall back to start
-            p += L(uX + uW, 0)
-            p += L(0, 0)
-            p += L(0, wBlockH + dY)
-            return p
+            if (y <= topSurface.rowItem.y + topSurface.barH + 36)
+                return topSurface
+            return null
         }
 
-        // ── Pill bar path ────────────────────────────────────────────────────
-        // Single floating pill — same structure as buildFlatBarPath but:
-        //   • all y coords offset by margin (so the bar floats)
-        //   • left/right ends use full pill caps (capR = wH/2) instead of rX corners
-        // Clock/utility expansion works identically to flat mode.
-        // xOff = sectionsRow.x — all section x coords are relative to sectionsRow,
-        // but the Shape is drawn in root space, so every x needs this offset.
-        function buildPillBarPath(dX, dY, rX, rY, margin, xOff,
-                                  wH, wW, showArc, wpH,
-                                  cX, cW, cH,
-                                  uX, uW, uH, uAtBottom) {
-            function A(sw, ex, ey) { return `A ${rX} ${rY} 0 0 ${sw} ${ex} ${ey} ` }
-            function L(x,  y)      { return `L ${x} ${y} ` }
-            const CW = 1, CCW = 0
-            const capR = wH / 2
-            // All section x values are in sectionsRow-space; shift to root space
-            cX += xOff;  uX += xOff
-            const right = uX + uW
-
-            let p = `M ${xOff + capR} ${margin + (showArc ? wpH : wH)} `
-
-            if (showArc) {
-                p += L(xOff + wW - dX,      margin + wpH)
-                p += A(CCW, xOff + wW,      margin + wpH - dY)
-                p += L(xOff + wW,           margin + wH + dY)
-                p += A(CW,  xOff + wW + dX, margin + wH)
+        function trackApp(x, y) {
+            barEditor.overDrawer = root.inDrawerAt(x, y)
+            const host = bottomSurface.visibleBlocks.find(b => b.hasItem("dockApps"))
+            const g = host ? host.appGeom() : null
+            if (barEditor.overDrawer || !g || root.surfaceAt(y) !== bottomSurface
+                    || x < g.x - 30 || x > g.x + g.w + 30) {
+                barEditor.appDropIndex = -1
+                return
             }
-
-            if (cH > wH + 2 * dY) {
-                p += L(cX - dX,            margin + wH)
-                p += A(CW,  cX,            margin + wH + dY)
-                p += L(cX,                 margin + cH - dY)
-                p += A(CCW, cX + dX,       margin + cH)
-                p += L(cX + cW - dX,       margin + cH)
-                p += A(CCW, cX + cW,       margin + cH - dY)
-                p += L(cX + cW,            margin + wH + dY)
-                p += A(CW,  cX + cW + dX,  margin + wH)
-            }
-
-            if (uH > wH + 2 * dY) {
-                p += L(uX - dX, margin + wH)
-                p += A(CW,  uX, margin + wH + dY)
-                p += L(uX,  margin + uH - dY)
-                p += uAtBottom ? A(CW,  uX - dX, margin + uH)
-                               : A(CCW, uX + dX, margin + uH)
-                p += L(right - dX, margin + uH)
-                p += A(CW, right, margin + uH + dY)
-                p += L(right, margin + capR)
-            } else {
-                p += L(right - capR, margin + wH)
-            }
-
-            // Right pill cap — CCW sweep (bottom→rightmost→top, bulges outward)
-            p += `A ${capR} ${capR} 0 0 0 ${right - capR} ${margin} `
-
-            if (showArc) {
-                p += L(xOff + dX, margin)
-                p += A(CCW, xOff,      margin + dY)
-                p += L(xOff,           margin + wpH - dY)
-                p += A(CCW, xOff + dX, margin + wpH)
-                p += L(xOff + capR,    margin + wpH)
-            } else {
-                // Top edge right-to-left
-                p += L(xOff + capR, margin)
-                // Left pill cap — CCW sweep (top→leftmost→bottom, bulges outward)
-                p += `A ${capR} ${capR} 0 0 0 ${xOff + capR} ${margin + wH} `
-            }
-            p += `Z `
-            return p
+            barEditor.appDropIndex = BarOps.appDropIndex(g.apps, barEditor.appId, x)
         }
 
-        Shape{
-            preferredRendererType: Shape.CurveRenderer
-            ShapePath{
-                strokeWidth: 0
-                strokeColor: "transparent"
-                fillColor: Colors.surface
-                PathSvg {
-                    path: root.barMode === "pill"
-                        ? root.buildPillBarPath(
-                            root.disX, root.disY, root.radX, root.radY, root.pillMargin, sectionsRow.x,
-                            Appearance.size.barHeight, workspaces.width, workspaces.showArc, workspaces.height,
-                            clock.x, clock.width, clock.height,
-                            utility.x, utility.width, utility.height, utility.atScreenBottom)
-                        : root.barMode === "stepped"
-                            ? root.buildBarPath(
-                                root.disX, root.disY, root.radX, root.radY, root.lineDis,
-                                Appearance.size.barHeight, workspaces.width, workspaces.showArc, workspaces.height, workspaces.atScreenBottom,
-                                clock.x, clock.width, clock.height,
-                                utility.x, utility.width, utility.height, utility.atScreenBottom)
-                            : root.buildFlatBarPath(
-                                root.disX, root.disY, root.radX, root.radY,
-                                Appearance.size.barHeight, workspaces.width, workspaces.showArc, workspaces.height, workspaces.atScreenBottom,
-                                clock.x, clock.width, clock.height,
-                                utility.x, utility.width, utility.height, utility.atScreenBottom)
+        function trackItem(x, y) {
+            const inDrawer = root.inDrawerAt(x, y)
+            barEditor.overDrawer = inDrawer
+            barEditor.refusedTarget = ""
+            const surf = inDrawer ? null : root.surfaceAt(y)
+            if (!surf) {
+                barEditor.dropBlock = ""
+                return
+            }
+            let best = null
+            let bestD = 1e9
+            for (const b of surf.visibleBlocks) {
+                if (b.leaving || b.blockId === "__sys")
+                    continue
+                const bx = surf.rowItem.x + b.parent.x + b.x
+                const d = x < bx ? bx - x : (x > bx + b.width ? x - bx - b.width : 0)
+                if (d < bestD) {
+                    bestD = d
+                    best = b
+                }
+            }
+            if (!best || bestD > 80) {
+                barEditor.dropBlock = ""
+                return
+            }
+            if (!BarLayout.allows(barEditor.itemId, surf.edge)) {
+                barEditor.dropBlock = ""
+                barEditor.refusedTarget = best.blockId
+                return
+            }
+            barEditor.dropBlock = best.blockId
+            barEditor.dropIndex = best.dropIndexAt(x - (surf.rowItem.x + best.parent.x + best.x))
+        }
+
+        function trackBlock(x, y) {
+            const surf = (bottomSurface.visible && BarLayout.dockOn && y > layout.height / 2) ? bottomSurface : topSurface
+            const W = surf.rowItem.width
+            const rel = x - surf.rowItem.x
+            const side = rel < W / 3 ? "left" : (rel > 2 * W / 3 ? "right" : "center")
+            const rep = side === "left" ? surf.leftRepeater : (side === "center" ? surf.centerRepeater : surf.rightRepeater)
+            const group = side === "left" ? surf.leftGroupItem : (side === "center" ? surf.centerGroupItem : surf.rightGroupItem)
+            const others = []
+            for (let i = 0; i < rep.count; i++) {
+                const b = rep.itemAt(i)
+                if (b && b.blockId !== barEditor.fromBlock && b.visible && !b.leaving)
+                    others.push(b)
+            }
+            let idx = 0
+            for (const b of others) {
+                if (surf.rowItem.x + group.x + b.x + b.width / 2 < x)
+                    idx++
+            }
+            let caret
+            if (others.length === 0)
+                caret = side === "left" ? 8 : (side === "right" ? W - 8 : W / 2)
+            else if (idx < others.length)
+                caret = group.x + others[idx].x - surf.groupGap / 2
+            else {
+                const l = others[others.length - 1]
+                caret = group.x + l.x + l.width + surf.groupGap / 2
+            }
+            barEditor.dropAnchor = side
+            barEditor.dropEdge = surf.edge
+            barEditor.dropBlockIndex = idx
+            barEditor.caretX = surf.rowItem.x + Math.max(4, Math.min(W - 4, caret))
+            barEditor.caretY = surf.rowItem.y + group.y + 4
+            barEditor.caretH = surf.barH - 8
+        }
+
+        QtObject {
+            id: barEditor
+
+            property string mode: ""
+            property string itemId: ""
+            property string fromBlock: ""
+            property int fromIndex: -1
+            property real dragW: 0
+            property string label: ""
+            property string icon: ""
+            property real px: 0
+            property real py: 0
+            property string dropBlock: ""
+            property int dropIndex: 0
+            property bool overDrawer: false
+            property string dropAnchor: ""
+            property int dropBlockIndex: 0
+            property real caretX: -1
+            property string selectedItem: ""
+            property string dropEdge: "top"
+            property real caretY: 0
+            property real caretH: 0
+            property string refusedTarget: ""
+            property string appId: ""
+            property bool appPinned: false
+            property int appDropIndex: -1
+
+            function beginItem(id, blockId, idx, w) {
+                const e = BarLayout.entry(id)
+                barEditor.itemId = id
+                barEditor.fromBlock = blockId
+                barEditor.fromIndex = idx
+                barEditor.dragW = w
+                barEditor.label = e ? e.label : id
+                barEditor.icon = e ? e.icon : ""
+                barEditor.dropBlock = blockId
+                barEditor.dropIndex = Math.max(0, idx)
+                barEditor.overDrawer = false
+                barEditor.mode = "item"
+            }
+
+            function beginBlock(blockId) {
+                barEditor.fromBlock = blockId
+                barEditor.label = "Block"
+                barEditor.icon = "drag_indicator"
+                barEditor.dropAnchor = ""
+                barEditor.caretX = -1
+                barEditor.mode = "block"
+            }
+
+            function beginApp(appId, pinned, w) {
+                const e = DesktopEntries.heuristicLookup(appId)
+                barEditor.appId = appId
+                barEditor.appPinned = pinned
+                barEditor.appDropIndex = -1
+                barEditor.fromBlock = ""
+                barEditor.dragW = w
+                barEditor.label = e && e.name ? e.name : appId
+                barEditor.icon = pinned ? "drag_indicator" : "push_pin"
+                barEditor.overDrawer = false
+                barEditor.mode = "app"
+            }
+
+            function update(x, y) {
+                barEditor.px = x
+                barEditor.py = y
+                if (barEditor.mode === "item") root.trackItem(x, y)
+                else if (barEditor.mode === "block") root.trackBlock(x, y)
+                else if (barEditor.mode === "app") root.trackApp(x, y)
+            }
+
+            function finish() {
+                const mode = barEditor.mode
+                const id = barEditor.itemId
+                const from = barEditor.fromBlock
+                const toBlock = barEditor.dropBlock
+                const toIndex = barEditor.dropIndex
+                const hide = barEditor.overDrawer
+                const side = barEditor.dropAnchor
+                const sideIndex = barEditor.dropBlockIndex
+                const edge = barEditor.dropEdge
+                const appId = barEditor.appId
+                const appPinned = barEditor.appPinned
+                const appIndex = barEditor.appDropIndex
+                barEditor.cancel()
+                if (mode === "app") {
+                    if (hide) {
+                        if (appPinned) Qt.callLater(() => ServiceApps.unpinById(appId))
+                    } else if (appIndex >= 0) {
+                        Qt.callLater(() => ServiceApps.movePin(appId, appIndex))
+                    }
+                    return
+                }
+                if (mode === "item") {
+                    if (hide) {
+                        if (id === barEditor.selectedItem) barEditor.selectedItem = ""
+                        if (from !== "") Qt.callLater(() => BarLayout.hideItem(id))
+                    } else if (toBlock !== "") {
+                        Qt.callLater(() => BarLayout.moveItem(id, toBlock, toIndex))
+                    }
+                } else if (mode === "block" && side !== "") {
+                    Qt.callLater(() => BarLayout.moveBlock(from, side, sideIndex, edge))
+                }
+            }
+
+            function cancel() {
+                barEditor.mode = ""
+                barEditor.itemId = ""
+                barEditor.fromBlock = ""
+                barEditor.fromIndex = -1
+                barEditor.dropBlock = ""
+                barEditor.overDrawer = false
+                barEditor.dropAnchor = ""
+                barEditor.caretX = -1
+                barEditor.refusedTarget = ""
+                barEditor.appId = ""
+                barEditor.appPinned = false
+                barEditor.appDropIndex = -1
+            }
+        }
+
+        Binding {
+            target: BarLayout
+            property: "editor"
+            value: barEditor
+            when: layout.isPrimary
+        }
+        Rectangle {
+            anchors.fill: parent
+            z: -1
+            visible: layout.barEditing
+            color: Qt.alpha(Colors.surface, 0.45)
+
+            MouseArea {
+                anchors.fill: parent
+                onClicked: mouse => {
+                    if (barEditor.mode !== "")
+                        return
+                    if (barEditor.selectedItem !== "")
+                        barEditor.selectedItem = ""
+                    else if (mouse.y > topSurface.rowItem.y + Appearance.size.barHeight + 40)
+                        GlobalStates.barEditMode = false
+                }
+            }
+        }
+
+        BarSdf {
+            anchors.fill: parent
+            bar: topSurface
+            dock: bottomSurface
+        }
+
+        BarSurface {
+            id: topSurface
+            isPrimary: layout.isPrimary
+            editor: barEditor
+        }
+
+        BarSurface {
+            id: bottomSurface
+            edge: "bottom"
+            isPrimary: layout.isPrimary
+            editor: barEditor
+            visible: layout.isPrimary && !ServiceGameMode.hideWidgets && BarLayout.dockOn
+        }
+
+        Rectangle {
+            z: 250
+            visible: barEditor.mode === "block" && barEditor.caretX >= 0
+            x: barEditor.caretX - 1.5
+            y: barEditor.caretY
+            width: 3
+            height: barEditor.caretH
+            radius: 1.5
+            color: Colors.primary
+        }
+
+        BarEditDrawer {
+            id: drawerHost
+            z: 220
+            editor: barEditor
+            maxHeight: layout.height * 0.7
+            width: Math.min(640, parent.width - 32)
+            x: !layout.anyPreview ? (parent.width - width) / 2
+                : layout.previewRight ? 24 : parent.width - width - 24
+            y: topSurface.rowItem.y + Appearance.size.barHeight + 48
+            Behavior on x {
+                SpatialAnim { speed: "default" }
+            }
+        }
+
+        Rectangle {
+            id: dragGhost
+            z: 300
+            visible: barEditor.mode !== ""
+            x: barEditor.px - width / 2
+            y: barEditor.py - height / 2
+            width: ghostRow.implicitWidth + 20
+            height: 32
+            radius: 16
+            color: Colors.primaryContainer
+
+            Row {
+                id: ghostRow
+                anchors.centerIn: parent
+                spacing: 6
+
+                MaterialIconSymbol {
+                    anchors.verticalCenter: parent.verticalCenter
+                    content: barEditor.icon
+                    iconSize: 16
+                    customColor: Colors.primaryContainerText
+                }
+                CustomText {
+                    anchors.verticalCenter: parent.verticalCenter
+                    content: barEditor.label
+                    size: 12
+                    weight: 700
+                    customColor: Colors.primaryContainerText
                 }
             }
         }
 
         Item {
-            id: sectionsRow
-            anchors.left:   parent.left
-            anchors.right:  parent.right
-            anchors.top:    parent.top
-            anchors.bottom: parent.bottom
-            anchors.topMargin:   root.barMode === "pill" ? root.pillMargin      : 0
-            anchors.leftMargin:  root.barMode === "pill" ? root.pillLeftMargin  : 0
-            anchors.rightMargin: root.barMode === "pill" ? root.pillRightMargin : 0
-
-            Behavior on anchors.topMargin   { NumberAnimation { duration: Appearance.duration.normal; easing.type: Easing.OutQuad } }
-            Behavior on anchors.leftMargin  { NumberAnimation { duration: Appearance.duration.normal; easing.type: Easing.OutQuad } }
-            Behavior on anchors.rightMargin { NumberAnimation { duration: Appearance.duration.normal; easing.type: Easing.OutQuad } }
-
-            Workspaces{
-                id: workspaces
-                maxWidth: Math.max(1, clock.x - 12)
-            }
-
-            Clock{
-                id: clock
-            }
-
-            Utility{
-                id: utility
+            anchors.fill: parent
+            focus: layout.barEditing
+            Keys.onEscapePressed: {
+                if (barEditor.mode !== "") barEditor.cancel()
+                else if (barEditor.selectedItem !== "") barEditor.selectedItem = ""
+                else GlobalStates.barEditMode = false
             }
         }
 
-        // ── Pill dashboard panel ──────────────────────────────────────────
-        // Floats below the pill bar as an independent rectangle; the pill
-        // SVG shape stays compact because utility never enters dashboard state.
-        Rectangle {
-            id: pillDashPanel
-            visible: isPrimary && root.barMode === "pill" && utility.isClicked
-
-            x:      parent.width - width - root.pillRightMargin
-            y:      root.pillMargin + Appearance.size.barHeight + 8
-            width:  300
-            height: parent.height - y - root.pillMargin - 8
-            radius: 20
-            color:  Colors.surface
-            clip:   true
-
-            opacity: 0
-            property real _slideX: 340
-            transform: Translate { x: pillDashPanel._slideX }
-
-            NumberAnimation on opacity { from: 0; to: 1; duration: 300; easing.type: Easing.OutQuad;  running: pillDashPanel.visible }
-            NumberAnimation on _slideX { from: 340; to: 0; duration: 300; easing.type: Easing.OutCubic; running: pillDashPanel.visible }
-
-            Loader {
-                id: pillDashLoader
-                anchors.fill: parent
-                active:  pillDashPanel.visible
-                visible: false
-                Timer {
-                    interval: 250
-                    running:  pillDashPanel.visible
-                    onTriggered: pillDashLoader.visible = true
-                }
-                sourceComponent: Dashboard {
-                    onToggleDashboard: utility.isClicked = false
-                }
-            }
-        }
-
-        // ── Pill weather panel ────────────────────────────────────────────
-        Rectangle {
-            id: pillWeatherPanel
-            visible: isPrimary && root.barMode === "pill" && utility.isWeatherPanelClicked
-
-            x:      parent.width - width - root.pillRightMargin
-            y:      root.pillMargin + Appearance.size.barHeight + 8
-            width:  Appearance.size.weatherPanelWidth
-            height: parent.height - y - root.pillMargin - 8
-            radius: 20
-            color:  Colors.surface
-            clip:   true
-
-            opacity: 0
-            property real _slideX: Appearance.size.weatherPanelWidth + 20
-            transform: Translate { x: pillWeatherPanel._slideX }
-
-            NumberAnimation on opacity { from: 0; to: 1; duration: 300; easing.type: Easing.OutQuad;   running: pillWeatherPanel.visible }
-            NumberAnimation on _slideX { from: Appearance.size.weatherPanelWidth + 20; to: 0; duration: 300; easing.type: Easing.OutCubic; running: pillWeatherPanel.visible }
-
-            Loader {
-                id: pillWeatherLoader
-                anchors.fill: parent
-                active:  pillWeatherPanel.visible
-                visible: false
-                Timer {
-                    interval: 250
-                    running:  pillWeatherPanel.visible
-                    onTriggered: pillWeatherLoader.visible = true
-                }
-                sourceComponent: WeatherPanel {
-                    compact: true
-                    onClosed: utility.isWeatherPanelClicked = false
-                }
-            }
-        }
-
-        // ── Pill VPN panel ─────────────────────────────────────────────────
-        Rectangle {
-            id: pillVpnPanel
-            visible: isPrimary && root.barMode === "pill" && utility.isVpnPanelClicked
-
-            x:      parent.width - width - root.pillRightMargin
-            y:      root.pillMargin + Appearance.size.barHeight + 8
-            width:  pillVpnLoader.item ? pillVpnLoader.item.implicitWidth  : Appearance.size.vpnPanelWidth
-            height: pillVpnLoader.item ? pillVpnLoader.item.implicitHeight : 0
-            radius: 20
-            color:  Colors.surface
-            clip:   true
-
-            Behavior on height { NumberAnimation { duration: 200; easing.type: Easing.OutQuad } }
-
-            opacity: 0
-            property real _slideX: Appearance.size.vpnPanelWidth + 20
-            transform: Translate { x: pillVpnPanel._slideX }
-
-            NumberAnimation on opacity { from: 0; to: 1; duration: 300; easing.type: Easing.OutQuad;   running: pillVpnPanel.visible }
-            NumberAnimation on _slideX { from: Appearance.size.vpnPanelWidth + 20; to: 0; duration: 300; easing.type: Easing.OutCubic; running: pillVpnPanel.visible }
-
-            Loader {
-                id: pillVpnLoader
-                active:  pillVpnPanel.visible
-                visible: false
-                Timer {
-                    interval: 250
-                    running:  pillVpnPanel.visible
-                    onTriggered: pillVpnLoader.visible = true
-                }
-                sourceComponent: VpnPanel {
-                    onClosed: utility.isVpnPanelClicked = false
-                }
-            }
-        }
     }
 
     property bool isToolsWidgetClicked: false
@@ -532,7 +679,7 @@ PanelWindow{
         name: "toolsWidget"
         onPressed:{
             if(Hyprland.focusedMonitor.name === layout.screen.name){
-                layout.isToolsWidgetClicked = !layout.isToolsWidgetClicked 
+                layout.isToolsWidgetClicked = !layout.isToolsWidgetClicked
             }
         }
     }
@@ -542,6 +689,5 @@ PanelWindow{
         visible: isPrimary
     }
 
-    // Reference ServiceGaps here so the singleton initializes on startup
     readonly property int _topGap: ServiceGaps.topFinal
 }

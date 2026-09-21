@@ -6,137 +6,176 @@ layout(location = 0) out vec4 fragColor;
 layout(std140, binding = 0) uniform buf {
     mat4 qt_Matrix;
     float qt_Opacity;
-    float blurRadius;
+    float cornerRadius;
+    float edgeWidth;
+    float refraction;
+    float aberration;
+    float blurAmount;
+    float specular;
+    float glassAlpha;
+    float bevel;
     float saturation;
-    float brightness;
-    float glassOpacity;
-    vec4 tint;
-    float time;
+    float rimLight;
+    float innerShadow;
+    float useMask;
+    vec2 rectOrigin;
+    vec2 rectSize;
+    vec2 screenSize;
+    vec4 tintColor;
+    vec4 srcCrop;
 };
 
 layout(binding = 1) uniform sampler2D source;
+layout(binding = 2) uniform sampler2D shapeMask;
 
-const float PI = 3.14159265359;
-
-// Optimized Gaussian blur with weighted samples
-vec4 gaussianBlur(sampler2D tex, vec2 uv, float radius) {
-    vec4 color = vec4(0.0);
-    vec2 pixelSize = vec2(0.001) * radius;
-
-    // Gaussian weights for 9 samples (3x3 with optimized pattern)
-    float weights[9] = float[](
-        0.0625, 0.125, 0.0625,
-        0.125,  0.25,  0.125,
-        0.0625, 0.125, 0.0625
-    );
-
-    int idx = 0;
-    for (int x = -1; x <= 1; x++) {
-        for (int y = -1; y <= 1; y++) {
-            vec2 offset = vec2(float(x), float(y)) * pixelSize;
-            color += texture(tex, uv + offset) * weights[idx];
-            idx++;
-        }
-    }
-
-    return color;
+float sdRoundRect(vec2 p, vec2 b, float r) {
+    vec2 q = abs(p) - b + r;
+    return min(max(q.x, q.y), 0.0) + length(max(q, 0.0)) - r;
 }
 
-// Refraction distortion - bends light through the glass
-vec2 applyRefraction(vec2 uv, float strength) {
-    // Distance from center creates refraction effect
-    vec2 center = vec2(0.5);
-    vec2 fromCenter = uv - center;
-    float dist = length(fromCenter);
-
-    // Subtle distortion based on distance and time
-    vec2 distortion = fromCenter * sin(dist * 8.0 - time * 0.3) * strength * 0.015;
-
-    return uv + distortion;
+vec2 screenUV(vec2 px) {
+    return (rectOrigin + px) / screenSize * srcCrop.xy + srcCrop.zw;
 }
 
-// Chromatic dispersion - separates RGB channels at edges (like a prism)
-vec4 chromaticDispersion(sampler2D tex, vec2 uv, float strength) {
-    vec2 center = vec2(0.5);
-    vec2 direction = normalize(uv - center);
-    float dist = length(uv - center);
-
-    // Stronger dispersion at edges
-    float dispersionAmount = dist * strength * 0.003;
-
-    // Sample each color channel with slight offset
-    float r = texture(tex, uv + direction * dispersionAmount).r;
-    float g = texture(tex, uv).g;
-    float b = texture(tex, uv - direction * dispersionAmount).b;
-
-    return vec4(r, g, b, 1.0);
+vec3 tap(vec2 px) {
+    return texture(source, screenUV(px)).rgb;
 }
 
-// Fresnel effect - more reflection at edges, more transparency at center
-float fresnelEffect(vec2 uv) {
-    vec2 center = vec2(0.5);
-    float dist = length(uv - center) * 2.0;  // 0 at center, ~1.4 at corners
+vec3 sampleBlur(vec2 px, float radius) {
+    if (radius < 0.5)
+        return tap(px);
 
-    // Fresnel approximation: F = F0 + (1 - F0) * (1 - cos(θ))^5
-    float fresnel = pow(dist, 2.5);
-    return clamp(fresnel, 0.0, 1.0);
+    float ro = radius;
+    float ri = radius * 0.5;
+
+    vec3 acc = tap(px) * 2.0;
+
+    acc += tap(px + vec2( 0.000,  1.000) * ro);
+    acc += tap(px + vec2( 0.866,  0.500) * ro);
+    acc += tap(px + vec2( 0.866, -0.500) * ro);
+    acc += tap(px + vec2( 0.000, -1.000) * ro);
+    acc += tap(px + vec2(-0.866, -0.500) * ro);
+    acc += tap(px + vec2(-0.866,  0.500) * ro);
+
+    acc += tap(px + vec2( 0.500,  0.866) * ri) * 1.5;
+    acc += tap(px + vec2( 1.000,  0.000) * ri) * 1.5;
+    acc += tap(px + vec2( 0.500, -0.866) * ri) * 1.5;
+    acc += tap(px + vec2(-0.500, -0.866) * ri) * 1.5;
+    acc += tap(px + vec2(-1.000,  0.000) * ri) * 1.5;
+    acc += tap(px + vec2(-0.500,  0.866) * ri) * 1.5;
+
+    return acc / 17.0;
 }
 
-// Specular highlight for "wet" glass look
-float specularHighlight(vec2 uv, float time) {
-    vec2 center = vec2(0.5);
-    vec2 lightPos = vec2(0.3 + sin(time * 0.5) * 0.1, 0.2);
-
-    float dist = length(uv - lightPos);
-    float highlight = exp(-dist * 15.0);  // Sharp falloff
-
-    return highlight * 0.3;
-}
-
-// Enhanced saturation
-vec3 adjustSaturation(vec3 color, float sat) {
-    float gray = dot(color, vec3(0.299, 0.587, 0.114));
-    return mix(vec3(gray), color, sat);
+float maskAt(vec2 uv) {
+    return texture(shapeMask, uv).a;
 }
 
 void main() {
-    vec2 uv = qt_TexCoord0;
+    vec2 px = qt_TexCoord0 * rectSize;
+    vec2 halfSize = rectSize * 0.5;
 
-    // Apply refraction distortion
-    vec2 refractedUV = applyRefraction(uv, 1.0);
+    float band;
+    vec2 grad;
+    float cover;
+    float alphaMask;
 
-    // Multi-pass blur for smooth glass effect
-    vec4 blur1 = gaussianBlur(source, refractedUV, blurRadius);
-    vec4 blur2 = gaussianBlur(source, refractedUV, blurRadius * 1.5);
-    vec4 blurred = mix(blur1, blur2, 0.3);  // Blend multiple blur passes
+    if (useMask > 0.5) {
+        vec2 uv = qt_TexCoord0;
+        vec2 stepUV = vec2(edgeWidth * 0.6) / max(rectSize, vec2(1.0));
+        float m = maskAt(uv);
 
-    // Apply chromatic dispersion at edges
-    vec4 dispersed = chromaticDispersion(source, refractedUV, blurRadius * 0.5);
+        float s0 = maskAt(uv + vec2( 1.000,  0.000) * stepUV);
+        float s1 = maskAt(uv + vec2( 0.707,  0.707) * stepUV);
+        float s2 = maskAt(uv + vec2( 0.000,  1.000) * stepUV);
+        float s3 = maskAt(uv + vec2(-0.707,  0.707) * stepUV);
+        float s4 = maskAt(uv + vec2(-1.000,  0.000) * stepUV);
+        float s5 = maskAt(uv + vec2(-0.707, -0.707) * stepUV);
+        float s6 = maskAt(uv + vec2( 0.000, -1.000) * stepUV);
+        float s7 = maskAt(uv + vec2( 0.707, -0.707) * stepUV);
 
-    // Mix blurred and dispersed based on edge distance
-    float edgeFactor = length(uv - vec2(0.5)) * 2.0;
-    vec4 combined = mix(blurred, dispersed, edgeFactor * 0.4);
+        float t0 = maskAt(uv + vec2( 0.924,  0.383) * stepUV * 0.5);
+        float t1 = maskAt(uv + vec2( 0.383,  0.924) * stepUV * 0.5);
+        float t2 = maskAt(uv + vec2(-0.383,  0.924) * stepUV * 0.5);
+        float t3 = maskAt(uv + vec2(-0.924,  0.383) * stepUV * 0.5);
+        float t4 = maskAt(uv + vec2(-0.924, -0.383) * stepUV * 0.5);
+        float t5 = maskAt(uv + vec2(-0.383, -0.924) * stepUV * 0.5);
+        float t6 = maskAt(uv + vec2( 0.383, -0.924) * stepUV * 0.5);
+        float t7 = maskAt(uv + vec2( 0.924, -0.383) * stepUV * 0.5);
 
-    // Color adjustments
-    vec3 color = adjustSaturation(combined.rgb, saturation);
-    color *= brightness;
+        cover = (m + s0 + s1 + s2 + s3 + s4 + s5 + s6 + s7
+                   + t0 + t1 + t2 + t3 + t4 + t5 + t6 + t7) / 17.0;
+        if (cover < 0.001) {
+            fragColor = vec4(0.0);
+            return;
+        }
 
-    // Apply tint
-    color = mix(color, tint.rgb, tint.a);
+        vec2 g = vec2( 1.000,  0.000) * (m - s0)
+               + vec2( 0.707,  0.707) * (m - s1)
+               + vec2( 0.000,  1.000) * (m - s2)
+               + vec2(-0.707,  0.707) * (m - s3)
+               + vec2(-1.000,  0.000) * (m - s4)
+               + vec2(-0.707, -0.707) * (m - s5)
+               + vec2( 0.000, -1.000) * (m - s6)
+               + vec2( 0.707, -0.707) * (m - s7)
+               + vec2( 0.924,  0.383) * (m - t0)
+               + vec2( 0.383,  0.924) * (m - t1)
+               + vec2(-0.383,  0.924) * (m - t2)
+               + vec2(-0.924,  0.383) * (m - t3)
+               + vec2(-0.924, -0.383) * (m - t4)
+               + vec2(-0.383, -0.924) * (m - t5)
+               + vec2( 0.383, -0.924) * (m - t6)
+               + vec2( 0.924, -0.383) * (m - t7);
 
-    // Fresnel effect - edges more opaque/reflective
-    float fresnel = fresnelEffect(uv);
-    float alpha = mix(glassOpacity, glassOpacity + 0.25, fresnel);
+        grad = normalize(g + vec2(1e-6));
+        band = clamp((cover - 0.5) * 2.0, 0.0, 1.0);
+        alphaMask = smoothstep(0.35, 0.65, m);
+    } else {
+        vec2 p = px - halfSize;
+        float r = min(cornerRadius, min(halfSize.x, halfSize.y));
+        float d = sdRoundRect(p, halfSize, r);
 
-    // Add specular highlight for wet glass appearance
-    float specular = specularHighlight(uv, time);
-    color += specular;
+        float e = 1.5;
+        vec2 g = vec2(
+            sdRoundRect(p + vec2(e, 0.0), halfSize, r) - sdRoundRect(p - vec2(e, 0.0), halfSize, r),
+            sdRoundRect(p + vec2(0.0, e), halfSize, r) - sdRoundRect(p - vec2(0.0, e), halfSize, r)
+        );
+        grad = normalize(g + vec2(1e-6));
+        band = clamp(-d / max(edgeWidth, 1.0), 0.0, 1.0);
 
-    // Very subtle animated shimmer
-    float shimmer = sin(uv.x * 50.0 + time * 2.0) * sin(uv.y * 50.0 + time * 2.0);
-    color += shimmer * 0.01;
+        float aa = fwidth(d) + 0.5;
+        cover = 1.0 - smoothstep(-aa, aa, d);
+        alphaMask = cover;
+    }
 
-    // Clamp and output
-    color = clamp(color, 0.0, 1.0);
-    fragColor = vec4(color, alpha) * qt_Opacity;
+    float lens = sqrt(max(0.0, 1.0 - band * band));
+    float curve = mix(pow(1.0 - band, 1.6), lens, clamp(bevel, 0.0, 1.0));
+
+    vec2 disp = grad * curve * refraction;
+    vec2 caOff = grad * curve * aberration;
+
+    vec3 col;
+    col.r = sampleBlur(px + disp + caOff, blurAmount).r;
+    col.g = sampleBlur(px + disp,         blurAmount).g;
+    col.b = sampleBlur(px + disp - caOff, blurAmount).b;
+
+    float grey = dot(col, vec3(0.299, 0.587, 0.114));
+    col = mix(vec3(grey), col, saturation);
+
+    vec3 n = normalize(vec3(grad * curve, 0.6));
+    vec3 lightDir = normalize(vec3(-0.6, 0.75, 0.55));
+    float ndl = dot(n, lightDir);
+
+    float spec = pow(max(ndl, 0.0), 12.0);
+    float rim = smoothstep(0.0, 0.9, curve);
+    col += spec * specular * rim * 1.4;
+
+    float edgeLine = smoothstep(0.72, 1.0, curve);
+    col += edgeLine * rimLight * max(ndl, 0.0);
+    col *= 1.0 - edgeLine * innerShadow * max(-ndl, 0.0);
+
+    col = mix(col, tintColor.rgb, tintColor.a);
+
+    float a = clamp(glassAlpha, 0.0, 1.0) * clamp(alphaMask, 0.0, 1.0);
+    fragColor = vec4(col * a, a) * qt_Opacity;
 }

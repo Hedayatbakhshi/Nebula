@@ -13,12 +13,15 @@ import "../../../MatrialShapes/material-shapes.js" as MatrialShapeFn
 Rectangle {
     id: root
     property bool compact: false
+    readonly property bool ownsHeader: true
 
     readonly property int pad: root.compact ? 8 : 10
     readonly property int headerHeight: 26
-    readonly property int footerHeight: 34
+    readonly property bool showActions: DashLayout.opt("notifications", "showActions") !== false
+    readonly property int footerHeight: root.showActions ? 34 : 0
     readonly property bool isEmpty: ServiceNotification.groupedNotifications.length === 0
-    readonly property real naturalListHeight: root.isEmpty ? 110 : (root.compact ? 300 : 420)
+    readonly property real listHeight: DashLayout.opt("notifications", "height") ?? 420
+    readonly property real naturalListHeight: root.isEmpty ? 110 : (root.compact ? 300 : root.listHeight)
 
     implicitHeight: root.headerHeight + root.naturalListHeight + root.footerHeight + 12
 
@@ -122,6 +125,7 @@ Rectangle {
         anchors.right: parent.right
         anchors.bottom: parent.bottom
         height: root.footerHeight
+        visible: root.showActions
         spacing: 8
 
         ActionPill {

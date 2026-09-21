@@ -12,6 +12,7 @@ WidgetHost {
     id: root
     configKey: "weatherSlanted"
     defaultPos: Qt.point(100, 200)
+    backdropMask: shapeMask
     implicitWidth: 200
     implicitHeight: 200
 
@@ -22,7 +23,7 @@ WidgetHost {
         width: parent.height
         height: parent.width
         roundedPolygon: MaterialShapeFn.getPill()
-        color: Colors.surface
+        color: WidgetSizes.cardColor
     }
 
     CustomText {
@@ -51,4 +52,32 @@ WidgetHost {
         source: IconUtil.getSystemIcon(ServiceWeather.weatherIconPath.svg)
     }
 
+    Item {
+        id: maskSource
+        anchors.fill: parent
+
+        MaterialShapes.ShapeCanvas {
+            anchors.centerIn: parent
+            width: root.height
+            height: root.width
+            roundedPolygon: MaterialShapeFn.getPill()
+            color: "white"
+        }
+    }
+
+    Item {
+        width: 0
+        height: 0
+        clip: true
+
+        ShaderEffectSource {
+            id: shapeMask
+            width: root.width
+            height: root.height
+            textureSize: Qt.size(root.width, root.height)
+            sourceItem: maskSource
+            hideSource: true
+            live: true
+        }
+    }
 }

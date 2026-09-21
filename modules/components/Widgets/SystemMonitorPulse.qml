@@ -13,6 +13,9 @@ WidgetHost {
     id: root
     configKey: "sysMonitor"
     tile: WidgetSizes.wide
+    resizable: true
+    minSpan: Qt.size(3, 2)
+    maxSpan: Qt.size(6, 4)
     defaultPos: Qt.point(120, 120)
 
     // Previews read canned values and never start the pollers
@@ -47,7 +50,7 @@ WidgetHost {
     Rectangle {
         anchors.fill: parent
         radius: WidgetSizes.radius
-        color: Colors.surface
+        color: WidgetSizes.cardColor
 
         // ── Header ────────────────────────────────────────────────────
         RowLayout {
@@ -106,7 +109,8 @@ WidgetHost {
             anchors.rightMargin: 16
             anchors.top: hero.bottom
             anchors.topMargin: 4
-            height: 46
+            anchors.bottom: footer.top
+            anchors.bottomMargin: 12
             maxPoints: 60
             lineColor: root.loadColor
             lineWidth: 1.5
@@ -115,6 +119,7 @@ WidgetHost {
 
         // ── Footer metrics ────────────────────────────────────────────
         RowLayout {
+            id: footer
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.bottom: parent.bottom

@@ -36,9 +36,9 @@ Item {
 
     // Section → page-index mapping
     readonly property var navSections: [
-        { label: "System",  indices: [9, 0, 1, 2, 3, 10, 12, 13] },
+        { label: "System",  indices: [9, 0, 12, 1, 2, 3, 10, 11] },
         { label: "Connect", indices: [4, 5] },
-        { label: "Apps",    indices: [6, 7, 11, 8] }
+        { label: "Apps",    indices: [6, 7, 8] }
     ]
 
     // Whatever sits at the top of the sidebar — not necessarily page 0
@@ -243,9 +243,8 @@ Item {
                     Loader { anchors.fill: parent; active: root.currentPage === 8; visible: active; opacity: active ? 1 : 0; scale: active ? 1 : 0.985; Behavior on opacity { NumberAnimation { duration: M3Motion.effects.defaultDuration } } Behavior on scale { NumberAnimation { duration: M3Motion.spatial.fastDuration; easing.type: Easing.BezierSpline; easing.bezierCurve: M3Motion.spatial.fastCurve } } sourceComponent: About{} }
                     Loader { anchors.fill: parent; active: root.currentPage === 9; visible: active; opacity: active ? 1 : 0; scale: active ? 1 : 0.985; Behavior on opacity { NumberAnimation { duration: M3Motion.effects.defaultDuration } } Behavior on scale { NumberAnimation { duration: M3Motion.spatial.fastDuration; easing.type: Easing.BezierSpline; easing.bezierCurve: M3Motion.spatial.fastCurve } } sourceComponent: AppearanceSettings{} }
                     Loader { anchors.fill: parent; active: root.currentPage === 10; visible: active; opacity: active ? 1 : 0; scale: active ? 1 : 0.985; Behavior on opacity { NumberAnimation { duration: M3Motion.effects.defaultDuration } } Behavior on scale { NumberAnimation { duration: M3Motion.spatial.fastDuration; easing.type: Easing.BezierSpline; easing.bezierCurve: M3Motion.spatial.fastCurve } } sourceComponent: Sleep{} }
-                    Loader { anchors.fill: parent; active: root.currentPage === 11; visible: active; opacity: active ? 1 : 0; scale: active ? 1 : 0.985; Behavior on opacity { NumberAnimation { duration: M3Motion.effects.defaultDuration } } Behavior on scale { NumberAnimation { duration: M3Motion.spatial.fastDuration; easing.type: Easing.BezierSpline; easing.bezierCurve: M3Motion.spatial.fastCurve } } sourceComponent: Ai{} }
-                    Loader { anchors.fill: parent; active: root.currentPage === 12; visible: active; opacity: active ? 1 : 0; scale: active ? 1 : 0.985; Behavior on opacity { NumberAnimation { duration: M3Motion.effects.defaultDuration } } Behavior on scale { NumberAnimation { duration: M3Motion.spatial.fastDuration; easing.type: Easing.BezierSpline; easing.bezierCurve: M3Motion.spatial.fastCurve } } sourceComponent: Storage{} }
-                    Loader { anchors.fill: parent; active: root.currentPage === 13; visible: active; opacity: active ? 1 : 0; scale: active ? 1 : 0.985; Behavior on opacity { NumberAnimation { duration: M3Motion.effects.defaultDuration } } Behavior on scale { NumberAnimation { duration: M3Motion.spatial.fastDuration; easing.type: Easing.BezierSpline; easing.bezierCurve: M3Motion.spatial.fastCurve } } sourceComponent: SystemUpdates{} }
+                    Loader { anchors.fill: parent; active: root.currentPage === 11; visible: active; opacity: active ? 1 : 0; scale: active ? 1 : 0.985; Behavior on opacity { NumberAnimation { duration: M3Motion.effects.defaultDuration } } Behavior on scale { NumberAnimation { duration: M3Motion.spatial.fastDuration; easing.type: Easing.BezierSpline; easing.bezierCurve: M3Motion.spatial.fastCurve } } sourceComponent: Storage{} }
+                    Loader { anchors.fill: parent; active: root.currentPage === 12; visible: active; opacity: active ? 1 : 0; scale: active ? 1 : 0.985; Behavior on opacity { NumberAnimation { duration: M3Motion.effects.defaultDuration } } Behavior on scale { NumberAnimation { duration: M3Motion.spatial.fastDuration; easing.type: Easing.BezierSpline; easing.bezierCurve: M3Motion.spatial.fastCurve } } sourceComponent: Lockscreen{} }
 
                 }
             }

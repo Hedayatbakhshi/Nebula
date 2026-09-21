@@ -10,13 +10,14 @@ WidgetHost {
     id: root
     configKey: "dateWidget"
     defaultPos: Qt.point(300, 300)
+    backdropRadius: 36
     implicitWidth: row.implicitWidth + 48
     implicitHeight: 72
 
     Rectangle {
         anchors.fill: parent
         radius: 36
-        color: Colors.surface
+        color: WidgetSizes.cardColor
 
         RowLayout {
             id: row

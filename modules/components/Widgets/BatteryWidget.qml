@@ -26,7 +26,7 @@ WidgetHost {
     Rectangle {
         anchors.fill: parent
         radius: WidgetSizes.radius
-        color: Colors.surface
+        color: WidgetSizes.cardColor
 
         Canvas {
             id: waveCanvas

@@ -120,16 +120,12 @@ Singleton{
             icon: "bedtime"
         },
         {
-            name: "AI",
-            icon: "neurology"
-        },
-        {
             name: "Storage",
             icon: "hard_drive"
         },
         {
-            name: "Updates",
-            icon: "system_update_alt"
+            name: "Lock Screen",
+            icon: "lock"
         }
     ]
 

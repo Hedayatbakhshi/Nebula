@@ -12,6 +12,7 @@ WidgetHost {
     id: root
     configKey: "analogClock"
     defaultPos: Qt.point(400, 200)
+    backdropMask: shapeMask
     implicitWidth: 200
     implicitHeight: 200
 
@@ -23,7 +24,7 @@ WidgetHost {
         width: root.clockSize
         height: root.clockSize
         roundedPolygon: MaterialShapeFn.getCircle()
-        color: Colors.surface
+        color: WidgetSizes.cardColor
     }
 
     // 12 o'clock dot — absolute y so it's independent of ShapeCanvas geometry
@@ -105,6 +106,34 @@ WidgetHost {
             size: 12
             weight: 700
             customColor: Colors.primaryText
+        }
+    }
+    Item {
+        id: maskSource
+        anchors.fill: parent
+
+        MaterialShapes.ShapeCanvas {
+            anchors.centerIn: parent
+            width: root.clockSize
+            height: root.clockSize
+            roundedPolygon: MaterialShapeFn.getCircle()
+            color: "white"
+        }
+    }
+
+    Item {
+        width: 0
+        height: 0
+        clip: true
+
+        ShaderEffectSource {
+            id: shapeMask
+            width: root.width
+            height: root.height
+            textureSize: Qt.size(root.width, root.height)
+            sourceItem: maskSource
+            hideSource: true
+            live: true
         }
     }
 }

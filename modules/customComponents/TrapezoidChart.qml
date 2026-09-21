@@ -94,6 +94,8 @@ Item {
         antialiasing: true
         renderStrategy: Canvas.Cooperative
 
+        onVisibleChanged: if (visible) requestPaint()
+
         // AOSP gets this from CornerPathEffect, which rounds every vertex of the
         // path. arcTo does the same thing one corner at a time.
         function trapezoid(ctx, l, r, topL, topR, bottom, radius) {

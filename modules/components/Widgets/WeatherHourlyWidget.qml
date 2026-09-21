@@ -16,9 +16,16 @@ WidgetHost {
     id: root
     configKey: "weatherHourly"
     tile: WidgetSizes.wide
+    resizable: true
+    minSpan: Qt.size(3, 2)
+    maxSpan: Qt.size(6, 4)
     defaultPos: Qt.point(420, 200)
 
     readonly property bool metric: SettingsConfig.weather.useMetric ?? true
+
+    readonly property bool showCity: root.cols >= 4
+    readonly property bool showStats: root.rows >= 2.5
+    readonly property bool showForecast: root.rows >= 3
 
     readonly property var hours: {
         const h = ServiceWeather.todayHourly ?? []
@@ -71,63 +78,194 @@ WidgetHost {
         return m
     }
 
+    function dayName(day, index) {
+        if (index === 0) return "Today"
+        if (!day || !day.date) return "—"
+        return ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][new Date(day.date).getDay()]
+    }
+
+    function dayIcon(day) {
+        if (!day || !day.hourly || day.hourly.length === 0) return ""
+        const h = day.hourly[Math.min(4, day.hourly.length - 1)]
+        return IconUtil.getSystemIcon(ServiceWeather.getWeatherIcon(h.weatherCode, false).svg)
+    }
+
     Rectangle {
         anchors.fill: parent
         radius: WidgetSizes.radius
-        color: Colors.surface
+        color: WidgetSizes.cardColor
 
-        // ── Header ────────────────────────────────────────────────────
-        RowLayout {
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.leftMargin: 20
-            anchors.rightMargin: 20
-            y: 14
-            spacing: 6
-
-            CustomText { content: "Today"; size: 13; customColor: Colors.primary }
-
-            Item { Layout.fillWidth: true }
-
-            MaterialIconSymbol {
-                visible: root.hasData && root.peakRain > 0
-                content: "water_drop"
-                iconSize: 12
-                customColor: Colors.tertiary
-            }
-
-            CustomText {
-                visible: root.hasData && root.peakRain > 0
-                content: root.peakRain + "%"
-                size: 12
-                customColor: Colors.tertiary
-            }
-
-            CustomText {
-                content: root.hasData ? root.maxTemp + "° / " + root.minTemp + "°" : "—"
-                size: 12
-                customColor: Colors.outline
-            }
-        }
-
-        // ── Chart ─────────────────────────────────────────────────────
-        TrapezoidChart {
-            anchors.left: parent.left
-            anchors.right: parent.right
+        ColumnLayout {
+            anchors.fill: parent
             anchors.leftMargin: 20
             anchors.rightMargin: 14
-            y: 42
-            height: 126
+            anchors.topMargin: 12
+            anchors.bottomMargin: 12
+            spacing: 6
             visible: root.hasData
 
-            values: root.hours.map(h => h.temp)
-            labels: root.hours.map((h, i) => i % 2 === 0 ? h.time.replace(" ", "") : "")
+            // ── Header ────────────────────────────────────────────────
+            RowLayout {
+                Layout.fillWidth: true
+                Layout.rightMargin: 6
+                spacing: 6
 
-            lo: root.minTemp - Math.max(2, Math.round((root.maxTemp - root.minTemp) * 0.4))
-            hi: root.maxTemp + 1
-            gridValues: root.gridTemps
-            suffix: "°"
-            barColor: Colors.primary
+                Image {
+                    Layout.preferredWidth: 20
+                    Layout.preferredHeight: 20
+                    sourceSize.width: 40
+                    sourceSize.height: 40
+                    asynchronous: true
+                    source: IconUtil.getSystemIcon(ServiceWeather.weatherIconPath.svg)
+                }
+
+                CustomText {
+                    content: ServiceWeather.temperature
+                    size: 15
+                    weight: 700
+                    customColor: Colors.surfaceText
+                }
+
+                CustomText {
+                    Layout.fillWidth: true
+                    content: ServiceWeather.description
+                           + (root.showCity ? " · " + ServiceWeather.cityName : "")
+                    size: 12
+                    customColor: Colors.outline
+                    elide: Text.ElideRight
+                }
+
+                MaterialIconSymbol {
+                    visible: root.peakRain > 0
+                    content: "water_drop"
+                    iconSize: 12
+                    customColor: Colors.tertiary
+                }
+
+                CustomText {
+                    visible: root.peakRain > 0
+                    content: root.peakRain + "%"
+                    size: 12
+                    customColor: Colors.tertiary
+                }
+
+                CustomText {
+                    content: root.maxTemp + "° / " + root.minTemp + "°"
+                    size: 12
+                    customColor: Colors.outline
+                }
+            }
+
+            // ── Chart ─────────────────────────────────────────────────
+            TrapezoidChart {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                Layout.topMargin: 4
+
+                readonly property int labelStep: root.cols >= 5 ? 1 : 2
+
+                values: root.hours.map(h => h.temp)
+                labels: root.hours.map((h, i) => i % labelStep === 0 ? h.time.replace(" ", "") : "")
+
+                lo: root.minTemp - Math.max(2, Math.round((root.maxTemp - root.minTemp) * 0.4))
+                hi: root.maxTemp + 1
+                gridValues: root.gridTemps
+                suffix: "°"
+                barColor: Colors.primary
+            }
+
+            // ── Current details ───────────────────────────────────────
+            RowLayout {
+                visible: root.showStats
+                Layout.fillWidth: true
+                Layout.rightMargin: 6
+                spacing: 0
+
+                Repeater {
+                    model: [
+                        { icon: "thermostat",   value: "Feels " + ServiceWeather.feelsLike },
+                        { icon: "humidity_mid", value: Math.round(ServiceWeather.humidity) + "%" },
+                        { icon: "air",          value: ServiceWeather.windSpeed },
+                        { icon: "wb_sunny",     value: "UV " + ServiceWeather.uvindex }
+                    ]
+
+                    delegate: RowLayout {
+                        required property var modelData
+                        Layout.fillWidth: true
+                        spacing: 5
+
+                        MaterialIconSymbol {
+                            content: modelData.icon
+                            iconSize: 13
+                            customColor: Colors.primary
+                        }
+                        CustomText {
+                            content: modelData.value
+                            size: 12
+                            customColor: Colors.surfaceText
+                        }
+                        Item { Layout.fillWidth: true }
+                    }
+                }
+            }
+
+            // ── Next days ─────────────────────────────────────────────
+            Rectangle {
+                visible: root.showForecast
+                Layout.fillWidth: true
+                Layout.rightMargin: 6
+                implicitHeight: 1
+                color: Colors.outlineVariant
+                opacity: 0.4
+            }
+
+            RowLayout {
+                visible: root.showForecast
+                Layout.fillWidth: true
+                Layout.rightMargin: 6
+                spacing: 0
+
+                Repeater {
+                    model: Math.min(3, ServiceWeather.forecastDays?.length ?? 0)
+
+                    delegate: RowLayout {
+                        required property int index
+                        readonly property var day: ServiceWeather.forecastDays[index]
+                        Layout.fillWidth: true
+                        spacing: 6
+
+                        CustomText {
+                            content: root.dayName(day, index)
+                            size: 12
+                            weight: 600
+                            customColor: index === 0 ? Colors.primary : Colors.outline
+                        }
+
+                        Image {
+                            Layout.preferredWidth: 18
+                            Layout.preferredHeight: 18
+                            sourceSize.width: 36
+                            sourceSize.height: 36
+                            asynchronous: true
+                            source: root.dayIcon(day)
+                        }
+
+                        CustomText {
+                            content: (root.metric ? day?.maxtempC : day?.maxtempF) + "°"
+                            size: 12
+                            weight: 700
+                            customColor: Colors.surfaceText
+                        }
+
+                        CustomText {
+                            content: (root.metric ? day?.mintempC : day?.mintempF) + "°"
+                            size: 11
+                            customColor: Colors.outline
+                        }
+                        Item { Layout.fillWidth: true }
+                    }
+                }
+            }
         }
 
         // ── Empty state ───────────────────────────────────────────────

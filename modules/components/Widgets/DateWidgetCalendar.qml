@@ -10,14 +10,14 @@ WidgetHost {
     id: root
     configKey: "dateWidget"
     defaultPos: Qt.point(300, 300)
-    implicitWidth: 170
-    implicitHeight: 205
+    backdropRadius: 20
+    tile: WidgetSizes.small
 
     // Card body
     Rectangle {
         anchors.fill: parent
         radius: 20
-        color: Colors.surface
+        color: WidgetSizes.cardColor
 
         // Month header strip
         Rectangle {

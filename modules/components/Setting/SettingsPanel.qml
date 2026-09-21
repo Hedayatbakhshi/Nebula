@@ -5,10 +5,22 @@ import qs.modules.settings
 import qs.modules.customComponents
 
 Scope {
+    id: scope
+
+    property bool everOpened: false
+
+    Connections {
+        target: GlobalStates
+        function onSettingsOpenChanged() {
+            if (GlobalStates.settingsOpen)
+                scope.everOpened = true
+        }
+    }
+
     LazyLoader {
         id: settingsLoader
 
-        activeAsync: true
+        activeAsync: scope.everOpened
 
         component: FloatingWindow {
             implicitWidth: 1000

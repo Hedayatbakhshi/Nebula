@@ -51,6 +51,11 @@ Singleton {
 
     property string wallpaper: Quickshell.env("HOME") + "/wallpaper/sunset-lookout.jpg"
 
+    // The untouched file the palette came from. Differs from `wallpaper` only
+    // when gowall recolored the image — everything that re-applies or matches a
+    // wallpaper by path must use this, never the recolored copy in the cache.
+    property string sourceWallpaper: Quickshell.env("HOME") + "/wallpaper/sunset-lookout.jpg"
+
     property double _reloadRequestedAt: 0
 
     function _apply(json) {
@@ -94,6 +99,7 @@ Singleton {
             if (c.surfaceContainerHigh)     root.surfaceContainerHigh     = c.surfaceContainerHigh
             if (c.surfaceContainerHighest)  root.surfaceContainerHighest  = c.surfaceContainerHighest
             if (c.wallpaper)                root.wallpaper                = c.wallpaper
+            root.sourceWallpaper = c.sourceWallpaper || c.wallpaper || root.sourceWallpaper
             console.log("[WallpaperTheme] Colors applied (" + elapsed + ") — primary:", root.primary, "wallpaper:", root.wallpaper)
         } catch (e) {
             console.error("[WallpaperTheme] Failed to parse colors.json (" + elapsed + "):", e)

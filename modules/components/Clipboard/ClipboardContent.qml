@@ -1,8 +1,6 @@
 import Quickshell
-import Quickshell.Widgets
 import QtQuick
 import QtQuick.Layouts
-import QtQuick.Effects
 import qs.modules.utils
 import qs.modules.settings
 import qs.modules.services
@@ -10,326 +8,627 @@ import qs.modules.customComponents
 
 Rectangle {
     id: container
-    implicitWidth: parent.width
     color: Settings.layoutColor
-    anchors.bottom: parent.bottom
-    topRightRadius: 20
     topLeftRadius: 20
+    topRightRadius: 20
+
     signal closed
 
-    property var filteredEntries: ServiceCliphist.filteredEntries
+    property string filter: "all"
+    property int activeIndex: 0
+    property string previewText: ""
+    property bool confirmWipe: false
 
-    Behavior on implicitHeight {
-        NumberAnimation { duration: 300; easing.type: Easing.OutQuad }
+    readonly property var counts: {
+        const c = { all: 0, text: 0, link: 0, image: 0 }
+        for (const e of ServiceCliphist.entries) {
+            c.all++
+            c[ServiceCliphist.entryKind(e)]++
+        }
+        return c
+    }
+    readonly property var visibleEntries: container.filter === "all" ? ServiceCliphist.filteredEntries
+        : ServiceCliphist.filteredEntries.filter(e => ServiceCliphist.entryKind(e) === container.filter)
+    readonly property string activeEntry: container.visibleEntries[container.activeIndex] ?? ""
+    readonly property string activeKind: container.activeEntry !== "" ? ServiceCliphist.entryKind(container.activeEntry) : ""
+    readonly property var imageInfo: container.activeKind === "image" ? ServiceCliphist.imageInfo(container.activeEntry) : null
+    readonly property string shownText: container.previewText.length > 20000
+        ? container.previewText.slice(0, 20000) + "\n…" : container.previewText
+    readonly property bool looksLikeCode: container.shownText.indexOf("\n") >= 0
+        && /[{};]|=>|^\s{2,}\S/m.test(container.shownText)
+    readonly property string linkDomain: container.activeKind === "link"
+        ? ServiceCliphist.getEntryText(container.activeEntry).trim().replace(/^https?:\/\//, "").split("/")[0] : ""
+
+    readonly property var filters: [
+        { value: "all",   label: "All " + container.counts.all },
+        { value: "text",  label: "Text " + container.counts.text },
+        { value: "image", label: "Images " + container.counts.image },
+        { value: "link",  label: "Links " + container.counts.link }
+    ]
+
+    function select(i) {
+        if (container.visibleEntries.length === 0)
+            return
+        container.activeIndex = Math.max(0, Math.min(i, container.visibleEntries.length - 1))
+        list.positionViewAtIndex(container.activeIndex, ListView.Contain)
+    }
+
+    function copyActive() {
+        const e = container.activeEntry
+        if (e === "")
+            return
+        ServiceCliphist.copy(e)
+        container.closed()
+    }
+
+    function deleteActive() {
+        if (container.activeEntry !== "")
+            ServiceCliphist.deleteEntry(container.activeEntry)
+    }
+
+    function cycleFilter(dir) {
+        const vals = container.filters.map(f => f.value)
+        const k = vals.indexOf(container.filter)
+        container.filter = vals[(k + dir + vals.length) % vals.length]
+        container.activeIndex = 0
+    }
+
+    function loadPreview() {
+        container.previewText = ""
+        if (container.activeEntry === "" || container.activeKind === "image")
+            return
+        container.previewText = ServiceCliphist.getEntryText(container.activeEntry)
+        ServiceCliphist.decodeText(container.activeEntry)
+    }
+
+    onActiveEntryChanged: previewTimer.restart()
+    onVisibleEntriesChanged: {
+        if (container.activeIndex >= container.visibleEntries.length)
+            container.activeIndex = Math.max(0, container.visibleEntries.length - 1)
     }
 
     Timer {
-        id: timer
-        interval: 300
-        running: true
-        onTriggered: col.visible = true
+        id: previewTimer
+        interval: 60
+        onTriggered: container.loadPreview()
     }
 
-    Component.onCompleted: searchInput.forceActiveFocus()
+    Timer {
+        id: wipeTimer
+        interval: 3000
+        onTriggered: container.confirmWipe = false
+    }
+
+    Connections {
+        target: ServiceCliphist
+        function onTextDecoded(entryId, text) {
+            if (entryId === ServiceCliphist.getEntryId(container.activeEntry) && text !== "")
+                container.previewText = text
+        }
+    }
+
+    Component.onCompleted: {
+        ServiceCliphist.updateSearch("")
+        searchInput.forceActiveFocus()
+        container.loadPreview()
+    }
 
     ColumnLayout {
-        id: col
         anchors.fill: parent
-        anchors.margins: 10
-        spacing: 8
-        visible: false
+        anchors.margins: 12
+        spacing: 10
 
-        NumberAnimation on opacity { from: 0; to: 1; duration: 120; running: col.visible }
-        NumberAnimation on scale   { from: 0.92; to: 1; duration: 180; easing.type: Easing.OutCubic; running: col.visible }
-
-        // ── Search bar ────────────────────────────────────────────────────
         Rectangle {
             Layout.fillWidth: true
-            Layout.preferredHeight: 50
-            radius: 16
-            color: Colors.surfaceContainerHigh
+            Layout.preferredHeight: 52
+            radius: 26
+            color: Colors.surfaceContainer
 
             RowLayout {
                 anchors.fill: parent
-                anchors.leftMargin: 14
-                anchors.rightMargin: 10
-                spacing: 10
+                anchors.leftMargin: 8
+                anchors.rightMargin: 8
+                spacing: 8
 
-                MaterialIconSymbol {
-                    content: "search"
-                    iconSize: 20
-                    customColor: Colors.primary
-                }
-
-                Item {
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
-
-                    CustomText {
-                        anchors.verticalCenter: parent.verticalCenter
-                        content: "Search clipboard…"
-                        size: 15
-                        customColor: Colors.outline
-                        visible: searchInput.text.length === 0
-                    }
-
-                    TextInput {
-                        id: searchInput
-                        anchors.fill: parent
-                        verticalAlignment: TextInput.AlignVCenter
-                        clip: true
-                        font.pixelSize: 15
-                        font.weight: 600
-                        font.family: SettingsConfig.general.defaultFont ?? "Rubik"
-                        color: Colors.surfaceText
-                        focus: true
-
-                        onTextChanged: ServiceCliphist.updateSearch(text)
-
-                        onAccepted: {
-                            const item = clipboardList.itemAtIndex(clipboardList.activeIndex)
-                            if (item) {
-                                container.closed()
-                                ServiceCliphist.copy(item.modelData)
-                            }
-                        }
-
-                        Keys.onPressed: event => {
-                            if (event.key === Qt.Key_Down) {
-                                if (clipboardList.activeIndex < clipboardList.count - 1) {
-                                    clipboardList.activeIndex++
-                                    clipboardList.positionViewAtIndex(clipboardList.activeIndex, ListView.Contain)
-                                }
-                                event.accepted = true
-                            } else if (event.key === Qt.Key_Up) {
-                                if (clipboardList.activeIndex > 0) {
-                                    clipboardList.activeIndex--
-                                    clipboardList.positionViewAtIndex(clipboardList.activeIndex, ListView.Contain)
-                                }
-                                event.accepted = true
-                            } else if (event.key === Qt.Key_Delete) {
-                                const item = clipboardList.itemAtIndex(clipboardList.activeIndex)
-                                if (item) ServiceCliphist.deleteEntry(item.modelData)
-                                event.accepted = true
-                            } else if (event.key === Qt.Key_Escape) {
-                                container.closed()
-                            }
-                        }
-                    }
-                }
-
-                // Clear search
                 Rectangle {
-                    width: 28; height: 28; radius: 10
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 36
+                    radius: 18
                     color: Colors.surfaceContainerHighest
-                    visible: searchInput.text.length > 0
-
-                    MaterialIconSymbol {
-                        anchors.centerIn: parent
-                        content: "close"; iconSize: 14
-                        customColor: Colors.outline
-                    }
-                    MouseArea {
-                        anchors.fill: parent; cursorShape: Qt.PointingHandCursor
-                        onClicked: searchInput.text = ""
-                    }
-                }
-            }
-        }
-
-        // ── Stats + actions row ───────────────────────────────────────────
-        RowLayout {
-            Layout.fillWidth: true
-            Layout.leftMargin: 2
-            spacing: 0
-
-            MaterialIconSymbol { content: "notes"; iconSize: 14; customColor: Colors.outline }
-            CustomText {
-                Layout.leftMargin: 4
-                content: ServiceCliphist.items + " items"
-                size: 12
-                customColor: Colors.outline
-            }
-
-            Item { Layout.fillWidth: true }
-
-            // Refresh
-            Rectangle {
-                width: 32; height: 32; radius: 10
-                color: refreshArea.containsMouse ? Colors.primaryContainer : Colors.surfaceContainerHigh
-                Behavior on color { ColorAnimation { duration: 150 } }
-
-                MaterialIconSymbol {
-                    anchors.centerIn: parent
-                    content: "cached"; iconSize: 18
-                    customColor: refreshArea.containsMouse ? Colors.primaryContainerText : Colors.outline
-                }
-                MouseArea {
-                    id: refreshArea
-                    anchors.fill: parent
-                    hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                    onClicked: ServiceCliphist.refresh()
-                }
-                CustomToolTip { visible: refreshArea.containsMouse; content: "Refresh" }
-            }
-
-            Item { implicitWidth: 6 }
-
-            // Clear all
-            Rectangle {
-                width: 32; height: 32; radius: 10
-                color: clearArea.containsMouse ? Qt.alpha(Colors.error, 0.15) : Colors.surfaceContainerHigh
-                Behavior on color { ColorAnimation { duration: 150 } }
-
-                MaterialIconSymbol {
-                    anchors.centerIn: parent
-                    content: "clear_all"; iconSize: 18
-                    customColor: clearArea.containsMouse ? Colors.error : Colors.outline
-                }
-                MouseArea {
-                    id: clearArea
-                    anchors.fill: parent
-                    hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                    onClicked: ServiceCliphist.wipe()
-                }
-                CustomToolTip { visible: clearArea.containsMouse; content: "Clear all" }
-            }
-        }
-
-        // ── Clipboard list ────────────────────────────────────────────────
-        ClippingWrapperRectangle {
-            Layout.fillWidth: true
-            Layout.fillHeight: true
-            radius: 12
-            color: "transparent"
-
-            ListView {
-                id: clipboardList
-                anchors.fill: parent
-                spacing: 3
-                clip: true
-                property int activeIndex: 0
-                property bool animationsEnabled: false
-
-                model: ScriptModel {
-                    values: container.filteredEntries
-                    onValuesChanged: clipboardList.animationsEnabled = true
-                }
-
-                add: Transition {
-                    enabled: clipboardList.animationsEnabled
-                    NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 120 }
-                }
-
-                delegate: Rectangle {
-                    id: clipItem
-                    required property var modelData
-                    required property int index
-
-                    readonly property bool isActive: clipboardList.activeIndex === index
-                    readonly property bool hovered: itemMouse.containsMouse
-                    readonly property bool isImage: ServiceCliphist.entryIsImage(modelData)
-
-                    width: clipboardList.width
-                    height: isImage ? 130 : 68
-                    radius: 16
-
-                    color: isActive
-                        ? Colors.primaryContainer
-                        : hovered ? Qt.alpha(Colors.primary, 0.08) : "transparent"
-
-                    Behavior on color { ColorAnimation { duration: 100 } }
 
                     RowLayout {
                         anchors.fill: parent
-                        anchors.leftMargin: 10
-                        anchors.rightMargin: 10
-                        spacing: 10
+                        anchors.leftMargin: 12
+                        anchors.rightMargin: 6
+                        spacing: 8
 
-                        // Type badge
-                        Rectangle {
-                            Layout.alignment: Qt.AlignVCenter
-                            width: 38; height: 38; radius: 12
-                            color: clipItem.isActive
-                                ? Qt.alpha(Colors.primary, 0.25)
-                                : Qt.alpha(Colors.surfaceText, 0.06)
-                            Behavior on color { ColorAnimation { duration: 100 } }
-
-                            MaterialIconSymbol {
-                                anchors.centerIn: parent
-                                content: clipItem.isImage ? "image" : "content_paste"
-                                iconSize: 18
-                                customColor: clipItem.isActive ? Colors.primaryContainerText : Colors.outline
-                            }
+                        MaterialIconSymbol {
+                            content: "search"
+                            iconSize: 18
+                            customColor: Colors.primary
                         }
 
-                        // Content
                         Item {
                             Layout.fillWidth: true
                             Layout.fillHeight: true
 
                             CustomText {
                                 anchors.verticalCenter: parent.verticalCenter
-                                anchors.left: parent.left
-                                anchors.right: parent.right
-                                visible: !clipItem.isImage
-                                content: ServiceCliphist.getEntryText(clipItem.modelData)
-                                size: 13
-                                customColor: clipItem.isActive ? Colors.primaryContainerText : Colors.surfaceText
-                                elide: Text.ElideRight
-                                wrapMode: Text.WrapAtWordBoundaryOrAnywhere
-                                maximumLineCount: 2
+                                visible: searchInput.text.length === 0
+                                content: "Search clipboard"
+                                size: 14
+                                customColor: Colors.outline
                             }
 
-                            Loader {
+                            TextInput {
+                                id: searchInput
                                 anchors.fill: parent
-                                active: clipItem.isImage
-                                visible: active
-                                sourceComponent: ClipboardImage { entry: clipItem.modelData }
+                                verticalAlignment: TextInput.AlignVCenter
+                                clip: true
+                                focus: true
+                                selectByMouse: true
+                                font.pixelSize: 14
+                                font.weight: 600
+                                font.family: SettingsConfig.general.defaultFont ?? "Rubik"
+                                color: Colors.surfaceText
+                                selectionColor: Qt.alpha(Colors.primary, 0.35)
+
+                                onTextChanged: {
+                                    ServiceCliphist.updateSearch(text)
+                                    container.activeIndex = 0
+                                }
+                                onAccepted: container.copyActive()
+
+                                Keys.onPressed: event => {
+                                    if (event.key === Qt.Key_Down) {
+                                        container.select(container.activeIndex + 1)
+                                        event.accepted = true
+                                    } else if (event.key === Qt.Key_Up) {
+                                        container.select(container.activeIndex - 1)
+                                        event.accepted = true
+                                    } else if (event.key === Qt.Key_Delete) {
+                                        container.deleteActive()
+                                        event.accepted = true
+                                    } else if (event.key === Qt.Key_Tab) {
+                                        container.cycleFilter(1)
+                                        event.accepted = true
+                                    } else if (event.key === Qt.Key_Backtab) {
+                                        container.cycleFilter(-1)
+                                        event.accepted = true
+                                    } else if (event.key === Qt.Key_Escape) {
+                                        if (searchInput.text !== "")
+                                            searchInput.text = ""
+                                        else
+                                            container.closed()
+                                        event.accepted = true
+                                    }
+                                }
                             }
                         }
 
-                        // Delete button
                         Rectangle {
-                            Layout.alignment: Qt.AlignVCenter
-                            width: 30; height: 30; radius: 10
-                            color: delArea.containsMouse
-                                ? Qt.alpha(Colors.error, 0.15)
-                                : "transparent"
-                            opacity: clipItem.hovered || clipItem.isActive ? 1 : 0
-                            Behavior on color   { ColorAnimation  { duration: 120 } }
-                            Behavior on opacity { NumberAnimation  { duration: 150 } }
+                            width: 26
+                            height: 26
+                            radius: 13
+                            visible: searchInput.text.length > 0
+                            color: clearSearch.containsMouse ? Colors.surfaceContainerHigh : "transparent"
 
                             MaterialIconSymbol {
                                 anchors.centerIn: parent
-                                content: "close"; iconSize: 16
-                                customColor: delArea.containsMouse ? Colors.error
-                                    : clipItem.isActive ? Colors.primaryContainerText : Colors.outline
+                                content: "close"
+                                iconSize: 14
+                                customColor: Colors.outline
                             }
 
                             MouseArea {
-                                id: delArea
+                                id: clearSearch
                                 anchors.fill: parent
-                                hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                                onClicked: ServiceCliphist.deleteEntry(clipItem.modelData)
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: searchInput.text = ""
                             }
+                        }
+                    }
+                }
+
+                M3ButtonGroup {
+                    model: container.filters
+                    activeCheck: function(value) { return container.filter === value }
+                    onSegmentClicked: function(value) {
+                        container.filter = value
+                        container.activeIndex = 0
+                        searchInput.forceActiveFocus()
+                    }
+                }
+
+                Rectangle {
+                    width: 36
+                    height: 36
+                    radius: 18
+                    color: refreshArea.containsMouse ? Colors.primaryContainer : "transparent"
+
+                    MaterialIconSymbol {
+                        anchors.centerIn: parent
+                        content: "cached"
+                        iconSize: 18
+                        customColor: refreshArea.containsMouse ? Colors.primaryContainerText : Colors.outline
+                    }
+
+                    MouseArea {
+                        id: refreshArea
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: ServiceCliphist.refresh()
+                    }
+
+                    CustomToolTip { visible: refreshArea.containsMouse; content: "Refresh" }
+                }
+
+                Rectangle {
+                    implicitWidth: container.confirmWipe ? wipeRow.implicitWidth + 24 : 36
+                    height: 36
+                    radius: 18
+                    color: container.confirmWipe ? Colors.error
+                        : wipeArea.containsMouse ? Qt.alpha(Colors.error, 0.16) : "transparent"
+                    Behavior on implicitWidth { SpatialAnim { speed: "fast" } }
+
+                    Row {
+                        id: wipeRow
+                        anchors.centerIn: parent
+                        spacing: 6
+
+                        MaterialIconSymbol {
+                            anchors.verticalCenter: parent.verticalCenter
+                            content: "clear_all"
+                            iconSize: 18
+                            customColor: container.confirmWipe ? Colors.errorText
+                                : wipeArea.containsMouse ? Colors.error : Colors.outline
+                        }
+                        CustomText {
+                            anchors.verticalCenter: parent.verticalCenter
+                            visible: container.confirmWipe
+                            content: "Clear all history"
+                            size: 12
+                            weight: 700
+                            customColor: Colors.errorText
                         }
                     }
 
                     MouseArea {
-                        id: itemMouse
+                        id: wipeArea
                         anchors.fill: parent
-                        anchors.rightMargin: 48
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
-                        onEntered: clipboardList.activeIndex = clipItem.index
                         onClicked: {
-                            container.closed()
-                            ServiceCliphist.copy(clipItem.modelData)
+                            if (container.confirmWipe) {
+                                container.confirmWipe = false
+                                wipeTimer.stop()
+                                ServiceCliphist.wipe()
+                            } else {
+                                container.confirmWipe = true
+                                wipeTimer.restart()
+                            }
                         }
                     }
 
-                    ListView.onRemove: clipItem.opacity = 0
+                    CustomToolTip { visible: wipeArea.containsMouse && !container.confirmWipe; content: "Clear all" }
+                }
+            }
+        }
+
+        RowLayout {
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            spacing: 10
+
+            Rectangle {
+                Layout.preferredWidth: 440
+                Layout.fillHeight: true
+                radius: 22
+                color: Colors.surfaceContainer
+                clip: true
+
+                ListView {
+                    id: list
+                    anchors.fill: parent
+                    anchors.margins: 6
+                    spacing: 2
+                    clip: true
+                    boundsBehavior: Flickable.StopAtBounds
+                    model: ScriptModel { values: container.visibleEntries }
+
+                    delegate: Rectangle {
+                        id: row
+                        required property var modelData
+                        required property int index
+
+                        readonly property bool active: row.index === container.activeIndex
+                        readonly property string kind: ServiceCliphist.entryKind(row.modelData)
+                        readonly property var info: row.kind === "image" ? ServiceCliphist.imageInfo(row.modelData) : null
+
+                        width: list.width
+                        height: 52
+                        radius: 16
+                        color: row.active ? Colors.primaryContainer
+                            : rowArea.containsMouse ? Qt.alpha(Colors.primary, 0.08) : "transparent"
+                        Behavior on color { EffectsColorAnim { speed: "fast" } }
+
+                        RowLayout {
+                            anchors.fill: parent
+                            anchors.leftMargin: 10
+                            anchors.rightMargin: 8
+                            spacing: 10
+
+                            Rectangle {
+                                Layout.preferredWidth: 32
+                                Layout.preferredHeight: 32
+                                radius: 10
+                                color: row.active ? Qt.alpha(Colors.primary, 0.22) : Qt.alpha(Colors.surfaceText, 0.06)
+
+                                MaterialIconSymbol {
+                                    anchors.centerIn: parent
+                                    content: row.kind === "image" ? "image" : row.kind === "link" ? "link" : "notes"
+                                    iconSize: 16
+                                    customColor: row.active ? Colors.primaryContainerText : Colors.outline
+                                }
+                            }
+
+                            CustomText {
+                                Layout.fillWidth: true
+                                content: row.kind === "image"
+                                    ? "Image  " + row.info.width + " × " + row.info.height + "  " + row.info.format
+                                    : ServiceCliphist.getEntryText(row.modelData).replace(/\s+/g, " ")
+                                size: 13
+                                elide: Text.ElideRight
+                                maximumLineCount: 1
+                                customColor: row.active ? Colors.primaryContainerText : Colors.surfaceText
+                            }
+
+                            Rectangle {
+                                Layout.preferredWidth: 28
+                                Layout.preferredHeight: 28
+                                radius: 14
+                                opacity: rowArea.containsMouse || delArea.containsMouse ? 1 : 0
+                                color: delArea.containsMouse ? Qt.alpha(Colors.error, 0.16) : "transparent"
+
+                                MaterialIconSymbol {
+                                    anchors.centerIn: parent
+                                    content: "close"
+                                    iconSize: 15
+                                    customColor: delArea.containsMouse ? Colors.error
+                                        : row.active ? Colors.primaryContainerText : Colors.outline
+                                }
+
+                                MouseArea {
+                                    id: delArea
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: ServiceCliphist.deleteEntry(row.modelData)
+                                }
+                            }
+                        }
+
+                        MouseArea {
+                            id: rowArea
+                            anchors.fill: parent
+                            anchors.rightMargin: 44
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: {
+                                container.activeIndex = row.index
+                                searchInput.forceActiveFocus()
+                            }
+                            onDoubleClicked: {
+                                container.activeIndex = row.index
+                                container.copyActive()
+                            }
+                        }
+                    }
+                }
+
+                ColumnLayout {
+                    anchors.centerIn: parent
+                    width: parent.width - 48
+                    visible: container.visibleEntries.length === 0
+                    spacing: 6
+
+                    MaterialIconSymbol {
+                        Layout.alignment: Qt.AlignHCenter
+                        content: ServiceCliphist.entries.length === 0 ? "content_paste" : "search_off"
+                        iconSize: 32
+                        customColor: Colors.outline
+                    }
+                    CustomText {
+                        Layout.alignment: Qt.AlignHCenter
+                        content: ServiceCliphist.entries.length === 0 ? "Clipboard is empty"
+                            : searchInput.text !== "" ? "No matches for “" + searchInput.text + "”"
+                            : "Nothing here yet"
+                        size: 15
+                        weight: 700
+                    }
+                    CustomText {
+                        Layout.fillWidth: true
+                        horizontalAlignment: Text.AlignHCenter
+                        wrapMode: Text.WordWrap
+                        content: ServiceCliphist.entries.length === 0 ? "Copy something and it shows up here."
+                            : "Try another search or filter."
+                        size: 12
+                        customColor: Colors.outline
+                    }
+                }
+            }
+
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                radius: 22
+                color: Colors.surfaceContainer
+                clip: true
+
+                ColumnLayout {
+                    anchors.fill: parent
+                    anchors.margins: 20
+                    spacing: 14
+                    visible: container.activeEntry !== ""
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 10
+
+                        MaterialIconSymbol {
+                            content: container.activeKind === "image" ? "image"
+                                : container.activeKind === "link" ? "link"
+                                : container.looksLikeCode ? "code" : "notes"
+                            iconSize: 18
+                            customColor: Colors.primary
+                        }
+                        CustomText {
+                            content: container.activeKind === "image" ? "Image"
+                                : container.activeKind === "link" ? "Link"
+                                : container.looksLikeCode ? "Code" : "Text"
+                            size: 14
+                            weight: 700
+                            customColor: Colors.primary
+                        }
+                        Item { Layout.fillWidth: true }
+
+                        Repeater {
+                            model: {
+                                if (container.activeKind === "image" && container.imageInfo)
+                                    return [container.imageInfo.width + " × " + container.imageInfo.height,
+                                            container.imageInfo.format, container.imageInfo.size]
+                                if (container.activeKind === "link")
+                                    return [container.linkDomain]
+                                const t = container.previewText
+                                const words = t.trim() === "" ? 0 : t.trim().split(/\s+/).length
+                                const lines = t === "" ? 0 : t.split("\n").length
+                                return [t.length + " characters", words + (words === 1 ? " word" : " words"),
+                                        lines + (lines === 1 ? " line" : " lines")]
+                            }
+
+                            delegate: Rectangle {
+                                required property var modelData
+                                implicitWidth: factText.implicitWidth + 16
+                                implicitHeight: 24
+                                radius: 12
+                                color: Colors.surfaceContainerHigh
+
+                                CustomText {
+                                    id: factText
+                                    anchors.centerIn: parent
+                                    content: String(parent.modelData)
+                                    size: 11
+                                    customColor: Colors.surfaceText
+                                }
+                            }
+                        }
+                    }
+
+                    Item {
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+
+                        Flickable {
+                            id: textFlick
+                            anchors.fill: parent
+                            visible: container.activeKind === "text"
+                            clip: true
+                            contentWidth: width
+                            contentHeight: previewEdit.contentHeight
+                            boundsBehavior: Flickable.StopAtBounds
+
+                            TextEdit {
+                                id: previewEdit
+                                width: textFlick.width
+                                readOnly: true
+                                selectByMouse: true
+                                wrapMode: TextEdit.WrapAtWordBoundaryOrAnywhere
+                                textFormat: TextEdit.PlainText
+                                text: container.shownText
+                                color: Colors.surfaceText
+                                selectionColor: Qt.alpha(Colors.primary, 0.35)
+                                font.family: container.looksLikeCode
+                                    ? (SettingsConfig.ai.codeFont ?? "monospace")
+                                    : (SettingsConfig.general.defaultFont ?? "Rubik")
+                                font.pixelSize: container.looksLikeCode ? 14 : 16
+                            }
+                        }
+
+                        ColumnLayout {
+                            anchors.left: parent.left
+                            anchors.right: parent.right
+                            anchors.verticalCenter: parent.verticalCenter
+                            visible: container.activeKind === "link"
+                            spacing: 8
+
+                            CustomText {
+                                Layout.fillWidth: true
+                                content: container.linkDomain
+                                size: 28
+                                weight: 700
+                                elide: Text.ElideRight
+                            }
+                            CustomText {
+                                Layout.fillWidth: true
+                                content: container.activeKind === "link" ? ServiceCliphist.getEntryText(container.activeEntry).trim() : ""
+                                size: 14
+                                wrapMode: Text.WrapAnywhere
+                                maximumLineCount: 4
+                                elide: Text.ElideRight
+                                customColor: Colors.primary
+                            }
+                        }
+
+                        Repeater {
+                            model: container.activeKind === "image" ? [container.activeEntry] : []
+                            delegate: ClipboardImage {
+                                required property var modelData
+                                anchors.fill: parent
+                                entry: modelData
+                            }
+                        }
+                    }
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 8
+
+                        CustomText {
+                            Layout.fillWidth: true
+                            content: "Enter copies, Delete removes, Tab switches filter"
+                            size: 11
+                            customColor: Colors.outline
+                            elide: Text.ElideRight
+                        }
+                        M3Button {
+                            variant: "text"
+                            icon: "delete"
+                            label: "Delete"
+                            onClicked: container.deleteActive()
+                        }
+                        M3Button {
+                            visible: container.activeKind === "link"
+                            variant: "tonal"
+                            icon: "open_in_new"
+                            label: "Open"
+                            onClicked: Qt.openUrlExternally(ServiceCliphist.getEntryText(container.activeEntry).trim())
+                        }
+                        M3Button {
+                            icon: "content_copy"
+                            label: "Copy"
+                            onClicked: container.copyActive()
+                        }
+                    }
+                }
+
+                CustomText {
+                    anchors.centerIn: parent
+                    visible: container.activeEntry === ""
+                    content: "Select an entry to preview it"
+                    size: 13
+                    customColor: Colors.outline
                 }
             }
         }

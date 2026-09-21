@@ -54,8 +54,6 @@ players, CAVA spectrum, sticky notes, tasks, pomodoro, RSS, moon phase, sun arc.
 - **Material You theming** — colours extracted from the wallpaper by
   `scripts/gen_colors.py` (Python `materialyoucolor`, cached); other apps can pick
   up the same palette, see [theming other apps](#theming-other-apps)
-- **AI assistant** — chat panel that drives a real [claude.ai](https://claude.ai)
-  session through a bundled browser extension, with optional voice dictation ([setup](#ai-setup))
 - **Nebula Drop** — phone ↔ PC file transfer over Wi-Fi: the shell serves a
   token-scoped page and shows a QR code, no app on the phone
 - **Clipboard manager** (cliphist, with image previews) · **Screenshots**
@@ -65,7 +63,7 @@ players, CAVA spectrum, sticky notes, tasks, pomodoro, RSS, moon phase, sun arc.
 - **Calendar holidays** — auto-detected from your timezone, no account needed
 - **Game mode**, cheat sheet, music visualizer
 - **Settings panel** — Theme, Appearance, Sound, Media, Networking, Bluetooth,
-  Notifications, Weather, Widgets, Sleep, Storage, AI, About
+  Notifications, Weather, Widgets, Sleep, Storage, About
 
 ---
 
@@ -125,7 +123,6 @@ Nebula registers these global shortcuts. Bind whatever keys you like to them —
 | `wallpaperLauncher` | Wallpaper selector |
 | `toolsWidget` | Tools / widget screen |
 | `filedrop` | Nebula Drop |
-| `ai` · `aiHistory` | AI panel, chat history |
 | `settingOpen` | Settings |
 | `cheatsheet` | Keybinding cheat sheet |
 | `welcome` | First-run setup screen |
@@ -164,26 +161,8 @@ uv pip install materialyoucolor requests Pillow \
   --python ~/.local/state/quickshell/.venv/bin/python
 ```
 
-Add `faster-whisper` only if you want voice dictation.
-
 From a clone, by hand: `bash plugins/WfRecorder/build.sh`, export those two
 variables, then `QSG_RENDER_LOOP=threaded quickshell`.
-
----
-
-## AI setup
-
-The AI panel calls no API — it drives a real [claude.ai](https://claude.ai) session
-in your browser, so it uses your existing subscription and needs no key. Build the
-bridge extension and load it via *Install Add-on From File*:
-
-```bash
-bash ~/.config/quickshell/extension/build.sh
-```
-
-> [!IMPORTANT]
-> [Zen](https://zen-browser.app) is required — the extension is unsigned, which Zen
-> allows with `xpinstall.signatures.required=false`, but stock Firefox does not.
 
 ---
 

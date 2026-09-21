@@ -20,7 +20,7 @@ PopupWindow{
     anchor{
         window: layout
         rect.x: iconCenterX - root.implicitWidth / 2
-        rect.y: sectionsRow.y + utility.y + utility.height + (SettingsConfig.general.barMode === "pill" ? 8 : 4)
+        rect.y: layout.popupY
     }
 
     HyprlandFocusGrab {

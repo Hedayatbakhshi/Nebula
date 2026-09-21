@@ -18,11 +18,12 @@ PopupWindow {
     property real srcWidth: 90
     property real srcHeight: 30
     property real srcRadius: 15
+    property real anchorX: 0
 
     anchor {
         window: layout
-        rect.x: utility.soundPanelCenterX - root.implicitWidth / 2
-        rect.y: sectionsRow.y + utility.y + utility.height + (SettingsConfig.general.barMode === "pill" ? 8 : 4)
+        rect.x: root.anchorX - root.implicitWidth / 2
+        rect.y: layout.popupY
     }
 
     HyprlandFocusGrab {

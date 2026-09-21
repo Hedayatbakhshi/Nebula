@@ -19,7 +19,6 @@ WelcomeTile {
         { what: "Wallpapers",   name: "wallpaperLauncher", keys: ["Super", "W"],              hypr: "SUPER, W",           lua: "SUPER + W",             locked: false },
         { what: "Tools",        name: "toolsWidget",       keys: ["Super", "S"],              hypr: "SUPER, S",           lua: "SUPER + S",             locked: false },
         { what: "Nebula Drop",  name: "filedrop",          keys: ["Super", "F"],              hypr: "SUPER, F",           lua: "SUPER + F",             locked: false },
-        { what: "AI panel",     name: "ai",                keys: ["Super", "D"],              hypr: "SUPER, D",           lua: "SUPER + D",             locked: false },
         { what: "Settings",     name: "settingOpen",       keys: ["Super", "Ctrl", "S"],      hypr: "SUPER CTRL, S",      lua: "SUPER + CTRL + S",      locked: false },
         { what: "Cheat sheet",  name: "cheatsheet",        keys: ["Super", "/"],              hypr: "SUPER, Slash",       lua: "SUPER + SLASH",         locked: false },
         { what: "Lock screen",  name: "lock",              keys: ["Super", "L"],              hypr: "SUPER, L",           lua: "SUPER + L",             locked: true  },

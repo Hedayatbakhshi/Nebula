@@ -72,7 +72,7 @@ Singleton{
         root.loadHolidays();
     }
 
-    Component.onCompleted: root.loadHolidays()
+    Component.onCompleted: if (!SettingsConfig.greeterMode) root.loadHolidays()
 
     onHolidayCountryChanged: root.resetHolidays()
 
@@ -129,10 +129,11 @@ Singleton{
         return { isHoliday: false, info: [] };
     }
 
-    function generateCalendarGrid(year, month) {
+    function generateCalendarGrid(year, month, startDay) {
         let grid = [];
         let daysInMonth = getDaysInMonth(year, month);
-        let firstDay = getFirstDayOfMonth(year, month);
+        let start = startDay === undefined ? 0 : (startDay % 7 + 7) % 7;
+        let firstDay = (getFirstDayOfMonth(year, month) - start + 7) % 7;
         let today = new Date();
 
         // Get previous month info
@@ -180,7 +181,7 @@ Singleton{
         }
 
         // Add days from next month to fill the grid (42 cells = 6 rows)
-        let remainingCells = 35 - grid.length;
+        let remainingCells = Math.max(35, Math.ceil(grid.length / 7) * 7) - grid.length;
         let nextMonth = month + 1;
         let nextYear = year;
         if (nextMonth > 11) {

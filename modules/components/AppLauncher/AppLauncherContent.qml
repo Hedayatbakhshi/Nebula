@@ -16,24 +16,22 @@ Item {
 
     signal closed
 
-    property bool isGrid: SettingsConfig.general.appGrid
-    property var appList: isGrid ? gridLoader.item : listLoader.item
+    property bool preview: false
 
-    // ── Launcher modes ────────────────────────────────────────────────────
-    // "apps" keeps the whole existing app pipeline (categories, pin, context
-    // menu); every other mode is served by ServiceLauncher + its own view.
+    onVisibleChanged: if (visible && col.visible && !appLauncher.preview) appLauncher.focusSearch()
+
     readonly property string mode: ServiceLauncher.mode
     readonly property bool isApps: mode === "apps"
     readonly property bool isEmoji: mode === "emoji"
+    property string query: ""
+    readonly property bool searching: appLauncher.query.length > 0
 
-    // The one view that currently owns keyboard selection.
-    readonly property var activeView: isApps ? appList
-        : isEmoji ? emojiLoader.item : resultsLoader.item
+    property Item searchField: null
+    property Item modeView: null
+    readonly property Item styleItem: styleLoader.item
+    readonly property var appView: appLauncher.styleItem ? appLauncher.styleItem.appView : null
+    readonly property var activeView: appLauncher.isApps ? appLauncher.appView : appLauncher.modeView
 
-    readonly property int resultCount: isApps
-        ? filteredApps.length : ServiceLauncher.results.length
-
-    // ── Category filter ───────────────────────────────────────────────────
     property string selectedCategory: "All"
 
     readonly property var _categoryMap: ({
@@ -44,6 +42,24 @@ Item {
         "Science": "Science",    "Settings": "Settings",
         "System": "System",      "Utility": "Utilities"
     })
+
+    readonly property var _categoryIcons: ({
+        "All": "apps", "Media": "play_circle", "Dev": "code", "Education": "school", "Games": "sports_esports",
+        "Graphics": "brush", "Internet": "public", "Office": "description", "Science": "science",
+        "Settings": "tune", "System": "settings", "Utilities": "build"
+    })
+
+    function categoryIcon(label) {
+        return appLauncher._categoryIcons[label] ?? "category"
+    }
+
+    function categoryOf(app) {
+        for (const c of (app?.categories ?? [])) {
+            const l = appLauncher._categoryMap[c]
+            if (l) return l
+        }
+        return ""
+    }
 
     readonly property var availableCategories: {
         var seen = new Set()
@@ -61,9 +77,15 @@ Item {
         return result
     }
 
-    // Applies both search and category filter
+    readonly property string selectedLabel: {
+        const c = appLauncher.availableCategories.find(x => x.value === appLauncher.selectedCategory)
+        return c ? c.label : "All"
+    }
+
     property var filteredApps: {
         var base = ServiceApps.filteredApps
+        if (ServiceLauncher.sortMode === "used" && ServiceApps.currentSearchText.length === 0)
+            base = ServiceApps.byUsage(base)
         if (selectedCategory === "All") return base
         var catKey = selectedCategory
         return base.filter(function(app) {
@@ -73,40 +95,157 @@ Item {
         })
     }
 
+    function usageCount(app) {
+        const u = ServiceApps.usage[app?.id ?? ""]
+        return u ? u.count : 0
+    }
+
+    function mostUsed(n) {
+        const used = ServiceApps.byUsage(ServiceApps.list).filter(a => appLauncher.usageCount(a) > 0)
+        const out = used.slice(0, n)
+        for (const a of ServiceApps.pinnedApps) {
+            if (out.length >= n) break
+            if (out.indexOf(a) < 0) out.push(a)
+        }
+        return out
+    }
+
+    function favourites(n) {
+        const out = Array.prototype.slice.call(ServiceApps.pinnedApps, 0, n)
+        return out.length > 0 ? out : appLauncher.mostUsed(n)
+    }
+
+    function timeAgo(app) {
+        const u = ServiceApps.usage[app?.id ?? ""]
+        if (!u) return ""
+        const m = Math.floor((Date.now() - u.last) / 60000)
+        if (m < 1) return "Just now"
+        if (m < 60) return m + " min ago"
+        const h = Math.floor(m / 60)
+        if (h < 24) return h + " h ago"
+        const d = Math.floor(h / 24)
+        return d === 1 ? "Yesterday" : d + " days ago"
+    }
+
+    function iconFor(app) {
+        return IconUtil.getIconPath(app?.icon ?? "")
+    }
+
+    function launch(app) {
+        if (!app) return
+        ServiceApps.run(app)
+        appLauncher.closed()
+    }
+
+    function openMenu(item, x, y, app) {
+        const p = item.mapToItem(appLauncher, x, y)
+        appLauncher.showContextMenu(p.x, p.y, app)
+    }
+
+    function focusSearch() {
+        if (appLauncher.searchField && !appLauncher.preview)
+            appLauncher.searchField.focusInput()
+    }
+
+    function setQuery(text) {
+        if (appLauncher.searchField)
+            appLauncher.searchField.text = text
+        appLauncher.focusSearch()
+    }
+
+    function selectCategory(value) {
+        appLauncher.selectedCategory = value
+        if (appLauncher.appView) appLauncher.appView.activeIndex = 0
+    }
+
     onClosed: {
         col.visible = false
         col.opacity = 0
         col.scale   = 0.92
-        searchInput.text = ""
+        if (appLauncher.searchField) appLauncher.searchField.text = ""
+        appLauncher.query = ""
         ServiceApps.reset()
         ServiceLauncher.reset()
-        // appList is null whenever we close from a non-app mode, because its
-        // Loader is inactive then.
-        if (appList) {
-            appList.activeIndex = 0
-            appList.animationsEnabled = false
-        }
+        if (appLauncher.appView) appLauncher.appView.activeIndex = 0
+        if (appLauncher.styleItem && appLauncher.styleItem.reset) appLauncher.styleItem.reset()
         selectedCategory = "All"
     }
 
-    // Routes the query to the right backend. ServiceLauncher decides the mode;
-    // ServiceApps only ever sees a real app search.
+    function clearSearch() {
+        if (appLauncher.searchField) appLauncher.searchField.text = ""
+        appLauncher.query = ""
+        ServiceLauncher.reset()
+        ServiceApps.updateSearch("")
+        appLauncher.selectedCategory = "All"
+        if (appLauncher.appView) appLauncher.appView.activeIndex = 0
+    }
+
+    Component.onCompleted: {
+        appLauncher.clearSearch()
+        if (GlobalStates.launcherSeed !== "") {
+            const seed = GlobalStates.launcherSeed
+            GlobalStates.launcherSeed = ""
+            Qt.callLater(function () {
+                if (appLauncher.searchField) {
+                    appLauncher.searchField.text = seed
+                    appLauncher.searchField.cursorPosition = seed.length
+                }
+                appLauncher.updateQuery(seed)
+            })
+        }
+    }
+
     function updateQuery(text) {
+        appLauncher.query = text
         ServiceLauncher.query = text
         ServiceApps.updateSearch(ServiceLauncher.mode === "apps" ? text : "")
         if (activeView) activeView.activeIndex = 0
     }
 
     function activateSelected() {
-        if (isApps) {
-            const app = filteredApps[appList.activeIndex]
-            if (app) { app.execute(); appLauncher.closed() }
-        } else if (activeView) {
-            activeView.activateIndex(activeView.activeIndex)
+        const v = appLauncher.activeView
+        if (v) v.activateIndex(v.activeIndex)
+    }
+
+    function handleKey(event) {
+        const view = appLauncher.activeView
+        if (event.key === Qt.Key_Escape) {
+            if (appLauncher.styleItem && appLauncher.styleItem.handleEscape && appLauncher.styleItem.handleEscape()) {
+                event.accepted = true
+            } else if (!appLauncher.isApps || appLauncher.searching) {
+                appLauncher.setQuery("")
+                event.accepted = true
+            } else {
+                appLauncher.closed()
+            }
+            return
+        }
+        if (event.key === Qt.Key_Backspace && appLauncher.searchField
+                && appLauncher.searchField.cursorPosition === 0 && !appLauncher.isApps) {
+            appLauncher.setQuery("")
+            event.accepted = true
+            return
+        }
+        if (!view) return
+        const cols = view.columns ?? 1
+        const grid = cols > 1
+        const last = (view.navCount ?? view.count) - 1
+        function moveTo(i) {
+            view.activeIndex = Math.max(0, Math.min(last, i))
+            if (view.reveal) view.reveal(view.activeIndex)
+            else view.positionViewAtIndex(view.activeIndex, GridView.Contain)
+        }
+        if (event.key === Qt.Key_Down) {
+            moveTo(view.activeIndex + (grid ? cols : 1)); event.accepted = true
+        } else if (event.key === Qt.Key_Up) {
+            moveTo(view.activeIndex - (grid ? cols : 1)); event.accepted = true
+        } else if (event.key === Qt.Key_Right && grid) {
+            moveTo(view.activeIndex + 1); event.accepted = true
+        } else if (event.key === Qt.Key_Left && grid) {
+            moveTo(view.activeIndex - 1); event.accepted = true
         }
     }
 
-    // ── Context menu ──────────────────────────────────────────────────────
     function showContextMenu(clickX, clickY, app) {
         ctxMenu.targetApp = app
         ctxMenu.x = Math.max(4, Math.min(clickX, width - ctxMenu.width - 4))
@@ -116,7 +255,11 @@ Item {
     Connections {
         target: GlobalStates
         function onAppLauncherOpenChanged() {
-            if (!GlobalStates.appLauncherOpen) {
+            if (GlobalStates.appLauncherOpen) {
+                appLauncher.clearSearch()
+                return
+            }
+            if (!appLauncher.preview) {
                 showTimer.stop()
                 col.visible = false
                 col.opacity = 0
@@ -125,24 +268,21 @@ Item {
         }
     }
 
-    // ── Main content ──────────────────────────────────────────────────────
-    ColumnLayout {
+    Item {
         id: col
         anchors.fill: parent
         anchors.margins: 10
-        spacing: 8
         visible: false
         opacity: 0
         scale: 0.92
 
-        // Wait for the panel slide to finish, then spring the content in
         Timer {
             id: showTimer
             interval: 300
             onTriggered: {
                 col.visible = true
                 entranceAnim.start()
-                searchInput.forceActiveFocus()
+                appLauncher.focusSearch()
             }
         }
 
@@ -162,272 +302,33 @@ Item {
             }
         }
 
-        // ── Search bar ────────────────────────────────────────────────
-        Rectangle {
-            Layout.fillWidth: true
-            Layout.preferredHeight: 50
-            radius: 16
-            color: Colors.surfaceContainerHigh
-
-            RowLayout {
-                anchors.fill: parent
-                anchors.leftMargin: 14
-                anchors.rightMargin: 10
-                spacing: 10
-
-                MaterialIconSymbol {
-                    content: "search"
-                    iconSize: 20
-                    customColor: Colors.primary
+        Loader {
+            id: styleLoader
+            anchors.fill: parent
+            sourceComponent: {
+                switch (ServiceLauncher.style) {
+                case "spotlight":  return spotlightComp
+                case "rail":       return railComp
+                case "bento":      return bentoComp
+                case "folders":    return foldersComp
+                case "expressive": return expressiveComp
                 }
-
-                Item {
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
-
-                    TextMetrics {
-                        id: hintMetrics
-                        font: placeholder.font
-                        text: "Search apps   = calc   > run   : emoji   w windows"
-                    }
-
-                    CustomText {
-                        id: placeholder
-                        anchors.left: parent.left
-                        anchors.right: parent.right
-                        anchors.verticalCenter: parent.verticalCenter
-                        content: hintMetrics.width <= placeholder.width
-                            ? hintMetrics.text : "Search apps"
-                        size: 15
-                        customColor: Colors.outline
-                        elide: Text.ElideRight
-                        visible: searchInput.text.length === 0
-                    }
-
-                    TextInput {
-                        id: searchInput
-                        anchors.fill: parent
-                        verticalAlignment: TextInput.AlignVCenter
-                        clip: true
-                        font.pixelSize: 15
-                        font.weight: 600
-                        font.family: SettingsConfig.general.defaultFont ?? "Rubik"
-                        color: Colors.surfaceText
-                        focus: true
-
-                        onTextChanged: appLauncher.updateQuery(text)
-
-                        onAccepted: appLauncher.activateSelected()
-
-                        Keys.onPressed: event => {
-                            const view = appLauncher.activeView
-                            if (!view) return
-
-                            // Grid navigation applies to the app grid and to
-                            // the emoji grid; everything else is a plain list.
-                            const grid = (appLauncher.isApps && isGrid) || appLauncher.isEmoji
-                            const cols = appLauncher.isEmoji ? view.columns : 4
-                            const last = appLauncher.resultCount - 1
-
-                            function moveTo(i) {
-                                view.activeIndex = Math.max(0, Math.min(last, i))
-                                view.positionViewAtIndex(view.activeIndex, GridView.Contain)
-                            }
-
-                            if (event.key === Qt.Key_Down) {
-                                moveTo(view.activeIndex + (grid ? cols : 1))
-                            } else if (event.key === Qt.Key_Up) {
-                                moveTo(view.activeIndex - (grid ? cols : 1))
-                            } else if (event.key === Qt.Key_Right && grid) {
-                                moveTo(view.activeIndex + 1)
-                            } else if (event.key === Qt.Key_Left && grid) {
-                                moveTo(view.activeIndex - 1)
-                            } else if (event.key === Qt.Key_Backspace
-                                       && searchInput.cursorPosition === 0
-                                       && !appLauncher.isApps) {
-                                // Backspace at the very start leaves the mode
-                                // rather than deleting nothing.
-                                searchInput.text = ""
-                                event.accepted = true
-                            } else if (event.key === Qt.Key_Escape) {
-                                if (!appLauncher.isApps) {
-                                    searchInput.text = ""   // first Esc exits the mode
-                                    event.accepted = true
-                                } else {
-                                    appLauncher.closed()
-                                }
-                            }
-                        }
-                    }
-                }
-
-                Rectangle {
-                    width: 28; height: 28; radius: 10
-                    color: Colors.surfaceContainerHighest
-                    visible: searchInput.text.length > 0
-
-                    MaterialIconSymbol {
-                        anchors.centerIn: parent
-                        content: "close"; iconSize: 14
-                        customColor: Colors.outline
-                    }
-
-                    MouseArea {
-                        anchors.fill: parent
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: searchInput.text = ""
-                    }
-                }
-
-                Rectangle {
-                    visible: appLauncher.isApps
-                    width: 60; height: 28; radius: 10
-                    color: Colors.surfaceContainerHighest
-
-                    Rectangle {
-                        x: appLauncher.isGrid ? 30 : 3
-                        anchors.verticalCenter: parent.verticalCenter
-                        width: 27; height: 22; radius: 8
-                        color: Colors.primary
-                        Behavior on x { NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
-                    }
-
-                    RowLayout {
-                        anchors.fill: parent; anchors.margins: 3; spacing: 0
-
-                        Item {
-                            Layout.preferredWidth: 27; Layout.fillHeight: true
-                            MaterialIconSymbol {
-                                anchors.centerIn: parent
-                                content: "lists"; iconSize: 15
-                                customColor: !appLauncher.isGrid ? Colors.primaryText : Colors.outline
-                                Behavior on customColor { ColorAnimation { duration: 150 } }
-                            }
-                            MouseArea {
-                                anchors.fill: parent; cursorShape: Qt.PointingHandCursor
-                                onClicked: SettingsConfig.general = Object.assign({}, SettingsConfig.general, { appGrid: false })
-                            }
-                        }
-                        Item {
-                            Layout.preferredWidth: 27; Layout.fillHeight: true
-                            MaterialIconSymbol {
-                                anchors.centerIn: parent
-                                content: "grid_view"; iconSize: 15
-                                customColor: appLauncher.isGrid ? Colors.primaryText : Colors.outline
-                                Behavior on customColor { ColorAnimation { duration: 150 } }
-                            }
-                            MouseArea {
-                                anchors.fill: parent; cursorShape: Qt.PointingHandCursor
-                                onClicked: SettingsConfig.general = Object.assign({}, SettingsConfig.general, { appGrid: true })
-                            }
-                        }
-                    }
-                }
+                return listComp
             }
-        }
-
-        Item {
-            Layout.fillWidth: true
-            implicitHeight: 30
-            visible: appLauncher.isApps ? appLauncher.availableCategories.length > 1 : true
-
-            Flickable {
-                anchors.fill: parent
-                visible: appLauncher.isApps
-                contentWidth: catGroup.implicitWidth
-                contentHeight: height
-                clip: true
-                interactive: contentWidth > width
-
-                M3ButtonGroup {
-                    id: catGroup
-                    height: 30
-                    model: appLauncher.availableCategories
-                    activeCheck: function(value) { return value === appLauncher.selectedCategory }
-                    onSegmentClicked: value => {
-                        appLauncher.selectedCategory = value
-                        if (appList) appList.activeIndex = 0
-                    }
-                    inactiveColor: Colors.surfaceContainerHigh
-                }
-            }
-
-            LauncherModeBar {
-                anchors.left: parent.left
-                anchors.right: parent.right
-                anchors.verticalCenter: parent.verticalCenter
-                visible: !appLauncher.isApps
-                detail: appLauncher.isEmoji && emojiLoader.item && appLauncher.resultCount > 0
-                    ? emojiLoader.item.activeName
-                    : ""
-            }
-        }
-
-        // ── App list ──────────────────────────────────────────────────
-        ClippingWrapperRectangle {
-            Layout.fillWidth: true
-            Layout.fillHeight: true
-            radius: 12
-            color: "transparent"
-
-            Item {
-                anchors.fill: parent
-
-                Loader {
-                    id: gridLoader
-                    active: appLauncher.isApps && appLauncher.isGrid
-                    visible: active
-                    anchors.fill: parent
-                    sourceComponent: GridApps {}
-                }
-                Loader {
-                    id: listLoader
-                    active: appLauncher.isApps && !appLauncher.isGrid
-                    visible: active
-                    anchors.fill: parent
-                    sourceComponent: ListApps {}
-                }
-                Loader {
-                    id: emojiLoader
-                    active: appLauncher.isEmoji
-                    visible: active
-                    anchors.fill: parent
-                    sourceComponent: EmojiGrid {
-                        onActivated: appLauncher.closed()
-                    }
-                }
-                Loader {
-                    id: resultsLoader
-                    active: !appLauncher.isApps && !appLauncher.isEmoji
-                    visible: active
-                    anchors.fill: parent
-                    sourceComponent: LauncherResults {
-                        onActivated: appLauncher.closed()
-                    }
-                }
-
-                // Empty state — a mode with a query but nothing to show
-                ColumnLayout {
-                    anchors.centerIn: parent
-                    spacing: 8
-                    visible: !appLauncher.isApps
-                             && appLauncher.resultCount === 0
-                             && ServiceLauncher.term.length > 0
-
-                    MaterialIconSymbol {
-                        Layout.alignment: Qt.AlignHCenter
-                        content: "search_off"; iconSize: 30
-                        customColor: Colors.outline
-                    }
-                    CustomText {
-                        Layout.alignment: Qt.AlignHCenter
-                        content: "No results"
-                        size: 13; customColor: Colors.outline
-                    }
-                }
+            onLoaded: {
+                const q = appLauncher.query
+                if (appLauncher.searchField) appLauncher.searchField.text = q
+                appLauncher.focusSearch()
             }
         }
     }
+
+    Component { id: spotlightComp;  LauncherStyleSpotlight  { launcher: appLauncher } }
+    Component { id: railComp;       LauncherStyleRail       { launcher: appLauncher } }
+    Component { id: bentoComp;      LauncherStyleBento      { launcher: appLauncher } }
+    Component { id: foldersComp;    LauncherStyleFolders    { launcher: appLauncher } }
+    Component { id: listComp;       LauncherStyleList       { launcher: appLauncher } }
+    Component { id: expressiveComp; LauncherStyleExpressive { launcher: appLauncher } }
 
     // ── Context menu click-away ────────────────────────────────────────────
     MouseArea {
@@ -547,7 +448,7 @@ Item {
                         RippleEffect {
                             anchors.fill: parent
                             onClicked: {
-                                ctxMenu.targetApp.execute()
+                                ServiceApps.run(ctxMenu.targetApp)
                                 ctxMenu.targetApp = null
                                 appLauncher.closed()
                             }

@@ -7,10 +7,18 @@ import qs.modules.utils
 import qs.modules.customComponents
 import qs.modules.services
 import qs.modules.settings
+import qs.modules.components.Bar
 
 Rectangle{
     id: root
     property bool compact: false
+
+    readonly property bool showAvatar: DashLayout.opt("profile", "showAvatar") !== false
+    readonly property bool showUptime: DashLayout.opt("profile", "showUptime") !== false
+    readonly property bool showSettings: DashLayout.opt("profile", "showSettings") !== false
+    readonly property bool showReload: DashLayout.opt("profile", "showReload") !== false
+    readonly property bool showPower: DashLayout.opt("profile", "showPower") !== false
+    readonly property bool showClose: DashLayout.opt("profile", "showClose") !== false
     signal toggleDashboard()
     implicitHeight: root.compact ? 44 : 52
     color: "transparent"
@@ -21,6 +29,7 @@ Rectangle{
         spacing: 10
 
         ClippingWrapperRectangle{
+            visible: root.showAvatar
             Layout.preferredWidth: root.compact ? 34 : 40
             Layout.preferredHeight: root.compact ? 34 : 40
             radius: height
@@ -47,7 +56,8 @@ Rectangle{
             }
             CustomText{
                 Layout.fillWidth: true
-                content: "up " + ServiceSystemInfo.getUptime()
+                visible: root.showUptime
+                content: root.showUptime ? "up " + ServiceSystemInfo.getUptime() : ""
                 size: 11
                 customColor: Colors.outline
                 elide: Text.ElideRight
@@ -68,6 +78,7 @@ Rectangle{
         // }
         M3IconButton {
             icon: "settings"
+            visible: root.showSettings
             iconSize: 18
             Layout.preferredHeight: 34
             Layout.preferredWidth: 34
@@ -81,6 +92,7 @@ Rectangle{
 
         M3IconButton {
             icon: "refresh"
+            visible: root.showReload
             iconSize: 18
             Layout.preferredHeight: 34
             Layout.preferredWidth: 34
@@ -93,6 +105,7 @@ Rectangle{
 
         M3IconButton {
             icon: "power_settings_new"
+            visible: root.showPower
             iconSize: 18
             Layout.preferredHeight: 34
             Layout.preferredWidth: 34
@@ -104,6 +117,7 @@ Rectangle{
         }
         M3IconButton {
             icon: "close"
+            visible: root.showClose
             iconSize: 18
             Layout.preferredHeight: 34
             Layout.preferredWidth: 34

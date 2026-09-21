@@ -29,6 +29,160 @@ Singleton {
     property string scheme: SettingsConfig.theme.matugenScheme
     property string theme: SettingsConfig.theme.matugenTheme
     property string transitionType: SettingsConfig.theme.transitionType ?? "fade"
+    property string gowallTheme: SettingsConfig.theme.gowallTheme ?? "off"
+    property bool gowallIcons: SettingsConfig.theme.gowallIcons ?? false
+    property bool gowallInvert: SettingsConfig.theme.gowallInvert ?? false
+    property bool gowallShell: SettingsConfig.theme.gowallShell ?? false
+    property string iconsScript: Quickshell.env("HOME") + "/.config/quickshell/scripts/gowall_icons.py"
+    readonly property bool gowallActive: {
+        const t = (root.gowallTheme ?? "").toLowerCase()
+        return t !== "" && t !== "off"
+    }
+
+    // `gowall list` reports the built-ins plus anything in ~/.config/gowall/config.yml,
+    // so the picker never goes stale against the installed binary. Queried lazily —
+    // nothing spawns until a settings page actually asks.
+    property var gowallThemes: []
+    property bool gowallAvailable: false
+    property bool gowallChecked: false
+
+    // CustomListNew renders modelData.name, so the picker needs objects.
+    readonly property var gowallOptions: [{ name: "off" }, { name: "match" }]
+        .concat(root.gowallThemes.map(t => ({ name: t })))
+
+    // ── Icon theme recoloring ──────────────────────────────────────────────
+    // The whole icon theme is copied and recolored (~80k files, ~10s), so this
+    // runs as a tracked Process rather than fire-and-forget — the settings page
+    // shows its progress.
+    readonly property bool iconBusy: iconProc.running
+    property real iconProgress: 0
+    property string iconThemeName: ""
+    property string iconStatus: ""
+
+    function buildGowallIcons(force) {
+        if (iconProc.running) return
+        if (!root.gowallActive) {
+            console.warn("[ServiceWallpaper] buildGowallIcons: no palette selected")
+            return
+        }
+        root.iconProgress = 0
+        root.iconStatus = "Recoloring icons…"
+        iconProc.command = force
+            ? ["python3", root.iconsScript, root.gowallTheme, "--apply", "--force"]
+            : ["python3", root.iconsScript, root.gowallTheme, "--apply"]
+        iconProc.running = true
+    }
+
+    function restoreIconTheme() {
+        if (iconProc.running) return
+        root.iconProgress = 0
+        root.iconStatus = "Restoring icon theme…"
+        iconProc.command = ["python3", root.iconsScript, "--restore"]
+        iconProc.running = true
+    }
+
+    Process {
+        id: iconProc
+
+        stdout: SplitParser {
+            onRead: line => {
+                const t = line.trim()
+                if (t.startsWith("progress=")) {
+                    const parts = t.substring(9).split("/")
+                    const done = parseInt(parts[0]), total = parseInt(parts[1])
+                    if (total > 0) root.iconProgress = done / total
+                } else if (t.startsWith("theme=")) {
+                    root.iconThemeName = t.substring(6)
+                }
+            }
+        }
+
+        stderr: SplitParser {
+            onRead: line => {
+                const t = line.trim()
+                if (t === "") return
+                root.iconStatus = t.replace("[gowall_icons] ", "")
+                console.log("[ServiceWallpaper]", t)
+            }
+        }
+
+        onExited: code => {
+            root.iconProgress = code === 0 ? 1 : 0
+            if (code !== 0) root.iconStatus = "Icon recolor failed"
+        }
+    }
+
+    // A six-icon before/after sample, so a palette can be judged without
+    // committing to a full rebuild. ~0.2s.
+    property var iconPreview: []
+    property string iconPreviewTheme: ""
+
+    function refreshIconPreview(theme) {
+        const t = (theme ?? "").toLowerCase()
+        if (t === "" || t === "off") {
+            root.iconPreview = []
+            root.iconPreviewTheme = ""
+            return
+        }
+        if (previewProc.running) return
+        if (root.iconPreviewTheme === theme && root.iconPreview.length > 0) return
+        previewProc.found = []
+        previewProc.wanted = theme
+        previewProc.command = ["python3", root.iconsScript, theme, "--preview"]
+        previewProc.running = true
+    }
+
+    Process {
+        id: previewProc
+        property var found: []
+        property string wanted: ""
+
+        stdout: SplitParser {
+            onRead: line => {
+                const t = line.trim()
+                if (!t.startsWith("preview=")) return
+                const parts = t.substring(8).split("|")
+                if (parts.length === 2)
+                    previewProc.found.push({ before: parts[0], after: parts[1] })
+            }
+        }
+
+        onExited: code => {
+            if (code === 0 && previewProc.found.length > 0) {
+                root.iconPreview = previewProc.found
+                root.iconPreviewTheme = previewProc.wanted
+            } else {
+                root.iconPreview = []
+            }
+        }
+    }
+
+    function refreshGowallThemes(force) {
+        if (gowallListProc.running) return
+        if (root.gowallChecked && !force) return
+        gowallListProc.found = []
+        gowallListProc.running = true
+    }
+
+    Process {
+        id: gowallListProc
+        property var found: []
+        command: ["gowall", "list"]
+
+        stdout: SplitParser {
+            onRead: line => {
+                const t = line.replace(/\x1b\[[0-9;]*m/g, "").trim()
+                if (t.length > 0) gowallListProc.found.push(t)
+            }
+        }
+
+        onExited: code => {
+            root.gowallChecked = true
+            root.gowallAvailable = code === 0 && gowallListProc.found.length > 0
+            root.gowallThemes = root.gowallAvailable ? gowallListProc.found : []
+            console.log("[ServiceWallpaper] gowall list →", root.gowallThemes.length, "themes (exit", code + ")")
+        }
+    }
 
     // ── Wallpaper application queue ────────────────────────────────────────
     // awww (~0.16s) + matugen (~0.3s) = wallpaper.sh finishes in < 1s.
@@ -64,7 +218,10 @@ Singleton {
         _pendingPath = ""
         _applyStartedAt = Date.now()
         console.log("[ServiceWallpaper] _startApply →", path, "| mode:", root.theme, "| t=0ms")
-        Quickshell.execDetached([wallpaperScript, path, root.scheme, root.theme, root.transitionType])
+        Quickshell.execDetached([wallpaperScript, path, root.scheme, root.theme, root.transitionType,
+                                 root.gowallTheme, root.gowallIcons ? "on" : "off",
+                                 root.gowallInvert ? "on" : "off",
+                                 root.gowallShell ? "on" : "off"])
         applyTimer.restart()
     }
 
@@ -79,77 +236,36 @@ Singleton {
     }
 
     property string colorsScript: Quickshell.env("HOME") + "/.config/quickshell/scripts/gen_colors.py"
-    property string depthScript: Quickshell.env("HOME") + "/.config/quickshell/scripts/depth_map.py"
+    // The untouched wallpaper — with gowall on, WallpaperTheme.wallpaper is the
+    // recolored copy in the cache, and feeding that back in would convert a
+    // converted image.
+    readonly property string currentSource: WallpaperTheme.sourceWallpaper || WallpaperTheme.wallpaper
 
-    property string depthMapPath: ""
-
-    readonly property bool depthBusy: depthProc.running
-
-    function ensureDepthMap(force) {
-        root.depthMapPath = ""
-        if (!(SettingsConfig.parallax?.enabled ?? true)) return
-        const wp = WallpaperTheme.wallpaper
-        if (!wp || wp.length === 0) return
-        depthProc.running = false
-        depthProc.depth = ""
-        depthProc.command = force
-            ? ["python3", root.depthScript, wp, "--force"]
-            : ["python3", root.depthScript, wp]
-        depthProc.running = true
-    }
-
-    Process {
-        id: depthProc
-        property string depth: ""
-
-        stdout: SplitParser {
-            onRead: line => {
-                const t = line.trim()
-                if (t.startsWith("depth=")) depthProc.depth = t.substring(6)
-            }
+    // Re-runs the whole pipeline for the wallpaper that is already set. Used by
+    // the settings pages after a scheme/palette change.
+    function reapply() {
+        const wp = root.currentSource
+        if (!wp || wp.length === 0) {
+            console.warn("[ServiceWallpaper] reapply: no wallpaper loaded yet")
+            return
         }
-        stderr: SplitParser {
-            onRead: line => {
-                const t = line.trim()
-                if (t !== "") console.warn("[ServiceWallpaper]", t)
-            }
-        }
-        onExited: code => {
-            root.depthMapPath = code === 0 ? depthProc.depth : ""
-        }
-    }
-
-    Connections {
-        target: SettingsConfig
-        function onParallaxChanged() { splitDebounce.restart() }
-    }
-
-    Timer {
-        id: splitDebounce
-        interval: 400
-        repeat: false
-        onTriggered: root.ensureDepthMap(false)
-    }
-
-    Connections {
-        target: WallpaperTheme
-        function onWallpaperChanged() { root.ensureDepthMap() }
-    }
-
-    Timer {
-        interval: 1500
-        running: true
-        repeat: false
-        onTriggered: root.ensureDepthMap()
+        _enqueue(wp)
     }
 
     // Re-generates colors for the current wallpaper in the new mode.
     // No awww — wallpaper image isn't changing, only the color scheme.
     // gen_colors.py: ~615ms cold, ~44ms score-cached, ~2ms fully-cached.
+    // A gowall palette is the exception: the recolor depends on the mode, so
+    // the full pipeline has to run and repaint the desktop.
     function applyTheme() {
-        const wp = WallpaperTheme.wallpaper
+        const wp = root.currentSource
         if (!wp || wp.length === 0) {
             console.warn("[ServiceWallpaper] applyTheme: no wallpaper loaded yet")
+            return
+        }
+        if (root.gowallActive) {
+            console.log("[ServiceWallpaper] applyTheme → gowall", root.gowallTheme, "— full pipeline")
+            _enqueue(wp)
             return
         }
         console.log("[ServiceWallpaper] applyTheme → mode:", root.theme, "wallpaper:", wp)

@@ -6,6 +6,7 @@ import Quickshell.Io
 import Quickshell.Wayland
 import QtQuick
 import qs.modules.utils
+import qs.modules.settings
 
 // Parses the launcher query into a mode + term and produces the results for
 // every non-app mode. App mode stays in ServiceApps and keeps its own
@@ -21,17 +22,78 @@ Singleton {
 
     // ── Mode table ────────────────────────────────────────────────────────────
     readonly property var modes: [
-        { id: "calc",    prefix: "=", label: "Calc",    icon: "calculate",     hint: "1920*0.15 · 100 usd to inr" },
-        { id: "run",     prefix: ">", label: "Run",     icon: "terminal",      hint: "shell command" },
-        { id: "emoji",   prefix: ":", label: "Emoji",   icon: "mood",          hint: "fire · rocket · thumbsup" },
-        { id: "windows", prefix: "w", label: "Windows", icon: "select_window", hint: "open windows" }
+        { id: "calc", key: "launcherCalc",    prefix: "=", label: "Calc",    icon: "calculate",     hint: "1920*0.15 · 100 usd to inr" },
+        { id: "run", key: "launcherRun",     prefix: ">", label: "Run",     icon: "terminal",      hint: "shell command" },
+        { id: "emoji", key: "launcherEmoji",   prefix: ":", label: "Emoji",   icon: "mood",          hint: "fire · rocket · thumbsup" },
+        { id: "windows", key: "launcherWindows", prefix: "w", label: "Windows", icon: "select_window", hint: "open windows" }
     ]
+
+    readonly property var _g: SettingsConfig.general ?? ({})
+    readonly property string position: root._g.launcherPosition ?? "edge"
+    readonly property var styles: [
+        { value: "spotlight",  label: "Spotlight",  icon: "search",            w: 680, h: 560 },
+        { value: "rail",       label: "Rail",       icon: "view_sidebar",      w: 560, h: 720 },
+        { value: "bento",      label: "Bento",      icon: "dashboard",         w: 900, h: 660 },
+        { value: "folders",    label: "Folders",    icon: "folder",            w: 460, h: 720 },
+        { value: "list",       label: "List",       icon: "lists",             w: 440, h: 720 },
+        { value: "expressive", label: "Expressive", icon: "interests",         w: 460, h: 760 }
+    ]
+    readonly property string style: {
+        const s = root._g.launcherStyle ?? "list"
+        return root.styles.some(x => x.value === s) ? s : "list"
+    }
+    readonly property var styleSpec: root.styles.find(x => x.value === root.style)
+    readonly property int defaultWidth: root.styleSpec.w
+    readonly property int defaultHeight: root.styleSpec.h
+    readonly property int minWidth: 320
+    readonly property int maxWidth: 1200
+    readonly property int minHeight: 360
+    readonly property int maxHeight: 1200
+    readonly property var savedSize: (root._g.launcherSizes ?? {})[root.style] ?? null
+    property var draft: null
+    readonly property int panelWidth: root.draft ? root.draft.w
+        : root.savedSize && typeof root.savedSize.w === "number" ? root.clampW(root.savedSize.w) : root.defaultWidth
+    readonly property int panelHeight: root.draft ? root.draft.h
+        : root.savedSize && typeof root.savedSize.h === "number" ? root.clampH(root.savedSize.h) : root.defaultHeight
+    readonly property bool customSize: root.savedSize !== null
+
+    function clampW(w) {
+        return Math.round(Math.max(root.minWidth, Math.min(root.maxWidth, w)))
+    }
+
+    function clampH(h) {
+        return Math.round(Math.max(root.minHeight, Math.min(root.maxHeight, h)))
+    }
+
+    function setSize(w, h) {
+        const all = Object.assign({}, root._g.launcherSizes ?? {})
+        const cw = root.clampW(w)
+        const ch = root.clampH(h)
+        if (cw === root.defaultWidth && ch === root.defaultHeight) delete all[root.style]
+        else all[root.style] = { w: cw, h: ch }
+        root.draft = null
+        SettingsConfig.general = Object.assign({}, SettingsConfig.general, { launcherSizes: all })
+    }
+
+    function clearSize() {
+        root.draft = null
+        if (!root.customSize) return
+        const all = Object.assign({}, root._g.launcherSizes ?? {})
+        delete all[root.style]
+        SettingsConfig.general = Object.assign({}, SettingsConfig.general, { launcherSizes: all })
+    }
+    readonly property real radius: (root._g.launcherRadius ?? -1) < 0
+        ? ((SettingsConfig.bar ?? {}).radius ?? 18) : root._g.launcherRadius
+    readonly property int iconSize: root._g.launcherIconSize ?? 30
+    readonly property string sortMode: root._g.launcherSort ?? "az"
+    readonly property var enabledModes: root.modes.filter(m => root._g[m.key] ?? true)
+    readonly property string hint: "Search apps" + root.enabledModes.map(m => "   " + m.prefix + "\u2009" + m.label.toLowerCase()).join("")
 
     // `w` is a bare letter, so it only counts as a prefix when followed by a
     // space — otherwise "wezterm" would never reach app search.
     function _prefixOf(q) {
         if (q.length === 0) return null
-        for (const m of root.modes) {
+        for (const m of root.enabledModes) {
             if (m.prefix === "w") {
                 if (q === "w " || q.startsWith("w ")) return m
             } else if (q.startsWith(m.prefix)) {

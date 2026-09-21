@@ -1,6 +1,7 @@
 import Quickshell
 import QtQuick
 import QtQuick.Layouts
+import QtQuick.Effects
 import qs.modules.utils
 import qs.modules.services
 import qs.modules.settings
@@ -12,16 +13,24 @@ WidgetHost {
     tile: WidgetSizes.small
     defaultPos: Qt.point(300, 300)
 
+    readonly property string d1: ServiceClock.date.charAt(0)
+    readonly property string d2: ServiceClock.date.charAt(1)
+
+    readonly property int _sz: 115
+    readonly property real _overlap: -22
+    readonly property real _ring: 6
+    readonly property int _ringSteps: 12
+    readonly property string _font: SettingsConfig.general.displayFont ?? "Titan One"
+
     Rectangle {
         anchors.fill: parent
         radius: WidgetSizes.radius
-        color: Colors.surface
+        color: WidgetSizes.cardColor
 
         ColumnLayout {
             anchors.centerIn: parent
             spacing: 0
 
-            // Day name — small, spaced out, primary
             CustomText {
                 Layout.alignment: Qt.AlignHCenter
                 content: ServiceClock.day.toUpperCase()
@@ -31,20 +40,88 @@ WidgetHost {
                 font.letterSpacing: 3
             }
 
-            // Huge date — takes up most of the card
-            CustomText {
+            RowLayout {
                 Layout.alignment: Qt.AlignHCenter
                 Layout.topMargin: -6
-                content: ServiceClock.date
-                size: 115
-                weight: 700
-                color: Colors.primary
-                font.family: SettingsConfig.general.displayFont ?? "Titan One"
-                style: Text.Raised
-                styleColor: Colors.outline
+                spacing: root._overlap
+
+                Item {
+                    Layout.preferredWidth: _t1.implicitWidth
+                    Layout.preferredHeight: _t1.implicitHeight
+
+                    CustomText {
+                        id: _t1
+                        content: root.d1
+                        size: root._sz
+                        weight: 600
+                        color: Colors.surfaceText
+                        font.family: root._font
+                        style: Text.Raised
+                        styleColor: Colors.outline
+                        layer.enabled: true
+                        visible: false
+                    }
+
+                    Item {
+                        id: _mask
+                        width: _t1.implicitWidth
+                        height: _t1.implicitHeight
+                        layer.enabled: true
+                        visible: false
+
+                        CustomText {
+                            content: root.d2
+                            size: root._sz
+                            weight: 600
+                            color: "white"
+                            font.family: root._font
+                            x: _t1.implicitWidth + root._overlap
+                        }
+
+                        Repeater {
+                            model: root._ringSteps
+
+                            CustomText {
+                                required property int index
+
+                                readonly property real angle: index * 2 * Math.PI / root._ringSteps
+
+                                content: root.d2
+                                size: root._sz
+                                weight: 600
+                                color: "white"
+                                font.family: root._font
+                                x: _t1.implicitWidth + root._overlap + root._ring * Math.cos(angle)
+                                y: root._ring * Math.sin(angle)
+                            }
+                        }
+                    }
+
+                    MultiEffect {
+                        source: _t1
+                        x: 0
+                        y: 0
+                        width: _t1.implicitWidth
+                        height: _t1.implicitHeight
+                        maskEnabled: true
+                        maskSource: _mask
+                        maskInverted: true
+                        maskThresholdMin: 0.5
+                        maskSpreadAtMin: 1.0
+                    }
+                }
+
+                CustomText {
+                    content: root.d2
+                    size: root._sz
+                    weight: 600
+                    color: Colors.primary
+                    font.family: root._font
+                    style: Text.Raised
+                    styleColor: Colors.outline
+                }
             }
 
-            // Month · Year — compact below
             RowLayout {
                 Layout.alignment: Qt.AlignHCenter
                 Layout.topMargin: -14
@@ -55,7 +132,7 @@ WidgetHost {
                     size: 13
                     weight: 600
                     color: Colors.surfaceText
-                    font.family: SettingsConfig.general.displayFont ?? "Titan One"
+                    font.family: root._font
                 }
 
                 Rectangle {
@@ -70,7 +147,7 @@ WidgetHost {
                     size: 13
                     weight: 600
                     color: Colors.outline
-                    font.family: SettingsConfig.general.displayFont ?? "Titan One"
+                    font.family: root._font
                 }
             }
         }

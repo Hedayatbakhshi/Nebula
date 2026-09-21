@@ -12,6 +12,7 @@ WidgetHost {
     id: root
     configKey: "analogClock"
     defaultPos: Qt.point(400, 200)
+    backdropMask: shapeMask
     implicitWidth: 200
     implicitHeight: 200
 
@@ -24,7 +25,7 @@ WidgetHost {
         width: root.clockSize
         height: root.clockSize
         roundedPolygon: MaterialShapeFn.getCircle()
-        color: Colors.surface
+        color: WidgetSizes.cardColor
     }
 
     // Hour numbers — 12, 3, 6, 9 near the face edge
@@ -106,5 +107,33 @@ WidgetHost {
         width: 6; height: 6; radius: 3
         color: Colors.primaryText
         z: 11
+    }
+    Item {
+        id: maskSource
+        anchors.fill: parent
+
+        MaterialShapes.ShapeCanvas {
+            anchors.centerIn: parent
+            width: root.clockSize
+            height: root.clockSize
+            roundedPolygon: MaterialShapeFn.getCircle()
+            color: "white"
+        }
+    }
+
+    Item {
+        width: 0
+        height: 0
+        clip: true
+
+        ShaderEffectSource {
+            id: shapeMask
+            width: root.width
+            height: root.height
+            textureSize: Qt.size(root.width, root.height)
+            sourceItem: maskSource
+            hideSource: true
+            live: true
+        }
     }
 }

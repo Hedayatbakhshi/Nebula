@@ -10,8 +10,7 @@ WidgetHost {
     id: root
     configKey: "dateWidget"
     defaultPos: Qt.point(300, 300)
-    implicitWidth: 200
-    implicitHeight: 110
+    tile: Qt.size(WidgetSizes.span(2), WidgetSizes.span(1))
 
     // Left accent bar — only visual element besides text
     Rectangle {

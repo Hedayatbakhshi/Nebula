@@ -10,7 +10,6 @@ Singleton {
     property alias general: settingsAdapter.general
     property alias theme: settingsAdapter.theme
     property alias wallhaven: settingsAdapter.wallhaven
-    property alias ai: settingsAdapter.ai
     property alias recording: settingsAdapter.recording
     property alias screenshot: settingsAdapter.screenshot
     property alias widgets: settingsAdapter.widgets
@@ -19,10 +18,13 @@ Singleton {
     property alias gameMode: settingsAdapter.gameMode
     property alias dashboard: settingsAdapter.dashboard
     property alias sleep: settingsAdapter.sleep
-    property alias updates: settingsAdapter.updates
-    property alias parallax: settingsAdapter.parallax
+    property alias lockscreen: settingsAdapter.lockscreen
+    property alias greeter: settingsAdapter.greeter
+    property alias bar: settingsAdapter.bar
 
     property bool settingsReady: false
+
+    property bool greeterMode: false
 
     Timer {
         id: writeTimer
@@ -73,11 +75,14 @@ Singleton {
                 musicVisColor: "Primary",
                 wallpaperDir: Quickshell.env("HOME") + "/wallpaper",
                 workspaceCount: 10,
+                workspaceNames: ({}),
                 showWorkspaceNumbers: false,
                 flatBarMode: true,
                 primaryMonitor: "",
                 perMonitorWorkspaces: false,
                 barCenter: "clock",
+                barWeather: true,
+                barWeatherPanel: true,
                 motionScheme: "expressive",
                 holidayCountry: "",
                 fileDropDir: "",
@@ -102,11 +107,14 @@ Singleton {
                 musicVisColor: "Primary",
                 wallpaperDir: Quickshell.env("HOME") + "/wallpaper",
                 workspaceCount: 10,
+                workspaceNames: ({}),
                 showWorkspaceNumbers: false,
                 flatBarMode: true,
                 primaryMonitor: "",
                 perMonitorWorkspaces: false,
                 barCenter: "clock",
+                barWeather: true,
+                barWeatherPanel: true,
                 motionScheme: "expressive",
                 holidayCountry: "",
                 fileDropDir: "",
@@ -130,7 +138,11 @@ Singleton {
                 firstColor: "#ffffff",
                 secondColor: "#ffffff",
                 thirdColor: "#ffffff",
-                transitionType: "fade"
+                transitionType: "fade",
+                gowallTheme: "off",
+                gowallIcons: false,
+                gowallInvert: false,
+                gowallShell: false
             })
 
             property var theme: ({
@@ -139,7 +151,11 @@ Singleton {
                 firstColor: "#ffffff",
                 secondColor: "#ffffff",
                 thirdColor: "#ffffff",
-                transitionType: "fade"
+                transitionType: "fade",
+                gowallTheme: "off",
+                gowallIcons: false,
+                gowallInvert: false,
+                gowallShell: false
             })
 
             onThemeChanged: {
@@ -160,8 +176,8 @@ Singleton {
                     dirty = true
                 }
 
-                // strip legacy gowall keys
-                const legacy = ["colorEngine", "gowallTheme"]
+                // strip legacy keys
+                const legacy = ["colorEngine"]
                 for (const k of legacy) {
                     if (k in cur) { delete cur[k]; dirty = true }
                 }
@@ -180,34 +196,6 @@ Singleton {
                 ratios: ""
             })
 
-            property var ai: ({
-                // Master switch. Off stops the browser bridge and the whisper
-                // daemon and makes the panel refuse to open.
-                enabled: true,
-                // Empty means the PipeWire default source.
-                source: "",
-                // Send a dictation the moment it lands rather than dropping it
-                // into the composer to read over first.
-                autoSend: false,
-                // faster-whisper model. distil-large-v3 is the most accurate that
-                // fits the GPU; base.en / small.en are lighter if it struggles.
-                model: "distil-large-v3",
-                // Terms whisper keeps mangling. It leans toward words it has
-                // already seen, so listing your jargon here makes them far
-                // likelier to come out right.
-                vocabulary: "",
-                // Panel appearance
-                codeFont: "Adwaita Mono",
-                codeFontSize: 13,
-                composerFont: "Adwaita Mono",
-                composerFontSize: 15,
-                syntaxHighlight: true,
-                accentBold: true,
-                // Reply parsing policy. The extension ships an unfiltered node
-                // walk; these decide what survives into the rendered blocks.
-                keepScreenReader: false,
-                keepControls: false
-            })
 
             property var recording: ({
                 outputPath: "~/Videos",
@@ -229,6 +217,10 @@ Singleton {
             })
 
             property var widgets: ({
+                showWidgets: true,
+                cardStyle: "flat",
+                glassStrength: 1.0,
+                cardOpacity: 0.60,
                 clockX: 100,
                 clockY: 100,
                 musicPlayerX: 200,
@@ -243,7 +235,7 @@ Singleton {
                 showAnalogClock: false,
                 analogClockStyle: "classic",
                 dateWidgetStyle: "default",
-                digitalClockStyle: "classic",
+                digitalClockStyle: "veil",
                 showProfileCard: false,
                 profileCardStyle: "card",
                 profileCardX: 100,
@@ -251,6 +243,31 @@ Singleton {
                 showSunArc: false,
                 sunArcX: 100,
                 sunArcY: 620,
+                showClaudeCode: false,
+                claudeCodeX: 620,
+                claudeCodeY: 100,
+                showVpn: false,
+                vpnX: 620,
+                vpnY: 340,
+                showJpDay: false,
+                jpDayX: 100,
+                jpDayY: 100,
+                showJpClock: false,
+                jpClockX: 340,
+                jpClockY: 100,
+                showJpHaiku: false,
+                jpHaikuX: 580,
+                jpHaikuY: 100,
+                showJpWeather: false,
+                jpWeatherX: 100,
+                jpWeatherY: 440,
+                showJpKanji: false,
+                jpKanjiX: 340,
+                jpKanjiY: 440,
+                showJpSeal: false,
+                jpSealX: 580,
+                jpSealY: 440,
+                sealText: "鋼",
                 showMoonPhase: false,
                 moonPhaseX: 620,
                 moonPhaseY: 440,
@@ -271,12 +288,15 @@ Singleton {
                 networkGraphY: 780,
                 networkGraphWindow: "3 min",
                 networkGraphInterval: "2 s",
-                showSpectrum: false,
-                spectrumX: 420,
-                spectrumY: 620,
-                showAlbumArt: false,
-                albumArtX: 760,
-                albumArtY: 620,
+                showMusicStrip: false,
+                musicStripX: 1240,
+                musicStripY: 700,
+                showCassette: false,
+                cassetteX: 100,
+                cassetteY: 620,
+                showVinyl: false,
+                vinylX: 460,
+                vinylY: 620,
                 showWeatherHourly: false,
                 weatherHourlyX: 420,
                 weatherHourlyY: 200,
@@ -285,7 +305,47 @@ Singleton {
                 weatherWindY: 200,
                 showWeatherBarometer: false,
                 weatherBarometerX: 1000,
-                weatherBarometerY: 200
+                weatherBarometerY: 200,
+                showWeatherShape: false,
+                weatherShapeX: 660,
+                weatherShapeY: 200,
+                showStatStack: false,
+                statStackX: 880,
+                statStackY: 200,
+                showWorldClock: false,
+                worldClockX: 880,
+                worldClockY: 440,
+                worldClockZones: [
+                    { label: "Local", tz: "" },
+                    { label: "Tokyo", tz: "Asia/Tokyo" },
+                    { label: "London", tz: "Europe/London" }
+                ],
+                showAlbumShape: false,
+                albumShapeX: 660,
+                albumShapeY: 440,
+                showPhotoFrame: false,
+                photoFrameX: 440,
+                photoFrameY: 440,
+                photoFrameImage: "",
+                albumShapeLock: "",
+                photoFrameShapeLock: "",
+                analogShapeLock: "",
+                weatherShapeLock: "",
+                dateShapeLock: "",
+                batteryShapeLock: "",
+                clockShapeLock: "",
+                statStackShapeLock: "",
+                worldClockShapeLock: "",
+                circularMusicShapeLock: "",
+                clockUse24: false,
+                clockShowDate: true,
+                clockStatus: true,
+                clockSpin: true,
+                clockSeconds: true,
+                clockMusicRim: true,
+                clockTilt: true,
+                clockAlignLeft: false,
+                clockLabel: true
             })
 
             property var weather: ({
@@ -310,7 +370,8 @@ Singleton {
                 quickActions: true,
                 notifications: true,
                 calendar: true,
-                order: ["profile", "controls", "quickActions", "notifications", "calendar"]
+                order: ["profile", "controls", "quickActions", "notifications", "calendar"],
+                options: ({})
             })
 
             property var dashboard: ({
@@ -319,7 +380,8 @@ Singleton {
                 quickActions: true,
                 notifications: true,
                 calendar: true,
-                order: ["profile", "controls", "quickActions", "notifications", "calendar"]
+                order: ["profile", "controls", "quickActions", "notifications", "calendar"],
+                options: ({})
             })
 
             onDashboardChanged: {
@@ -368,63 +430,57 @@ Singleton {
                     sleep = Object.assign({}, d, cur)
             }
 
-            readonly property var _parallaxDefaults: ({
-                enabled: true,
-                strength: 0.2,
-                quality: 0.3,
-                mode: "cursor",
-                musicIntensity: 0.6
+
+
+
+            readonly property var _lockscreenDefaults: ({
+                layout: "veil",
+                showDate: true,
+                showStatus: true,
+                showMusic: true,
+                showPower: true
             })
 
-            property var parallax: ({
-                enabled: true,
-                strength: 0.2,
-                quality: 0.3,
-                mode: "cursor",
-                musicIntensity: 0.6
+            property var lockscreen: ({
+                layout: "veil",
+                showDate: true,
+                showStatus: true,
+                showMusic: true,
+                showPower: true
             })
 
-            onParallaxChanged: {
-                const d = _parallaxDefaults
-                const cur = parallax || {}
+            onLockscreenChanged: {
+                const d = _lockscreenDefaults
+                const cur = lockscreen || {}
                 let needsPatch = false
                 for (const k in d) {
                     if (cur[k] === undefined) { needsPatch = true; break }
                 }
                 if (needsPatch)
-                    parallax = Object.assign({}, d, cur)
+                    lockscreen = Object.assign({}, d, cur)
             }
 
-            readonly property var _updatesDefaults: ({
-                autoCheck: true,
-                checkIntervalHours: 3,
-                notifyOnStart: true,
-                includeAur: true,
-                showBarPill: true,
-                cacheKeep: 2,
-                lastNotifiedBoot: ""
+            readonly property var _greeterDefaults: ({
+                layout: "veil"
             })
 
-            property var updates: ({
-                autoCheck: true,
-                checkIntervalHours: 3,
-                notifyOnStart: true,
-                includeAur: true,
-                showBarPill: true,
-                cacheKeep: 2,
-                lastNotifiedBoot: ""
+            property var greeter: ({
+                layout: "veil"
             })
 
-            onUpdatesChanged: {
-                const d = _updatesDefaults
-                const cur = updates || {}
+            onGreeterChanged: {
+                const d = _greeterDefaults
+                const cur = greeter || {}
                 let needsPatch = false
                 for (const k in d) {
                     if (cur[k] === undefined) { needsPatch = true; break }
                 }
                 if (needsPatch)
-                    updates = Object.assign({}, d, cur)
+                    greeter = Object.assign({}, d, cur)
             }
+
+
+
 
             readonly property var _gameModeDefaults: ({
                 hideBar: true,
@@ -450,6 +506,16 @@ Singleton {
                 if (needsPatch)
                     gameMode = Object.assign({}, d, cur)
             }
+
+            property var bar: ({
+                blocks: [],
+                margins: {},
+                options: {},
+                height: 40,
+                itemGap: 6,
+                blockGap: -1,
+                radius: 18
+            })
 
             property var toggles: ({
                 airplaneMode: false,

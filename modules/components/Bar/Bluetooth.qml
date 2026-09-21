@@ -19,6 +19,7 @@ ColumnLayout {
     spacing: 8
 
     signal backClicked
+    property bool showBack: true
 
     property bool scanning: false
 
@@ -97,6 +98,7 @@ ColumnLayout {
             radius: 16
             icon: "chevron_backward"
             iconSize: 20
+            visible: root.showBack
             onClicked: root.backClicked()
         }
 

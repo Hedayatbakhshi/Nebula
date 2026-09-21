@@ -7,11 +7,71 @@ import qs.modules.utils
 import qs.modules.customComponents
 import qs.modules.services
 import qs.modules.settings
+import qs.modules.components.Bar
 
 Rectangle{
     id: root
     property bool compact: false
-    implicitHeight: root.compact ? 38 : 46
+
+    readonly property var actions: {
+        const out = []
+        const ids = DashLayout.quickItems
+        for (let i = 0; i < ids.length; i++) {
+            const e = DashLayout.quickEntry(ids[i])
+            if (e) out.push(e)
+        }
+        return out
+    }
+
+    readonly property bool _dnd: SettingsConfig.notifications?.doNotDisturb ?? false
+
+    readonly property real buttonSize: {
+        const v = DashLayout.opt("quickActions", "size")
+        const s = (typeof v === "number" && v > 0) ? v : 46
+        return root.compact ? Math.round(s * 0.83) : s
+    }
+
+    function isOn(id) {
+        switch (id) {
+        case "airplane":      return !ServiceNetwork.wifiEnabled
+        case "notifications": return ServiceNotification.muted
+        case "speaker":       return ServicePipewire.muted
+        case "mic":           return ServicePipewire.micMuted
+        case "awake":         return ServiceIdleInhibit.active
+        case "dnd":           return root._dnd
+        case "gameMode":      return ServiceGameMode.active
+        case "recording":     return ServiceTools.isRecording
+        case "tools":         return GlobalStates.toolsWidgetOpen
+        case "clipboard":     return GlobalStates.clipboardOpen
+        case "wallpaper":     return GlobalStates.wallpaperOpen
+        case "overview":      return GlobalStates.overviewOpen
+        case "settings":      return GlobalStates.settingsOpen
+        }
+        return false
+    }
+
+    function trigger(id) {
+        switch (id) {
+        case "airplane":      ServiceNetwork.toggleWifi(); return
+        case "notifications": ServiceNotification.toggleMute(); return
+        case "speaker":       ServicePipewire.toggleMute(); return
+        case "mic":           ServicePipewire.toggleMicMute(); return
+        case "awake":         ServiceIdleInhibit.toggle(); return
+        case "dnd":
+            SettingsConfig.notifications = Object.assign({}, SettingsConfig.notifications,
+                                                         { doNotDisturb: !root._dnd })
+            return
+        case "gameMode":      ServiceGameMode.toggle(); return
+        case "recording":
+        case "tools":         GlobalStates.toolsWidgetOpen = !GlobalStates.toolsWidgetOpen; return
+        case "clipboard":     GlobalStates.clipboardOpen = !GlobalStates.clipboardOpen; return
+        case "wallpaper":     GlobalStates.wallpaperOpen = !GlobalStates.wallpaperOpen; return
+        case "overview":      GlobalStates.overviewOpen = !GlobalStates.overviewOpen; return
+        case "settings":      GlobalStates.settingsOpen = !GlobalStates.settingsOpen; return
+        }
+    }
+
+    implicitHeight: root.actions.length === 0 ? 0 : iconRow.implicitHeight
     color: "transparent"
 
     ColumnLayout{
@@ -19,28 +79,22 @@ Rectangle{
         anchors.margins: 0
         spacing: 0
 
-
         ExpressiveIconRow {
+            id: iconRow
             Layout.fillWidth: true
-            Layout.fillHeight: true
-            model: Settings.quickIcons
+            Layout.preferredHeight: iconRow.implicitHeight
+            rowHeight: root.buttonSize
+            minWidth: root.buttonSize
+            model: root.actions
             iconFor: function(m, active) { return active ? m.iconActive : m.icon }
             activeCheck: function(i) {
-                if (i === 0) return !ServiceNetwork.wifiEnabled
-                if (i === 1) return ServiceNotification.muted
-                if (i === 2) return ServicePipewire.muted
-                if (i === 3) return ServicePipewire.micMuted
-                if (i === 4) return ServiceIdleInhibit.active
-                return false
+                const a = root.actions[i]
+                return a ? root.isOn(a.id) : false
             }
             onTriggered: i => {
-                if      (i === 0) ServiceNetwork.toggleWifi()
-                else if (i === 1) ServiceNotification.toggleMute()
-                else if (i === 2) ServicePipewire.toggleMute()
-                else if (i === 3) ServicePipewire.toggleMicMute()
-                else if (i === 4) ServiceIdleInhibit.toggle()
+                const a = root.actions[i]
+                if (a) root.trigger(a.id)
             }
         }
     }
 }
-

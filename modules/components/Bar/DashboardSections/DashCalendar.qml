@@ -5,6 +5,7 @@ import qs.modules.utils
 import qs.modules.settings
 import qs.modules.services
 import qs.modules.customComponents
+import qs.modules.components.Bar
 
 // Month calendar built for the dashboard's narrow column, rather than the
 // 400x400 popup the bar's centre slot uses. Cells are sized off the available
@@ -14,6 +15,7 @@ import qs.modules.customComponents
 Rectangle{
     id: root
     property bool compact: false
+    readonly property bool ownsHeader: true
 
     implicitHeight: content.implicitHeight + (root.compact ? 18 : 26)
     radius: 20
@@ -22,9 +24,20 @@ Rectangle{
     property int viewYear:  new Date().getFullYear()
     property int viewMonth: new Date().getMonth()
 
+    readonly property int startDay: DashLayout.opt("calendar", "startDay") === 1 ? 1 : 0
+    readonly property bool showHolidays: DashLayout.opt("calendar", "showHolidays") !== false
+
+    readonly property var weekInitials: {
+        const base = ["S", "M", "T", "W", "T", "F", "S"]
+        const out = []
+        for (let i = 0; i < 7; i++)
+            out.push({ letter: base[(i + root.startDay) % 7], weekend: (i + root.startDay) % 7 === 0 || (i + root.startDay) % 7 === 6 })
+        return out
+    }
+
     readonly property var grid: {
         ServiceClock.holidaysLoaded          // repaint once holidays arrive
-        return ServiceClock.generateCalendarGrid(root.viewYear, root.viewMonth)
+        return ServiceClock.generateCalendarGrid(root.viewYear, root.viewMonth, root.startDay)
     }
 
     onViewYearChanged: ServiceClock.ensureHolidaysForYear(root.viewYear)
@@ -137,17 +150,16 @@ Rectangle{
             spacing: 0
 
             Repeater {
-                model: ["S", "M", "T", "W", "T", "F", "S"]
+                model: root.weekInitials
                 delegate: CustomText {
-                    required property string modelData
-                    required property int index
+                    required property var modelData
                     Layout.fillWidth: true
                     horizontalAlignment: Text.AlignHCenter
-                    content: modelData
+                    content: modelData.letter
                     size: 10
                     weight: 600
                     // Weekend initials sit back so the working week reads first
-                    customColor: (index === 0 || index === 6) ? Colors.primary : Colors.outline
+                    customColor: modelData.weekend ? Colors.primary : Colors.outline
                 }
             }
         }
@@ -161,6 +173,7 @@ Rectangle{
             columnSpacing: 0
 
             readonly property real cell: width / 7
+            readonly property real rowH: Math.min(dayGrid.cell, 46)
 
             Repeater {
                 model: root.grid
@@ -170,7 +183,7 @@ Rectangle{
                     required property var modelData
 
                     Layout.fillWidth: true
-                    Layout.preferredHeight: dayGrid.cell
+                    Layout.preferredHeight: dayGrid.rowH
 
                     readonly property bool today: modelData.isToday && modelData.isCurrentMonth
                     readonly property bool outside: !modelData.isCurrentMonth
@@ -178,7 +191,7 @@ Rectangle{
                     // Today's marker — the only filled shape in the grid
                     Rectangle {
                         anchors.centerIn: parent
-                        width: Math.min(dayGrid.cell - 4, 28)
+                        width: Math.min(dayGrid.rowH - 4, 28 + Math.max(0, dayGrid.rowH - 40) * 0.5)
                         height: width
                         radius: width / 2
                         color: Colors.primary
@@ -188,7 +201,7 @@ Rectangle{
                     CustomText {
                         anchors.centerIn: parent
                         content: dayCell.modelData.day
-                        size: root.compact ? 11 : 12
+                        size: (root.compact ? 11 : 12) + (dayGrid.rowH >= 44 ? 1 : 0)
                         weight: dayCell.today ? 700 : 500
                         customColor: dayCell.today   ? Colors.primaryText
                                    : dayCell.outside ? Colors.outlineVariant
@@ -202,11 +215,11 @@ Rectangle{
                         anchors.bottomMargin: 2
                         width: 3; height: 3; radius: 2
                         color: dayCell.today ? Colors.primaryText : Colors.tertiary
-                        visible: dayCell.modelData.isHoliday && !dayCell.outside
+                        visible: root.showHolidays && dayCell.modelData.isHoliday && !dayCell.outside
                     }
 
                     CustomToolTip {
-                        visible: hover.hovered && dayCell.modelData.isHoliday
+                        visible: root.showHolidays && hover.hovered && dayCell.modelData.isHoliday
                         content: (dayCell.modelData.info?.[0]?.name) ?? ""
                     }
 

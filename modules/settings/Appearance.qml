@@ -16,7 +16,7 @@ Singleton{
     property QtObject motion
 
     size : QtObject{
-        property int barHeight: 40
+        property int barHeight: Math.max(32, Math.min(56, SettingsConfig.bar?.height ?? 40))
         property int arcHeight: 10
         property int arcWidth: 20
         property int lineWidth: 4
@@ -33,9 +33,10 @@ Singleton{
         property int osdHeight: 60
         property int calanderWidth: 400
         property int calanderHeight: 400
-        property int clockHeight: 40
+        property int clockHeight: barHeight
         property int wallpaperPanelWidth: 1200
         property int wallpaperPanelHeight: 520
+        property int wallpaperSelectorWidth: 1560
         property int todoPanelWidth: 380
         property int todoPanelHeight: 620
         property int vpnPanelWidth: 340

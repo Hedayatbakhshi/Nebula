@@ -9,117 +9,84 @@ import qs.modules.settings
 import qs.modules.customComponents
 import "../../MatrialShapes/" as MaterialShapes
 import "../../MatrialShapes/material-shapes.js" as MaterialShapeFn
+import "../../MatrialShapes/shape-library.js" as ShapeLibrary
 
 WidgetHost {
     id: root
     configKey: "musicPlayer"
+    tile: WidgetSizes.small
+    resizable: true
+    minSpan: Qt.size(2, 2)
+    maxSpan: Qt.size(3, 3)
     defaultPos: Qt.point(200, 200)
-    visible: true
-    implicitHeight: 500
-    implicitWidth: 500
+    backdrop: false
 
     // Never start audio capture for a gallery thumbnail
     Component.onCompleted: if (!root.preview) ServiceCava.retain()
     Component.onDestruction: if (!root.preview) ServiceCava.release()
 
-    // Settings load asynchronously via a 100ms timer in SettingsConfig,
-    // so widgets.musicPlayerX may not be ready at Component.onCompleted time.
-    // React to the load completing here.
+    readonly property string shapeLock: SettingsConfig.widgets.circularMusicShapeLock ?? ""
+    readonly property var faceShape: root.shapeLock !== ""
+        ? (ShapeLibrary.get(root.shapeLock) ?? MaterialShapeFn.getCookie12Sided())
+        : MaterialShapeFn.getCookie12Sided()
 
-    Canvas {
-        id: outerVizShape
-        anchors.centerIn: parent
-        width: 540
-        height: 540
-        antialiasing: true
-
-        property real shapeRotation: 0
-        property color fillColor: Qt.alpha(Colors.primary, 0.4)
-
-        NumberAnimation on shapeRotation {
-            from: 0; to: 360
-            duration: 20000
-            loops: Animation.Infinite
-            running: ServiceMusic.isPlaying
-        }
-
-        onShapeRotationChanged: requestPaint()
-        onFillColorChanged: requestPaint()
-
-        Connections {
-            target: ServiceCava
-            function onCavaData12Changed() { outerVizShape.requestPaint() }
-        }
-
-        onPaint: {
-            const ctx = getContext("2d")
-            ctx.reset()
-            const cx = width / 2
-            const cy = height / 2
-
-            const scale      = Math.min(width, height) / 130
-            const baseOuterR = 44 * scale
-            const valleyR    = 35 * scale
-            const maxExt     = 25 * scale
-
-            const rotRad = shapeRotation * Math.PI / 180
-            const data   = ServiceCava.cavaData12
-            const verts  = []
-
-            for (let i = 0; i < 12; i++) {
-                const tipAngle = (Math.PI / 6  * (i + 1))     + rotRad
-                const valAngle = (Math.PI / 12 * (2 * i + 3)) + rotRad
-                const tipR     = baseOuterR + (data.length === 12 ? data[i] : 0) * maxExt
-
-                verts.push({ x: cx + tipR    * Math.cos(tipAngle),
-                y: cy + tipR    * Math.sin(tipAngle) })
-                verts.push({ x: cx + valleyR * Math.cos(valAngle),
-                y: cy + valleyR * Math.sin(valAngle) })
-            }
-
-            ctx.beginPath()
-            const last  = verts[verts.length - 1]
-            const first = verts[0]
-            ctx.moveTo((last.x + first.x) / 2, (last.y + first.y) / 2)
-
-            for (let i = 0; i < verts.length; i++) {
-                const cur  = verts[i]
-                const next = verts[(i + 1) % verts.length]
-                ctx.quadraticCurveTo(cur.x, cur.y,
-                (cur.x + next.x) / 2,
-                (cur.y + next.y) / 2)
-            }
-
-            ctx.closePath()
-            ctx.fillStyle = fillColor
-            ctx.fill()
+    optionsComponent: Component {
+        ShapePicker {
+            selected: root.shapeLock
+            autoHint: "Scalloped cookie, like a record label"
+            onPicked: name => SettingsConfig.widgets = Object.assign({}, SettingsConfig.widgets, { circularMusicShapeLock: name })
         }
     }
 
-    // ── Visualizer canvas ──────────────────────────────────────────
-    Canvas {
-        id: vizShape
-        anchors.centerIn: parent
-        width: 500
-        height: 500
-        antialiasing: true
+    readonly property real side: Math.min(width, height)
+    readonly property real ringWidth: Math.max(3, Math.round(root.side * 0.02))
+    readonly property real faceSize: Math.round(root.side * 0.70)
+    readonly property real ringSize: root.faceSize - 6
+    readonly property real artSize: root.ringSize - 2 * (root.ringWidth + 3)
 
-        property real shapeRotation: 0
+    readonly property bool hasTrack: ServiceMusic.activePlayer !== null
+    readonly property string artUrl: ServiceMusic.activeTrack?.artUrl ?? ""
+    readonly property string title: ServiceMusic.activeTrack?.title ?? ""
+    readonly property string artist: ServiceMusic.activeTrack?.artist ?? ""
+
+    readonly property real trackLength: ServiceMusic.trackLength
+    readonly property real elapsed: ServiceMusic.activePlayer?.position ?? 0
+    readonly property real progress: root.trackLength > 0
+        ? Math.max(0, Math.min(1, root.elapsed / root.trackLength))
+        : 0
+
+    property bool revealed: hover.hovered
+
+    HoverHandler { id: hover }
+
+    BestArt {
+        id: bestArt
+        artUrl: root.artUrl
+        trackKey: root.title + "|" + root.artist
+    }
+
+    component Visualizer: Canvas {
+        id: viz
         property color fillColor: Colors.primary
+        property real shapeRotation: 0
+
+        anchors.centerIn: parent
+        antialiasing: true
 
         NumberAnimation on shapeRotation {
             from: 0; to: 360
             duration: 20000
             loops: Animation.Infinite
-            running: ServiceMusic.isPlaying
+            running: ServiceMusic.isPlaying && !root.preview
         }
 
         onShapeRotationChanged: requestPaint()
         onFillColorChanged: requestPaint()
+        onWidthChanged: requestPaint()
 
         Connections {
             target: ServiceCava
-            function onCavaData12Changed() { vizShape.requestPaint() }
+            function onCavaData12Changed() { viz.requestPaint() }
         }
 
         onPaint: {
@@ -128,10 +95,10 @@ WidgetHost {
             const cx = width / 2
             const cy = height / 2
 
-            const scale      = Math.min(width, height) / 130
-            const baseOuterR = 44 * scale
-            const valleyR    = 35 * scale
-            const maxExt     = 25 * scale
+            const size       = Math.min(width, height)
+            const baseOuterR = 0.43 * size
+            const valleyR    = 0.37 * size
+            const maxExt     = 0.07 * size
 
             const rotRad = shapeRotation * Math.PI / 180
             const data   = ServiceCava.cavaData12
@@ -143,9 +110,9 @@ WidgetHost {
                 const tipR     = baseOuterR + (data.length === 12 ? data[i] : 0) * maxExt
 
                 verts.push({ x: cx + tipR    * Math.cos(tipAngle),
-                y: cy + tipR    * Math.sin(tipAngle) })
+                             y: cy + tipR    * Math.sin(tipAngle) })
                 verts.push({ x: cx + valleyR * Math.cos(valAngle),
-                y: cy + valleyR * Math.sin(valAngle) })
+                             y: cy + valleyR * Math.sin(valAngle) })
             }
 
             ctx.beginPath()
@@ -157,8 +124,8 @@ WidgetHost {
                 const cur  = verts[i]
                 const next = verts[(i + 1) % verts.length]
                 ctx.quadraticCurveTo(cur.x, cur.y,
-                (cur.x + next.x) / 2,
-                (cur.y + next.y) / 2)
+                                     (cur.x + next.x) / 2,
+                                     (cur.y + next.y) / 2)
             }
 
             ctx.closePath()
@@ -167,229 +134,185 @@ WidgetHost {
         }
     }
 
-    // ── Cookie12 mask shape ────────────────────────────────────────
+    Visualizer {
+        width: root.side * 1.08
+        height: width
+        fillColor: Qt.alpha(Colors.primary, 0.4)
+    }
+
+    Visualizer {
+        width: root.side
+        height: width
+        fillColor: Colors.primary
+    }
+
+    MaterialShapes.ShapeCanvas {
+        anchors.centerIn: parent
+        width: root.faceSize
+        height: root.faceSize
+        roundedPolygon: root.faceShape
+        color: Colors.surface
+    }
+
     Item {
         id: artMask
-        width: 300
-        height: 300
-        anchors.centerIn: parent
-        layer.enabled: true
+        anchors.fill: parent
         visible: false
+        layer.enabled: true
 
         MaterialShapes.ShapeCanvas {
-            anchors.fill: parent
-            roundedPolygon: MaterialShapeFn.getCookie12Sided()
+            anchors.centerIn: parent
+            width: root.artSize
+            height: root.artSize
+            roundedPolygon: root.faceShape
             color: "white"
-
-            NumberAnimation on rotation {
-                from: 0; to: 360
-                duration: 20000
-                loops: Animation.Infinite
-                running: ServiceMusic.isPlaying
-            }
         }
     }
 
-    // ── Pass 1: raw album art layer ────────────────────────────────
     Item {
-        id: blurredArt
-        width: 300
-        height: 300
-        anchors.centerIn: parent
+        id: artLayer
+        anchors.fill: parent
         visible: false
         layer.enabled: true
 
         Image {
-            anchors.fill: parent
-            sourceSize.width: 300
-            sourceSize.height: 300
+            anchors.centerIn: parent
+            width: root.artSize
+            height: root.artSize
+            source: bestArt.bestUrl !== "" ? bestArt.bestUrl : root.artUrl
+            onStatusChanged: if (status === Image.Error && bestArt.bestUrl !== "") bestArt.reset()
             fillMode: Image.PreserveAspectCrop
-            source: ServiceMusic.activeTrack?.artUrl ?? ""
+            sourceSize.width: 400
+            sourceSize.height: 400
+            asynchronous: true
         }
     }
 
-    // // ── Pass 2: blurred version of that layer ──────────────────────
     MultiEffect {
-        id: blurredArtEffect
-        source: blurredArt
-        anchors.fill: blurredArt
-        visible: false
-        layer.enabled: true
-        blurEnabled: true
-        blur: 0.3
-        blurMax: 64
-        autoPaddingEnabled: true
-        saturation: -0.2
-    }
-
-    // ── Pass 3: composited content ─────────────────────────────────
-    Item {
-        id: artContent
-        width: 300
-        height: 300
-        anchors.centerIn: parent
-        visible: false
-        layer.enabled: true
-
-        // // Sharp album art
-        Image {
-            anchors.fill: parent
-            sourceSize.width: 300
-            sourceSize.height: 300
-            fillMode: Image.PreserveAspectCrop
-            source: ServiceMusic.activeTrack?.artUrl ?? ""
-        }
-
-        // // Clipping container — shows only bottom 160px of blurred art
-        Item {
-            width: 300
-            height: 300
-            clip: true
-
-            MultiEffect {
-                source: blurredArtEffect
-                width: 300
-                height: 300
-            }
-        }
-
-        // Dark tint over the blur
-        Rectangle {
-            id: container
-            width: 300
-            height: 300
-            color: Qt.rgba(0, 0, 0, 0.55)
-        }
-
-    }
-
-    // ── Final mask ─────────────────────────────────────────────────
-    MultiEffect {
-        source: artContent
-        anchors.fill: artContent
+        anchors.fill: parent
+        source: artLayer
         maskEnabled: true
         maskSource: artMask
         maskThresholdMin: 0.5
         maskSpreadAtMin: 1.0
     }
 
-    ColumnLayout{
+    MultiEffect {
+        anchors.fill: parent
+        source: artLayer
+        visible: opacity > 0
+        opacity: root.revealed ? 1 : 0
+        Behavior on opacity { EffectsAnim {} }
+        blurEnabled: true
+        blur: 0.7
+        blurMax: 48
+        autoPaddingEnabled: false
+        brightness: -0.35
+        saturation: -0.2
+        maskEnabled: true
+        maskSource: artMask
+        maskThresholdMin: 0.5
+        maskSpreadAtMin: 1.0
+    }
+
+    MaterialIconSymbol {
         anchors.centerIn: parent
-  
-        CustomText{
-            Layout.alignment: Qt.AlignCenter
-            Layout.maximumWidth: container.width - 60
-            content: ServiceMusic.activeTrack?.identity ?? "Unknown"
-            size: 14
+        visible: root.artUrl === ""
+        content: "music_note"
+        iconSize: Math.round(root.artSize * 0.3)
+        customColor: Colors.outline
+    }
+
+    MaterialShapes.ShapeCanvas {
+        anchors.centerIn: parent
+        width: root.ringSize
+        height: root.ringSize
+        visible: root.hasTrack
+        roundedPolygon: root.faceShape
+        strokeProgress: root.progress
+        strokeWidth: root.ringWidth
+        strokeColor: Colors.primary
+        strokeTrackColor: Qt.alpha(Colors.primary, 0.25)
+    }
+
+    ColumnLayout {
+        anchors.centerIn: parent
+        width: root.artSize * 0.78
+        spacing: 2
+        visible: opacity > 0
+        opacity: root.revealed && root.hasTrack ? 1 : 0
+        Behavior on opacity { EffectsAnim {} }
+
+        CustomText {
+            Layout.alignment: Qt.AlignHCenter
+            Layout.maximumWidth: parent.width
+            visible: root.cols >= 3
+            content: ServiceMusic.activeTrack?.identity ?? ""
+            size: 11
+            customColor: Qt.rgba(1, 1, 1, 0.7)
+            elide: Text.ElideRight
         }
-        CustomText{
-            Layout.alignment: Qt.AlignCenter
-            Layout.maximumWidth: container.width - 80
-            content: ServiceMusic.activeTrack?.title ?? "Unknown Title"
-            size: 17
-            color: Colors.primary
+
+        CustomText {
+            Layout.alignment: Qt.AlignHCenter
+            Layout.maximumWidth: parent.width
+            content: root.title
+            size: Math.max(12, Math.round(root.side * 0.06))
+            weight: 700
+            customColor: Colors.primary
+            elide: Text.ElideRight
         }
 
-        CustomText{
-            Layout.alignment: Qt.AlignCenter
-            Layout.maximumWidth: container.width - 60
-            content: ServiceMusic.activeTrack?.artist ?? "Unknown Artist"
-            color: Colors.outline
-            size: 12
+        CustomText {
+            Layout.alignment: Qt.AlignHCenter
+            Layout.maximumWidth: parent.width
+            visible: root.artist !== ""
+            content: root.artist
+            size: Math.max(10, Math.round(root.side * 0.045))
+            customColor: Qt.rgba(1, 1, 1, 0.75)
+            elide: Text.ElideRight
         }
 
-        RowLayout{
-            Layout.alignment: Qt.AlignCenter
-            Layout.topMargin: 30
-            spacing: 20
+        RowLayout {
+            Layout.alignment: Qt.AlignHCenter
+            Layout.topMargin: 6
+            spacing: Math.round(root.side * 0.03)
 
-            Rectangle{
-                implicitHeight: 50
-                implicitWidth: 45
-                radius: width / 2
-                color: Colors.primary
-
-                MaterialIconSymbol {
-                    anchors.centerIn: parent
-                    content: "skip_previous"
-                    iconSize: 30
-                    color: Colors.primaryText
-
-                    MouseArea{
-                        anchors.fill: parent
-                        cursorShape: Qt.PointingHandCursor
-                        hoverEnabled: true
-                        onClicked:{
-                            ServiceMusic.previous()
-                        }
-                    }
-                }
+            M3IconButton {
+                implicitWidth: Math.round(root.side * 0.13)
+                implicitHeight: implicitWidth
+                color: "transparent"
+                icon: "skip_previous"
+                iconSize: Math.round(root.side * 0.085)
+                iconColor: "white"
+                iconHoverColor: Colors.primary
+                enabledButton: ServiceMusic.canGoPrevious && !root.preview && !root.lifted
+                onClicked: ServiceMusic.previous()
             }
 
-            M3WavyCircularProgress {
-                implicitWidth: 64
-                implicitHeight: 64
-                progress: ServiceMusic.trackLength > 0
-                    ? Math.max(0, Math.min(1, (ServiceMusic.activePlayer?.position ?? 0) / ServiceMusic.trackLength))
-                    : 0
-                thickness: 3
-                sperm: false
-                gap: 0.2
-                spermFrequency: 12
-                animateSperm: false
-
-                MaterialShapes.ShapeCanvas {
-                    anchors.centerIn: parent
-                    implicitWidth: 50
-                    implicitHeight: 50
-                    roundedPolygon: MaterialShapeFn.getCookie12Sided()
-                    color: Colors.primary
-
-                    MaterialIconSymbol{
-                        anchors.centerIn: parent
-                        content: ServiceMusic.isPlaying ? "pause" : "play_arrow"
-                        iconSize: 30
-                        color: Colors.primaryText
-
-                        MouseArea{
-                            anchors.fill: parent
-                            enabled: !root.lifted
-
-                            cursorShape: Qt.PointingHandCursor
-                            hoverEnabled: true
-                            onClicked:{
-                                ServiceMusic.togglePlaying()
-                            }
-                        }
-                    }
-                }
+            M3IconButton {
+                implicitWidth: Math.round(root.side * 0.16)
+                implicitHeight: implicitWidth
+                color: "transparent"
+                icon: ServiceMusic.isPlaying ? "pause" : "play_arrow"
+                iconSize: Math.round(root.side * 0.11)
+                iconColor: "white"
+                iconHoverColor: Colors.primary
+                enabledButton: ServiceMusic.canTogglePlaying && !root.preview && !root.lifted
+                onClicked: ServiceMusic.togglePlaying()
             }
 
-            Rectangle{
-                implicitHeight: 50
-                implicitWidth: 45
-                radius: width / 2
-                color: Colors.primary
-                MaterialIconSymbol{
-                    anchors.centerIn: parent
-                    content: "skip_next"
-                    iconSize: 30
-                    color: Colors.primaryText
-
-                    MouseArea{
-                        anchors.fill: parent
-                        cursorShape: Qt.PointingHandCursor
-                        hoverEnabled: true
-                        onClicked:{
-                            ServiceMusic.next()
-                        }
-                    }
-
-                }
+            M3IconButton {
+                implicitWidth: Math.round(root.side * 0.13)
+                implicitHeight: implicitWidth
+                color: "transparent"
+                icon: "skip_next"
+                iconSize: Math.round(root.side * 0.085)
+                iconColor: "white"
+                iconHoverColor: Colors.primary
+                enabledButton: ServiceMusic.canGoNext && !root.preview && !root.lifted
+                onClicked: ServiceMusic.next()
             }
-
         }
-
     }
 }
-

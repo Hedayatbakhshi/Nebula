@@ -8,9 +8,20 @@ import qs.modules.settings
 import qs.modules.customComponents
 
 Scope {
+    id: scope
+
+    property bool everOpened: false
+
+    Connections {
+        target: GlobalStates
+        function onToolsWidgetOpenChanged() {
+            if (GlobalStates.toolsWidgetOpen)
+                scope.everOpened = true
+        }
+    }
     LazyLoader {
         id: loader
-        activeAsync: true
+        activeAsync: scope.everOpened
 
         component: PanelWindow {
             id: panelWindow

@@ -11,22 +11,44 @@ import qs.modules.settings
 import qs.modules.customComponents
 
 Scope{
+    id: root
+
+    readonly property bool preview: GlobalStates.launcherPreview && !GlobalStates.appLauncherOpen
+    readonly property bool want: !GlobalStates.launcherHosted
+        && (GlobalStates.appLauncherOpen || GlobalStates.launcherPreview)
+
+    onWantChanged: {
+        if (root.want) {
+            animationTimer.stop()
+            loader.active = true
+        } else if (loader.active) {
+            animationTimer.start()
+        }
+    }
+
     Loader{
         id: loader
         active: false
         sourceComponent: PanelWindow{
             id: panelWindow
-            implicitWidth: 380
+
+            readonly property bool centered: ServiceLauncher.position === "center"
+            property bool shown: false
+
+            implicitWidth: ServiceLauncher.panelWidth
             anchors.left: true
+            anchors.right: panelWindow.centered
             anchors.top: true
             anchors.bottom: true
             WlrLayershell.namespace: "quickshell:appLauncher"
             WlrLayershell.layer: WlrLayer.Top
             exclusionMode: ExclusionMode.Normal
-            WlrLayershell.keyboardFocus: WlrKeyboardFocus.OnDemand
+            WlrLayershell.keyboardFocus: root.preview ? WlrKeyboardFocus.None : WlrKeyboardFocus.OnDemand
             color: "transparent"
 
-            mask: Region {
+            Component.onCompleted: Qt.callLater(() => panelWindow.shown = Qt.binding(() => root.want))
+
+            property Region inputRegion: Region {
                 item: maskRect
                 intersection: Intersection.Xor
 
@@ -34,6 +56,54 @@ Scope{
                     item: container
                     intersection: Intersection.Subtract
                 }
+            }
+            property Region noInput: Region {}
+
+            property Region handleInput: Region {
+                Region { item: handleLeft }
+                Region { item: handleRight }
+                Region { item: handleTop }
+                Region { item: handleBottom }
+            }
+
+            mask: root.preview ? panelWindow.handleInput : panelWindow.inputRegion
+
+            property bool resizing: false
+            property real anchorX: 0
+            property real anchorY: 0
+
+            readonly property real screenW: panelWindow.screen ? panelWindow.screen.width : panelWindow.width
+            readonly property real insetL: root.preview && panelWindow.centered ? GlobalStates.previewInsetLeft : 0
+            readonly property real insetR: root.preview && panelWindow.centered ? GlobalStates.previewInsetRight : 0
+
+            function beginResize() {
+                panelWindow.resizing = true
+                panelWindow.anchorX = container.x + container.width / 2
+                panelWindow.anchorY = container.y + container.height / 2
+                ServiceLauncher.draft = { w: ServiceLauncher.panelWidth, h: child.height }
+            }
+
+            function dragTo(side, p) {
+                const d = ServiceLauncher.draft
+                if (!d) return
+                const cx = panelWindow.anchorX
+                const cy = panelWindow.anchorY
+                let w = d.w
+                let h = d.h
+                if (side === "left") w = 2 * (cx - p.x)
+                else if (side === "right") w = panelWindow.centered ? 2 * (p.x - cx) : p.x - container.x
+                else if (side === "top") h = 2 * (cy - p.y)
+                else h = 2 * (p.y - cy)
+                ServiceLauncher.draft = {
+                    w: ServiceLauncher.clampW(Math.min(w, panelWindow.screenW - panelWindow.insetL - panelWindow.insetR - 32)),
+                    h: ServiceLauncher.clampH(Math.min(h, panelWindow.height - 32))
+                }
+            }
+
+            function endResize() {
+                const d = ServiceLauncher.draft
+                panelWindow.resizing = false
+                if (d) ServiceLauncher.setSize(d.w, d.h)
             }
 
             Rectangle {
@@ -45,7 +115,7 @@ Scope{
             HyprlandFocusGrab{
                 id: grab
                 windows: [panelWindow]
-                active: loader.active
+                active: loader.active && GlobalStates.appLauncherOpen
                 onCleared: () => {
                     if(!active) {
                         GlobalStates.appLauncherOpen = false
@@ -57,30 +127,24 @@ Scope{
                 id: bgShape
                 z: 1
                 preferredRendererType: Shape.CurveRenderer
-                visible: child.width > 0
+                visible: !panelWindow.centered && child.width > 0
 
-                // Same arc parameters as the top bar (disX/disY/radX/radY = 18)
-                readonly property real dX: 18
-                readonly property real dY: 18
-                readonly property real rX: 18
-                readonly property real rY: 18
+                readonly property real r: ServiceLauncher.radius
 
-                // Mirrors buildFlatBarPath in Layout.qml but grows rightward from the left screen edge.
-                // effDX clamps the arc offset so arcs never self-intersect when w is very small.
                 function buildPath(dX, dY, rX, rY, left, right, top, bottom, w) {
                     const effDX = Math.min(dX, w / 2)
                     function A(sw, ex, ey) { return `A ${rX} ${rY} 0 0 ${sw} ${ex} ${ey} ` }
                     function L(x,  y)      { return `L ${x} ${y} ` }
                     const CW = 1, CCW = 0
                     let p = `M ${left} ${top - dY} `
-                    p += A(CCW, left + effDX, top)      // top-left concave flare
-                    p += L(right - effDX,     top)       // top edge
-                    p += A(CW,  right, top    + effDX)  // top-right convex corner
-                    p += L(right,      bottom - effDX)  // right wall
-                    p += A(CW,  right - effDX, bottom)  // bottom-right convex corner
-                    p += L(left + effDX,       bottom)  // bottom edge
-                    p += A(CCW, left, bottom  + dY)     // bottom-left concave flare
-                    p += L(left,      top     - dY)     // close: left screen edge
+                    p += A(CCW, left + effDX, top)
+                    p += L(right - effDX,     top)
+                    p += A(CW,  right, top    + effDX)
+                    p += L(right,      bottom - effDX)
+                    p += A(CW,  right - effDX, bottom)
+                    p += L(left + effDX,       bottom)
+                    p += A(CCW, left, bottom  + dY)
+                    p += L(left,      top     - dY)
                     return p
                 }
 
@@ -89,7 +153,7 @@ Scope{
                     fillColor: Settings.layoutColor
                     PathSvg {
                         path: bgShape.buildPath(
-                            bgShape.dX, bgShape.dY, bgShape.rX, bgShape.rY,
+                            bgShape.r, bgShape.r, bgShape.r, bgShape.r,
                             container.x,
                             container.x + child.width,
                             container.y,
@@ -103,50 +167,135 @@ Scope{
             Item {
                 id: container
                 z: 10
-                implicitWidth: Math.max(20, child.width)
-                implicitHeight: Math.max(100, child.implicitHeight)
-                anchors.left: parent.left
-                anchors.verticalCenter: parent.verticalCenter
+                width: Math.max(20, child.width)
+                height: Math.max(100, child.height)
+                x: !panelWindow.centered ? 0
+                    : Math.max(16, Math.min(panelWindow.width - container.width - 16,
+                        panelWindow.insetL + (panelWindow.width - panelWindow.insetL - panelWindow.insetR - container.width) / 2))
+                y: (panelWindow.height - container.height) / 2
+                opacity: !panelWindow.centered || panelWindow.shown ? 1 : 0
+                scale: !panelWindow.centered || panelWindow.shown ? 1 : 0.94
+                Behavior on opacity {
+                    EffectsAnim { speed: "default" }
+                }
+                Behavior on scale {
+                    SpatialAnim { speed: "default" }
+                }
+
+                Rectangle {
+                    anchors.fill: parent
+                    visible: panelWindow.centered
+                    radius: ServiceLauncher.radius
+                    color: Settings.layoutColor
+                }
 
                 Item {
                     id: child
-                    width: 0
-                    implicitHeight: 720
+                    width: panelWindow.centered || panelWindow.shown ? ServiceLauncher.panelWidth : 0
+                    height: Math.min(ServiceLauncher.panelHeight, panelWindow.height - 32)
                     clip: true
 
-                    states: State {
-                        name: "open"
-                        when: GlobalStates.appLauncherOpen
-                        PropertyChanges { target: child; width: 380 }
-                    }
-
-                    transitions: Transition {
+                    Behavior on width {
+                        enabled: !panelWindow.centered && !panelWindow.resizing
                         NumberAnimation {
-                            properties: "width"
-                            duration:   Appearance.duration.large
+                            duration: Appearance.duration.large
                             easing.type: Easing.OutQuad
                         }
                     }
 
                     AppLauncherContent{
                         anchors.fill: parent
+                        preview: root.preview
+                        enabled: !root.preview
                         onClosed:{
                             GlobalStates.appLauncherOpen = false
                         }
                     }
                 }
             }
+
+            SizeHandle {
+                id: handleLeft
+                win: panelWindow
+                side: "left"
+                enabled: panelWindow.centered
+                visible: root.preview && panelWindow.centered
+                x: container.x - width / 2 + 4
+                y: container.y + container.height / 2 - height / 2
+            }
+            SizeHandle {
+                id: handleRight
+                win: panelWindow
+                side: "right"
+                x: panelWindow.centered ? container.x + container.width - width / 2 - 4 : container.x + container.width - width
+                y: container.y + container.height / 2 - height / 2
+            }
+            SizeHandle {
+                id: handleTop
+                win: panelWindow
+                side: "top"
+                x: container.x + container.width / 2 - width / 2
+                y: container.y - height / 2 + 4
+            }
+            SizeHandle {
+                id: handleBottom
+                win: panelWindow
+                side: "bottom"
+                x: container.x + container.width / 2 - width / 2
+                y: container.y + container.height - height / 2 - 4
+            }
+
+            Rectangle {
+                z: 61
+                visible: panelWindow.resizing
+                x: container.x + (container.width - width) / 2
+                y: container.y + (container.height - height) / 2
+                width: sizeText.implicitWidth + 24
+                height: 32
+                radius: 16
+                color: Colors.inverseSurface
+                CustomText {
+                    id: sizeText
+                    anchors.centerIn: parent
+                    content: ServiceLauncher.panelWidth + " × " + ServiceLauncher.panelHeight
+                    size: 13
+                    weight: 700
+                    customColor: Colors.inverseSurfaceText
+                    font.features: { "tnum": 1 }
+                }
+            }
         }
     }
 
-    Connections {
-        target: GlobalStates
-        function onAppLauncherOpenChanged() {
-            if (GlobalStates.appLauncherOpen) {
-                loader.active = true
-            } else if (loader.active) {
-                animationTimer.start()
-            }
+    component SizeHandle: MouseArea {
+        id: handle
+        property string side: "right"
+        property var win: null
+        readonly property bool vertical: handle.side === "left" || handle.side === "right"
+        z: 60
+        visible: root.preview
+        width: handle.vertical ? 18 : 80
+        height: handle.vertical ? 80 : 18
+        hoverEnabled: true
+        preventStealing: true
+        cursorShape: handle.vertical ? Qt.SizeHorCursor : Qt.SizeVerCursor
+        onPressed: handle.win.beginResize()
+        onPositionChanged: mouse => {
+            if (handle.pressed)
+                handle.win.dragTo(handle.side, handle.mapToItem(null, mouse.x, mouse.y))
+        }
+        onReleased: handle.win.endResize()
+        onCanceled: handle.win.endResize()
+
+        Rectangle {
+            anchors.centerIn: parent
+            width: handle.vertical ? 5 : (handle.containsMouse || handle.pressed ? 60 : 46)
+            height: handle.vertical ? (handle.containsMouse || handle.pressed ? 60 : 46) : 5
+            radius: 2.5
+            color: handle.pressed ? Colors.primary : handle.containsMouse ? Qt.alpha(Colors.primary, 0.85)
+                                                                          : Qt.alpha(Colors.outline, 0.9)
+            Behavior on width { SpatialAnim { speed: "fast" } }
+            Behavior on height { SpatialAnim { speed: "fast" } }
         }
     }
 

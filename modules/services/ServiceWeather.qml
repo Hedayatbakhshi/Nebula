@@ -15,6 +15,9 @@ Singleton {
     property bool hasError: false
     property var lastUpdated: null
 
+    readonly property string script: Quickshell.env("HOME") + "/.config/quickshell/scripts/weather.py"
+    readonly property string cachePath: Quickshell.env("HOME") + "/.cache/quickshell/weather.json"
+
     // Weather data properties
     property var currentCondition: null
     property var locationData: null
@@ -148,15 +151,51 @@ Singleton {
     }
 
     function fetchWeather() {
+        retryTimer.stop()
         root.isLoading = true
         root.hasError = false
-        weatherProcess.command[2] = `curl -s wttr.in/${location}?format=j1`
+        weatherProcess.command = ["python3", root.script, root.location]
         weatherProcess.running = true
+    }
+
+    function applyData(data) {
+        if (data.current_condition && data.current_condition.length > 0) {
+            root.currentCondition = data.current_condition[0]
+        }
+        if (data.nearest_area && data.nearest_area.length > 0) {
+            root.locationData = data.nearest_area[0]
+        }
+        if (data.weather && data.weather.length > 0) {
+            if (data.weather[0].astronomy) {
+                root.astronomy = data.weather[0].astronomy[0]
+            }
+            root.forecastDays = data.weather
+            root.hourlyForecast = data.weather[0].hourly
+        }
+    }
+
+    Timer {
+        id: retryTimer
+        interval: 120000
+        onTriggered: root.fetchWeather()
+    }
+
+    FileView {
+        path: root.cachePath
+        onLoaded: {
+            if (root.currentCondition) return
+            try {
+                const cached = JSON.parse(text())
+                if (cached.data && cached.location === root.location) root.applyData(cached.data)
+            } catch (e) {
+                console.warn("Weather cache unreadable:", e.message)
+            }
+        }
     }
 
     Process {
         id: weatherProcess
-        command: ["bash", "-c", ""]
+        command: []
 
         stdout: StdioCollector {
             onStreamFinished: {
@@ -164,29 +203,16 @@ Singleton {
                 root.lastUpdated = new Date()
                 if (text.length === 0) {
                     root.hasError = true
+                    retryTimer.restart()
                     return
                 }
 
                 try {
-                    const data = JSON.parse(text)
-
-                    if (data.current_condition && data.current_condition.length > 0) {
-                        root.currentCondition = data.current_condition[0]
-                    }
-                    if (data.nearest_area && data.nearest_area.length > 0) {
-                        root.locationData = data.nearest_area[0]
-                    }
-                    if (data.weather && data.weather.length > 0) {
-                        if (data.weather[0].astronomy) {
-                            root.astronomy = data.weather[0].astronomy[0]
-                        }
-                        root.forecastDays = data.weather
-                        root.hourlyForecast = data.weather[0].hourly
-                    }
-
+                    root.applyData(JSON.parse(text))
                     root.hasError = false
                 } catch (e) {
                     root.hasError = true
+                    retryTimer.restart()
                     console.error("Weather data parse error:", e.message)
                 }
             }
@@ -230,8 +256,8 @@ Singleton {
         return currentTime < sunriseTime || currentTime >= sunsetTime
     }
 
-    function getWeatherIcon(code) {
-        const isNight = isNightTime()
+    function getWeatherIcon(code, night) {
+        const isNight = night ?? isNightTime()
 
         const dayIconMap = {
             "113": { icon: "clear_day",           svg: "sunny" },

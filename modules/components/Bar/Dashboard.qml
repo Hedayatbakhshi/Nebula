@@ -10,12 +10,28 @@ import qs.modules.settings
 import qs.modules.components.Bar.DashboardSections
 import "../../MatrialShapes/" as MaterialShapes
 import "../../MatrialShapes/material-shapes.js" as MatrialShapeFn
+import "DashOps.js" as DashOps
 
 Item{
     id: root
     anchors.fill: parent
 
-    implicitHeight: col.implicitHeight
+    implicitHeight: cols.implicitHeight + root.pad * 2
+    readonly property real pad: root.compact ? 7 : 10
+    readonly property int autoColumns: root.width >= 900 ? 3 : root.width >= 520 ? 2 : 1
+    readonly property int fitColumns: Math.max(1, Math.floor(root.width / 260))
+    readonly property int columnCount: DashLayout.columnsSetting > 0
+        ? Math.min(DashLayout.columnsSetting, root.fitColumns) : root.autoColumns
+    readonly property bool hasNotifications: DashLayout.visibleIds.indexOf("notifications") >= 0
+    readonly property bool split: root.columnCount > 1 && root.hasNotifications
+    readonly property bool short: root.height > 0 && root.height < 380
+    readonly property bool dense: DashLayout.density === "compact" ? true
+        : DashLayout.density === "comfortable" ? root.compact
+        : (root.compact || root.short)
+    readonly property int stackColumns: Math.min(2, root.split ? root.columnCount - 1 : root.columnCount)
+
+    onSplitChanged: root.syncSections()
+    onStackColumnsChanged: root.syncSections()
     property string panelMode: ""   // "" | "wifi" | "bluetooth" | "modes"
     property bool   compact:   false
 
@@ -243,26 +259,130 @@ Item{
     //     id: hoverHandler
     // }
 
-    // ── Sections ──────────────────────────────────────────────────────────
-    // Order and visibility both come from SettingsConfig.dashboard. Sections
-    // report their size through implicitHeight rather than Layout attachments,
-    // because a Loader can pass a size up but not a Layout attached property.
-    readonly property var defaultOrder: [
-        "profile", "controls", "quickActions", "notifications", "calendar"
-    ]
+    property bool editing: false
 
-    readonly property var sectionOrder: {
-        const saved = SettingsConfig.dashboard?.order
-        if (!Array.isArray(saved) || saved.length === 0) return root.defaultOrder
-        // Tolerate a stale saved order: drop keys that no longer exist and
-        // append any section added since it was written.
-        const known = saved.filter(k => root.defaultOrder.indexOf(k) !== -1)
-        const missing = root.defaultOrder.filter(k => known.indexOf(k) === -1)
-        return known.concat(missing)
+    readonly property string selectedKey: {
+        const sel = BarLayout.editor ? BarLayout.editor.selectedItem : ""
+        return sel.indexOf("dash:") === 0 ? sel.slice(5) : ""
     }
 
-    function shows(key) {
-        return SettingsConfig.dashboard?.[key] ?? true
+    property string dragKey: ""
+    property int dragFrom: -1
+    property int dragTo: -1
+    property real dragH: 0
+    readonly property bool dragActive: root.dragKey !== ""
+
+    function labelFor(key) {
+        const e = DashLayout.entry(key)
+        return e ? e.label : key
+    }
+
+    function fillsFor(key) {
+        return DashLayout.opt(key, "fill") === true
+    }
+
+    readonly property bool anyFills: DashLayout.visibleIds.some(k => root.fillsFor(k))
+
+    function selectSection(key) {
+        if (BarLayout.editor)
+            BarLayout.editor.selectedItem = "dash:" + key
+    }
+
+    function hideSection(key) {
+        if (BarLayout.editor && BarLayout.editor.selectedItem === "dash:" + key)
+            BarLayout.editor.selectedItem = "dashboard"
+        DashLayout.hideSection(key)
+    }
+
+    function beginDrag(key, index, h) {
+        root.dragKey = key
+        root.dragFrom = index
+        root.dragTo = index
+        root.dragH = h
+        root.applyShifts()
+    }
+
+    function updateDrag(dy) {
+        const self = rep.itemAt(root.dragFrom)
+        if (!self)
+            return
+        self.dragY = dy
+        const rects = []
+        for (let i = 0; i < rep.count; i++) {
+            const s = rep.itemAt(i)
+            rects.push(s ? { y: s.y, h: s.height } : null)
+        }
+        const k = DashOps.dropIndex(rects, root.dragFrom, self.y + self.height / 2 + dy)
+        if (k !== root.dragTo) {
+            root.dragTo = k
+            root.applyShifts()
+        }
+    }
+
+    function applyShifts() {
+        const step = root.dragH + col.spacing
+        for (let i = 0; i < rep.count; i++) {
+            const s = rep.itemAt(i)
+            if (!s || i === root.dragFrom)
+                continue
+            s.shift = DashOps.shiftFor(i, root.dragFrom, root.dragTo, step)
+        }
+    }
+
+    function clearDrag() {
+        for (let i = 0; i < rep.count; i++) {
+            const s = rep.itemAt(i)
+            if (s) {
+                s.shift = 0
+                s.dragY = 0
+            }
+        }
+        root.dragKey = ""
+        root.dragFrom = -1
+        root.dragTo = -1
+    }
+
+    function endDrag() {
+        const key = root.dragKey
+        const to = root.dragTo
+        const ids = []
+        let landedY = 0
+        for (let i = 0; i < rep.count; i++) {
+            const s = rep.itemAt(i)
+            if (!s)
+                continue
+            ids.push(s.sectionKey)
+            if (s.sectionKey === key)
+                landedY = s.y + s.dragY
+        }
+        const before = DashOps.beforeId(ids, key, to)
+
+        root.dragKey = ""
+        root.dragFrom = -1
+        root.dragTo = -1
+
+        Qt.callLater(() => {
+            DashLayout.moveBefore(key, before)
+            for (let i = 0; i < rep.count; i++) {
+                const s = rep.itemAt(i)
+                if (!s)
+                    continue
+                s.shift = 0
+                if (s.sectionKey !== key)
+                    s.dragY = 0
+            }
+            Qt.callLater(() => {
+                for (let i = 0; i < rep.count; i++) {
+                    const s = rep.itemAt(i)
+                    if (s && s.sectionKey === key)
+                        s.settleFrom(landedY)
+                }
+            })
+        })
+    }
+
+    function cancelDrag() {
+        root.clearDrag()
     }
 
     // The wifi/bluetooth overlay sizes itself from the controls section, so the
@@ -270,11 +390,11 @@ Item{
     property Item controlsItem: null
 
     Component { id: cProfile
-        DashProfile { compact: root.compact; onToggleDashboard: root.toggleDashboard() } }
+        DashProfile { compact: root.dense; onToggleDashboard: root.toggleDashboard() } }
 
     Component { id: cControls
         DashControls {
-            compact: root.compact
+            compact: root.dense
             coordSpace: root
             panelMode: root.panelMode
             onToggleDashboard: root.toggleDashboard()
@@ -289,42 +409,140 @@ Item{
             }
         } }
 
-    Component { id: cQuickActions;  DashQuickActions  { compact: root.compact } }
-    Component { id: cNotifications; DashNotifications { compact: root.compact } }
-    Component { id: cCalendar;      DashCalendar      { compact: root.compact } }
+    Component { id: cQuickActions;  DashQuickActions  { compact: root.dense } }
+    Component { id: cMedia;         DashMedia         { compact: root.dense } }
+    Component { id: cStats;         DashStats         { compact: root.dense } }
+    Component { id: cNotifications; DashNotifications { compact: root.dense } }
+    Component { id: cCalendar;      DashCalendar      { compact: root.dense } }
 
     function componentFor(key) {
         switch (key) {
             case "profile":       return cProfile
             case "controls":      return cControls
             case "quickActions":  return cQuickActions
+            case "media":         return cMedia
+            case "stats":         return cStats
             case "notifications": return cNotifications
             case "calendar":      return cCalendar
         }
         return null
     }
 
-    ColumnLayout{
-        id: col
+    ListModel { id: sectionModel }
+    ListModel { id: sectionModelB }
+
+    readonly property var stackedIds: root.split
+        ? DashLayout.visibleIds.filter(k => k !== "notifications")
+        : DashLayout.visibleIds
+
+    function syncSections() {
+        const ids = root.stackedIds
+        const cut = root.stackColumns >= 2 ? Math.ceil(ids.length / 2) : ids.length
+        BarLayout.syncModel(sectionModel,  ids.slice(0, cut), "key", null)
+        BarLayout.syncModel(sectionModelB, ids.slice(cut),    "key", null)
+    }
+
+    Component.onCompleted: root.syncSections()
+
+    Connections {
+        target: DashLayout
+        function onVisibleIdsChanged() { root.syncSections() }
+    }
+
+    Flickable {
+        id: dashScroll
         anchors.fill: parent
-        spacing:         root.compact ? 7 : 10
-        anchors.margins: root.compact ? 7 : 10
+        contentWidth: width
+        contentHeight: Math.max(dashScroll.height, cols.implicitHeight + root.pad * 2)
+        interactive: dashScroll.contentHeight > dashScroll.height + 1 && !root.dragActive
+        boundsBehavior: Flickable.StopAtBounds
+        clip: interactive
 
-        Repeater {
-            model: root.sectionOrder
+        RowLayout {
+            id: cols
+            x: root.pad
+            y: root.pad
+            width: dashScroll.width - root.pad * 2
+            height: dashScroll.contentHeight - root.pad * 2
+            spacing: root.pad
 
-            delegate: Loader {
-                required property string modelData
-
-                active:  root.shows(modelData)
-                visible: active          // an inactive Loader still takes space
+            ColumnLayout{
+                id: col
                 Layout.fillWidth: true
-                Layout.preferredHeight: item ? item.implicitHeight : 0
-                Layout.fillHeight: modelData === "notifications"
-                Layout.minimumHeight: modelData === "notifications" ? 120 : 0
-                sourceComponent: root.componentFor(modelData)
+                Layout.fillHeight: true
+                Layout.preferredWidth: 1
+                spacing:         root.compact ? 7 : 10
+
+                Repeater {
+                    id: rep
+                    model: sectionModel
+
+                    delegate: DashSlot {
+                        required property string key
+                        required property int index
+
+                        sectionKey: key
+                        listIndex: index
+                        dash: root
+                        content: root.componentFor(key)
+                    }
+                }
+
+                Item {
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    visible: root.split || !root.anyFills
+                }
+            }
+
+            ColumnLayout {
+                id: colB
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                Layout.preferredWidth: 1
+                visible: root.stackColumns >= 2 && sectionModelB.count > 0
+                spacing: col.spacing
+
+                Repeater {
+                    model: sectionModelB
+
+                    delegate: DashSlot {
+                        required property string key
+
+                        sectionKey: key
+                        listIndex: -1
+                        movable: false
+                        dash: root
+                        content: root.componentFor(key)
+                    }
+                }
+
+                Item {
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                }
+            }
+
+            ColumnLayout {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                Layout.preferredWidth: 1
+                visible: root.split
+                spacing: col.spacing
+
+                Loader {
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    active: root.split
+                    sourceComponent: DashSlot {
+                        sectionKey: "notifications"
+                        listIndex: -1
+                        movable: false
+                        dash: root
+                        content: cNotifications
+                    }
+                }
             }
         }
-
     }
 }

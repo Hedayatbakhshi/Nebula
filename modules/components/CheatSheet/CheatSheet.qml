@@ -17,6 +17,16 @@ import qs.modules.customComponents
 Scope {
     id: scope
 
+    property bool everOpened: false
+
+    Connections {
+        target: GlobalStates
+        function onCheatSheetOpenChanged() {
+            if (GlobalStates.cheatSheetOpen)
+                scope.everOpened = true
+        }
+    }
+
     GlobalShortcut {
         name: "cheatsheet"
         description: "Toggle the keybinding cheat sheet"
@@ -25,7 +35,7 @@ Scope {
 
     LazyLoader {
         id: loader
-        activeAsync: true
+        activeAsync: scope.everOpened
 
         component: PanelWindow {
             id: win

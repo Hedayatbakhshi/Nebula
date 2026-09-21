@@ -12,8 +12,7 @@ WidgetHost {
     id: root
     configKey: "weatherDetails"
     defaultPos: Qt.point(320, 200)
-    implicitWidth: 220
-    implicitHeight: 220
+    tile: WidgetSizes.small
 
     // Cookie4Sided shape — 4 lobes align with the 2×2 tile grid
     MaterialShapes.ShapeCanvas {

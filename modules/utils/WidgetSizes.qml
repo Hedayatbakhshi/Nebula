@@ -2,34 +2,63 @@ pragma Singleton
 
 import Quickshell
 import QtQuick
+import qs.modules.settings
 
-// Standard desktop-widget footprints.
-//
-// Widths and heights both come off a single 60px ladder, so every tile lines
-// up on a shared grid instead of each widget inventing its own size. Pick the
-// nearest named tile rather than a one-off number — mismatched sizes are what
-// made the desktop look ragged (a 200x200 battery beside a 195x185 date card
-// reads as a mistake even though the difference is only a few pixels).
 Singleton {
     id: root
 
-    // Ladder steps
-    readonly property int xs: 80
-    readonly property int sm: 140
-    readonly property int md: 200
-    readonly property int lg: 260
-    readonly property int xl: 320
-
-    // Gap to leave between neighbouring tiles when placing them
+    readonly property int cell: 90
     readonly property int gutter: 20
+    readonly property int pitch: cell + gutter
+
+    function span(n) { return n * pitch - gutter }
+    function cellsFor(px) { return Math.max(1, Math.round((px + gutter) / pitch)) }
+    function cellsCovering(px) { return Math.max(1, Math.ceil((px + gutter) / pitch - 0.001)) }
+
+    readonly property int rowStep: pitch / 2
+    function rowsFor(px) { return Math.max(0.5, Math.round((px + gutter) / rowStep) / 2) }
+    function halvesCovering(px) { return Math.max(1, Math.ceil((px + gutter) / rowStep - 0.001)) }
+
+    readonly property vector2d screenSize: GlobalStates.widgetScreenSize
+    readonly property int gridCols: Math.max(1, Math.floor((screenSize.x - gutter) / pitch))
+    readonly property int gridRows: Math.max(1, Math.floor((screenSize.y - gutter) / pitch))
+    readonly property int originX: Math.round((screenSize.x - span(gridCols)) / 2)
+    readonly property int originY: Math.round((screenSize.y - span(gridRows)) / 2)
+
+    function colAt(x) { return Math.round((x - originX) / pitch) }
+    function rowAt(y) { return Math.round((y - originY) / rowStep) / 2 }
+
+    function snapX(x, w) {
+        const c = Math.max(0, Math.min(colAt(x), gridCols - cellsCovering(w)))
+        return originX + c * pitch
+    }
+    function snapY(y, h) {
+        const r = Math.max(0, Math.min(Math.round((y - originY) / rowStep),
+                                       gridRows * 2 - halvesCovering(h)))
+        return originY + r * rowStep
+    }
 
     // Shared corner radius, so tiles read as one family
     readonly property int radius: 24
 
+    readonly property string cardStyle: SettingsConfig.widgets.cardStyle
+        ?? ((SettingsConfig.widgets.blurBackground ?? false) ? "frosted" : "flat")
+
+    readonly property bool blurBackground: root.cardStyle !== "flat"
+    readonly property bool liquidGlass: root.cardStyle === "liquid"
+    readonly property real cardOpacity: SettingsConfig.widgets.cardOpacity ?? 0.60
+    readonly property real glassStrength: SettingsConfig.widgets.glassStrength ?? 1.0
+
+    readonly property color cardColor: root.cardStyle === "liquid"
+        ? Qt.rgba(0, 0, 0, 0)
+        : (root.cardStyle === "frosted"
+            ? Qt.alpha(Colors.surface, root.cardOpacity)
+            : Colors.surface)
+
     // ── Named tiles ───────────────────────────────────────────────────
-    readonly property size small: Qt.size(md, md)   // 200 x 200 — square
-    readonly property size wide:  Qt.size(xl, md)   // 320 x 200 — landscape
-    readonly property size strip: Qt.size(xl, sm)   // 320 x 140 — short banner
-    readonly property size tall:  Qt.size(md, xl)   // 200 x 320 — portrait
-    readonly property size large: Qt.size(xl, xl)   // 320 x 320 — big
+    readonly property size small: Qt.size(span(2), span(2))
+    readonly property size wide:  Qt.size(span(3), span(2))
+    readonly property size strip: Qt.size(span(3), span(1.5))
+    readonly property size tall:  Qt.size(span(2), span(3))
+    readonly property size large: Qt.size(span(3), span(3))
 }

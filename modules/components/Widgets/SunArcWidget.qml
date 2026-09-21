@@ -10,6 +10,9 @@ WidgetHost {
     id: root
     configKey: "sunArc"
     tile: WidgetSizes.wide
+    resizable: true
+    minSpan: Qt.size(3, 2)
+    maxSpan: Qt.size(5, 3)
     defaultPos: Qt.point(100, 620)
 
     // ── Sun math ──────────────────────────────────────────────────────
@@ -69,15 +72,15 @@ WidgetHost {
 
     // ── Arc geometry (shared by the canvas and the sun marker) ────────
     readonly property real arcCx: width / 2
-    readonly property real arcCy: 150
-    readonly property real arcR:  112
+    readonly property real arcCy: height - 50
+    readonly property real arcR:  Math.min(width / 2 - 44, arcCy - 38)
     readonly property real sunAngle: Math.PI * (1 + progress)
 
     // ── Card ──────────────────────────────────────────────────────────
     Rectangle {
         anchors.fill: parent
         radius: WidgetSizes.radius
-        color: Colors.surface
+        color: WidgetSizes.cardColor
 
         Canvas {
             id: canvas
@@ -90,7 +93,13 @@ WidgetHost {
             property color warmColor:   Colors.tertiary
             property real  prog:        root.progress
             property bool  night:       root.isNight
+            property real  cx:          root.arcCx
+            property real  cy:          root.arcCy
+            property real  r:           root.arcR
 
+            onCxChanged:          requestPaint()
+            onCyChanged:          requestPaint()
+            onRChanged:           requestPaint()
             onAccentColorChanged: requestPaint()
             onTrackColorChanged:  requestPaint()
             onWarmColorChanged:   requestPaint()
@@ -210,7 +219,7 @@ WidgetHost {
         // ── Centre readout ────────────────────────────────────────────
         ColumnLayout {
             width: root.width
-            y: 76
+            y: root.arcCy - 74
             spacing: 0
 
             MaterialIconSymbol {
@@ -242,7 +251,7 @@ WidgetHost {
             anchors.right: parent.right
             anchors.leftMargin: 22
             anchors.rightMargin: 22
-            y: 162
+            y: root.arcCy + 12
 
             ColumnLayout {
                 spacing: 0

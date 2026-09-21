@@ -8,15 +8,18 @@ import qs.modules.settings
 import qs.modules.services
 import qs.modules.customComponents
 
-// Full-screen workspace manager with live window previews and drag-to-move.
-//
-//     hl.bind(mainMod .. " + grave", hl.dsp.global("quickshell:overview"))
-//
-// One window on the focused monitor rather than an overlay per screen: QML drag
-// and drop is scene-local, so cards in different windows could never accept each
-// other's windows.
 Scope {
     id: scope
+
+    property bool everOpened: false
+
+    Connections {
+        target: GlobalStates
+        function onOverviewOpenChanged() {
+            if (GlobalStates.overviewOpen)
+                scope.everOpened = true
+        }
+    }
 
     GlobalShortcut {
         name: "overview"
@@ -26,7 +29,7 @@ Scope {
 
     LazyLoader {
         id: loader
-        activeAsync: true
+        activeAsync: scope.everOpened
 
         component: PanelWindow {
             id: win
@@ -43,32 +46,19 @@ Scope {
             WlrLayershell.layer: WlrLayer.Overlay
             WlrLayershell.keyboardFocus: WlrKeyboardFocus.Exclusive
 
-            // Follows the keyboard, not the pointer — the overview is opened by
-            // a keybind, so it should appear where you're already working.
             screen: {
                 const name = Hyprland.focusedMonitor?.name ?? ""
                 return Quickshell.screens.find(s => s.name === name) ?? null
             }
 
-            // Deliberately not SettingsConfig.general.workspaceCount — that is
-            // how many pills the bar draws, and the bar wants to stay narrow.
-            // The manager's job is the opposite: show every workspace you can
-            // reach, empty ones included, because an empty workspace is a drop
-            // target. Ten matches Hyprland's conventional 1–10 and the Super+1..0
-            // binds.
             readonly property int slotCount: 10
 
             readonly property int totalWindows: Hyprland.toplevels?.values?.length ?? 0
 
-            // The ten slots, plus anything live beyond them — a window parked on
-            // 14, or a workspace owned by another monitor, still has to be
-            // visible and droppable. Negative ids are Hyprland's special
-            // workspaces (scratchpads), which aren't drop targets.
-            //
-            // Bound straight to the Repeater rather than cached behind a
-            // change-detector. The cache was there to stop unrelated workspace
-            // churn from restarting every live capture, but a stale list is a
-            // correctness bug and a restarted capture is only a flicker.
+            property int selectedWsId: 1
+            property string search: ""
+            property bool moveMode: false
+
             readonly property var wsIds: {
                 var ids = []
                 for (var i = 1; i <= win.slotCount; i++) ids.push(i)
@@ -83,23 +73,63 @@ Scope {
                 return ids
             }
 
-            // Quickshell's Hyprland models are populated lazily, so an overview
-            // opened before anything else touched them would render against a
-            // stale or empty workspace list.
+            function wsLabel(id) {
+                const custom = (SettingsConfig.general.workspaceNames ?? {})[String(id)] ?? ""
+                if (custom !== "") return custom
+
+                const ws = ServiceWorkspaces.getWorkspace(id)
+                const given = ws?.name ?? ""
+                if (given !== "" && given !== String(id)) return given
+
+                return "Workspace " + id
+            }
+
+            function setWsLabel(id, name) {
+                var names = Object.assign({}, SettingsConfig.general.workspaceNames ?? {})
+                if (name === "") delete names[String(id)]
+                else             names[String(id)] = name
+                SettingsConfig.general = Object.assign({}, SettingsConfig.general, { workspaceNames: names })
+            }
+
+            function wsMatches(id) {
+                const q = win.search.trim().toLowerCase()
+                if (q === "") return true
+                if (String(id).indexOf(q) !== -1) return true
+                if (win.wsLabel(id).toLowerCase().indexOf(q) !== -1) return true
+
+                const list = ServiceWorkspaces.getWorkspace(id)?.toplevels?.values ?? []
+                for (var i = 0; i < list.length; i++) {
+                    const title = (list[i]?.title ?? "").toLowerCase()
+                    const appId = (list[i]?.wayland?.appId ?? "").toLowerCase()
+                    if (title.indexOf(q) !== -1 || appId.indexOf(q) !== -1) return true
+                }
+                return false
+            }
+
+            readonly property var visibleWsIds: win.wsIds.filter(id => win.wsMatches(id))
+
+            function screenRectFor(id) {
+                const name = ServiceWorkspaces.getWorkspace(id)?.monitor?.name ?? ""
+                const s = Quickshell.screens.find(sc => sc.name === name) ?? win.screen
+                if (!s) return Qt.rect(0, 0, 1920, 1080)
+                return Qt.rect(s.x, s.y, s.width, s.height)
+            }
+
             Component.onCompleted: {
                 Hyprland.refreshMonitors()
                 Hyprland.refreshWorkspaces()
                 Hyprland.refreshToplevels()
             }
 
-            // Rows first, aiming at a roughly 2:1 grid. Picking columns from
-            // sqrt(n) instead leaves 10 slots as 4×3 with a ragged last row;
-            // solving for rows gives 5×2, which fills exactly and keeps each
-            // cell landscape — the shape a window preview actually wants.
-            readonly property int rows:
-                Math.max(1, Math.round(Math.sqrt(Math.max(1, win.wsIds.length) / 1.8)))
-            readonly property int cols:
-                Math.max(1, Math.ceil(Math.max(1, win.wsIds.length) / win.rows))
+            onShouldOpenChanged: {
+                if (!win.shouldOpen) return
+                Hyprland.refreshWorkspaces()
+                Hyprland.refreshToplevels()
+                win.search = ""
+                win.moveMode = false
+                win.selectedWsId = Hyprland.focusedMonitor?.activeWorkspace?.id ?? 1
+                searchField.forceActiveFocus()
+            }
 
             function dismiss() { GlobalStates.overviewOpen = false }
 
@@ -113,16 +143,44 @@ Scope {
                 win.dismiss()
             }
 
-            // Hyprland only reports a toplevel's new workspace after the move
-            // lands, so the grid is refreshed a beat later rather than on the
-            // drop itself — otherwise the tile snaps back before it moves.
+            function moveAllTo(targetId) {
+                const source = win.selectedWsId
+                win.moveMode = false
+                if (targetId === source) return
+
+                const restore = Hyprland.focusedMonitor?.activeWorkspace?.id ?? source
+                const list = (ServiceWorkspaces.getWorkspace(source)?.toplevels?.values ?? []).slice()
+                for (var i = 0; i < list.length; i++)
+                    ServiceWorkspaces.moveWindowToWorkspace(list[i].address, targetId)
+
+                if (list.length > 0 && restore !== targetId)
+                    ServiceWorkspaces.activateWorkspaceId(restore)
+
+                settleTimer.restart()
+            }
+
+            function closeAll(id) {
+                const list = (ServiceWorkspaces.getWorkspace(id)?.toplevels?.values ?? []).slice()
+                for (var i = 0; i < list.length; i++) list[i]?.wayland?.close()
+                settleTimer.restart()
+            }
+
+            function stepSelection(delta) {
+                const ids = win.visibleWsIds
+                if (ids.length === 0) return
+                var idx = ids.indexOf(win.selectedWsId)
+                if (idx === -1) idx = 0
+                else            idx = Math.max(0, Math.min(ids.length - 1, idx + delta))
+                win.selectedWsId = ids[idx]
+                wsList.positionViewAtIndex(idx, ListView.Contain)
+            }
+
             Timer {
                 id: settleTimer
                 interval: 90
                 onTriggered: ServiceWorkspaces.refreshToplevels()
             }
 
-            // ── Scrim ─────────────────────────────────────────────────
             Rectangle {
                 anchors.fill: parent
                 color: Qt.alpha(Colors.surface, 0.78)
@@ -134,131 +192,171 @@ Scope {
                 }
             }
 
-            // ── Card ──────────────────────────────────────────────────
             Rectangle {
                 id: card
                 anchors.centerIn: parent
                 opacity: win.openProgress
                 scale: 0.92 + 0.08 * win.openProgress
                 layer.enabled: win.openProgress > 0 && win.openProgress < 1
-                // Wide but short: ten cards in two rows need the width, and
-                // keeping the height down is what stops it feeling like the
-                // full-screen panel it replaced.
-                width:  Math.min(parent.width  - 140, 1360)
-                height: Math.min(parent.height - 220, 580)
-                radius: 24
+                width:  Math.min(parent.width  - 140, 1300)
+                height: Math.min(parent.height - 160, 680)
+                radius: 30
                 color: Colors.surface
 
-                // Swallow clicks so they don't reach the dismiss scrim
                 MouseArea { anchors.fill: parent }
 
-                ColumnLayout {
+                RowLayout {
                     anchors.fill: parent
                     anchors.margins: 18
-                    spacing: 0
+                    spacing: 18
 
-                    // ── Header ────────────────────────────────────────
-                    RowLayout {
-                        Layout.fillWidth: true
-                        spacing: 11
+                    ColumnLayout {
+                        Layout.preferredWidth: 300
+                        Layout.fillHeight: true
+                        spacing: 12
 
                         Rectangle {
-                            implicitWidth: 32
-                            implicitHeight: 32
-                            radius: 11
-                            color: Colors.primaryContainer
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: 44
+                            radius: 22
+                            color: Colors.surfaceContainerHigh
 
-                            MaterialIconSymbol {
-                                anchors.centerIn: parent
-                                content: "grid_view"
-                                iconSize: 18
-                                customColor: Colors.primaryContainerText
+                            RowLayout {
+                                anchors { fill: parent; leftMargin: 16; rightMargin: 16 }
+                                spacing: 10
+
+                                MaterialIconSymbol {
+                                    content: "search"
+                                    iconSize: 20
+                                    customColor: Colors.primary
+                                }
+
+                                TextInput {
+                                    id: searchField
+                                    Layout.fillWidth: true
+                                    Layout.fillHeight: true
+                                    verticalAlignment: TextInput.AlignVCenter
+                                    font.pixelSize: 14
+                                    font.family: SettingsConfig.general.defaultFont ?? "Rubik"
+                                    color: Colors.surfaceText
+                                    selectionColor: Colors.primary
+                                    selectedTextColor: Colors.primaryText
+                                    clip: true
+                                    focus: true
+
+                                    onTextChanged: {
+                                        win.search = text
+                                        const ids = win.visibleWsIds
+                                        if (ids.length > 0 && ids.indexOf(win.selectedWsId) === -1)
+                                            win.selectedWsId = ids[0]
+                                    }
+
+                                    Keys.onUpPressed:   win.stepSelection(-1)
+                                    Keys.onDownPressed: win.stepSelection(1)
+                                    Keys.onReturnPressed: win.activateWorkspace(win.selectedWsId)
+                                    Keys.onEnterPressed:  win.activateWorkspace(win.selectedWsId)
+                                    Keys.onEscapePressed: {
+                                        if (win.moveMode)      win.moveMode = false
+                                        else if (text !== "")  text = ""
+                                        else                   win.dismiss()
+                                    }
+
+                                    CustomText {
+                                        anchors { left: parent.left; verticalCenter: parent.verticalCenter }
+                                        content: "Search windows"
+                                        size: 14
+                                        weight: 400
+                                        customColor: Colors.outline
+                                        visible: searchField.text === ""
+                                    }
+                                }
                             }
                         }
 
-                        ColumnLayout {
-                            spacing: -2
-                            CustomText { content: "Workspaces"; size: 16; weight: 700 }
+                        ListView {
+                            id: wsList
+                            Layout.fillWidth: true
+                            Layout.fillHeight: true
+                            clip: true
+                            spacing: 2
+                            model: win.visibleWsIds
+                            boundsBehavior: Flickable.StopAtBounds
+
+                            function wsIdAt(wx, wy) {
+                                const p = wsList.mapFromItem(null, wx, wy)
+                                if (p.x < 0 || p.y < 0 || p.x > wsList.width || p.y > wsList.height)
+                                    return -1
+                                const idx = wsList.indexAt(p.x + wsList.contentX, p.y + wsList.contentY)
+                                return idx >= 0 ? win.visibleWsIds[idx] : -1
+                            }
+
+                            delegate: OverviewSidebarRow {
+                                required property var modelData
+
+                                width: wsList.width
+                                wsId: modelData
+                                label: win.wsLabel(modelData)
+                                selected: win.selectedWsId === modelData && !win.moveMode
+                                dropTarget: ghost.toplevel !== null && ghost.targetWsId === modelData
+                                moveTarget: win.moveMode && win.selectedWsId !== modelData
+                                dimmed: win.moveMode && win.selectedWsId === modelData
+
+                                onClicked: {
+                                    if (win.moveMode) win.moveAllTo(modelData)
+                                    else              win.selectedWsId = modelData
+                                }
+                            }
+                        }
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            Layout.bottomMargin: 2
+                            spacing: 6
+
                             CustomText {
+                                Layout.fillWidth: true
                                 content: win.totalWindows
-                                    + (win.totalWindows === 1 ? " window" : " windows")
-                                    + " · drag to move"
+                                         + (win.totalWindows === 1 ? " window open" : " windows open")
                                 size: 11
                                 customColor: Colors.outline
                             }
+
+                            KeyCap { text: "↑↓" }
+                            KeyCap { text: "⏎" }
+                            KeyCap { text: "ESC" }
                         }
-
-                        Item { Layout.fillWidth: true }
-
-                        KeyCap { text: "1–9" }
-                        KeyCap { text: "ESC" }
                     }
 
-                    Rectangle {
-                        Layout.fillWidth: true
-                        Layout.topMargin: 14
-                        implicitHeight: 1
-                        color: Colors.outlineVariant
-                        opacity: 0.35
-                    }
-
-                    // ── Workspace grid ────────────────────────────────
-                    GridLayout {
-                        id: wsGrid
+                    OverviewDetail {
+                        id: detail
                         Layout.fillWidth: true
                         Layout.fillHeight: true
-                        Layout.topMargin: 14
-                        columns: win.cols
-                        columnSpacing: 10
-                        rowSpacing: 10
 
-                        // Which card sits under a window-space point. Used
-                        // instead of DropArea: the dragged item is a stand-in
-                        // for the tile, and hit-testing it directly is both
-                        // shorter and free of Drag/DropArea's rules about who
-                        // sends the drop and when.
-                        function wsIdAt(wx, wy) {
-                            const p = wsGrid.mapFromItem(null, wx, wy)
-                            if (p.x < 0 || p.y < 0 || p.x > wsGrid.width || p.y > wsGrid.height)
-                                return -1
-                            const it = wsGrid.childAt(p.x, p.y)
-                            return (it && it.wsId !== undefined) ? it.wsId : -1
-                        }
+                        wsId: win.selectedWsId
+                        label: win.wsLabel(win.selectedWsId)
+                        searchText: win.search
+                        moveMode: win.moveMode
+                        draggingToplevel: ghost.toplevel
+                        screenRect: win.screenRectFor(win.selectedWsId)
 
-                        Repeater {
-                            model: win.wsIds
+                        onActivateRequested: win.activateWorkspace(win.selectedWsId)
+                        onRenamed: name => win.setWsLabel(win.selectedWsId, name)
+                        onMoveAllRequested: win.moveMode = true
+                        onMoveCancelled: win.moveMode = false
+                        onCloseAllRequested: win.closeAll(win.selectedWsId)
 
-                            delegate: OverviewWorkspaceCard {
-                                required property var modelData
-                                wsId: modelData
-                                draggingToplevel: ghost.toplevel
-                                dropTarget: ghost.toplevel !== null
-                                            && ghost.targetWsId === modelData
-
-                                Layout.fillWidth: true
-                                Layout.fillHeight: true
-
-                                onActivateRequested: win.activateWorkspace(wsId)
-                                onWindowActivateRequested: tl => win.activateWindow(tl)
-
-                                onWindowDragStarted: (tl, wx, wy) => ghost.begin(tl, wx, wy)
-                                onWindowDragMoved:   (wx, wy)     => ghost.moveTo(wx, wy)
-                                onWindowDragEnded:   ghost.finish()
-                            }
-                        }
+                        onWindowActivateRequested: tl => win.activateWindow(tl)
+                        onWindowDragStarted: (tl, wx, wy) => ghost.begin(tl, wx, wy)
+                        onWindowDragMoved:   (wx, wy)     => ghost.moveTo(wx, wy)
+                        onWindowDragEnded:   ghost.finish()
                     }
                 }
             }
 
-            // ── Drag ghost ────────────────────────────────────────────
-            // What follows the cursor. Tiles report window coordinates and this
-            // tracks them, because reparenting a live ScreencopyView mid-drag
-            // tears down its capture.
             Item {
                 id: ghost
 
                 property var toplevel: null
-                // Card under the cursor right now; -1 for none
                 property int targetWsId: -1
 
                 readonly property string appId: ghost.toplevel?.wayland?.appId ?? ""
@@ -278,13 +376,10 @@ Scope {
                 function moveTo(wx, wy) {
                     ghost.x = wx - ghost.width / 2
                     ghost.y = wy - ghost.height / 2
-                    ghost.targetWsId = wsGrid.wsIdAt(wx, wy)
+                    ghost.targetWsId = wsList.wsIdAt(wx, wy)
                 }
 
                 function finish() {
-                    // Read everything off the ghost before clearing it —
-                    // sourceWsId is derived from toplevel and goes to -1 the
-                    // moment that's nulled.
                     const tl = ghost.toplevel
                     const target = ghost.targetWsId
                     const source = ghost.sourceWsId
@@ -331,33 +426,9 @@ Scope {
                     }
                 }
             }
-
-            // The overlay holds the keyboard: escape closes, digits jump.
-            Item {
-                anchors.fill: parent
-                focus: true
-
-                Keys.onPressed: event => {
-                    if (event.key === Qt.Key_Escape) {
-                        win.dismiss()
-                        event.accepted = true
-                        return
-                    }
-
-                    // 1–9 select that workspace, 0 selects the tenth
-                    if (event.key >= Qt.Key_0 && event.key <= Qt.Key_9) {
-                        const n = event.key === Qt.Key_0 ? 10 : event.key - Qt.Key_0
-                        if (n >= 1 && n <= win.slotCount) {
-                            win.activateWorkspace(n)
-                            event.accepted = true
-                        }
-                    }
-                }
-            }
         }
     }
 
-    // ── Key cap ───────────────────────────────────────────────────────────
     component KeyCap: Rectangle {
         id: cap
         property string text: ""

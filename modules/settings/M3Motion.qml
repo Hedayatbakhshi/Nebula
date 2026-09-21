@@ -13,6 +13,8 @@ Singleton {
     property QtObject spatial
     property QtObject effects
     property QtObject container
+    property QtObject reveal
+    property QtObject panel
 
     container: QtObject {
         readonly property int duration: 360
@@ -21,6 +23,23 @@ Singleton {
         readonly property var curve: [0.53, 0.47, 0.53, 1.06, 1, 1]
         readonly property var alphaOut: [0.0, 0.0, 0.8, 1.0, 1, 1]
         readonly property var alphaIn: [0.4, 0.0, 1.0, 1.0, 1, 1]
+    }
+
+    // A mode reveal that travels across the screen: one pass of light, no overshoot
+    // (a sweep that bounces reads as a mistake), and leaving is about half as long.
+    panel: QtObject {
+        readonly property int openDuration: root.expressive ? 600 : 450
+        readonly property int closeDuration: 380
+        readonly property var openCurve: root.expressive ? [0.38, 1.21, 0.22, 1.00, 1, 1]
+                                                         : [0.2, 0.0, 0.0, 1.0, 1, 1]
+        readonly property var closeCurve: [0.3, 0.0, 0.8, 0.15, 1, 1]
+    }
+
+    reveal: QtObject {
+        readonly property int duration: 760
+        readonly property int outDuration: 340
+        readonly property real band: 0.45
+        readonly property var curve: [0.2, 0.0, 0.0, 1.0, 1, 1]
     }
 
     spatial: QtObject {

@@ -51,6 +51,7 @@ Item {
     
     // Wallpaper path
     property string wallpaper: ""
+    property string sourceWallpaper: ""
     
 
 }

@@ -38,7 +38,7 @@ Rectangle {
         id: decodeProcess
         command: [
             "bash", "-c",
-            `mkdir -p '${ServiceCliphist.cliphistDecodeDir}' && [ -f '${clipImage.imagePath}' ] || printf '${root.entry.replace(/'/g, "'\\''")}' | cliphist decode > '${clipImage.imagePath}'`
+            `mkdir -p '${ServiceCliphist.cliphistDecodeDir}' && [ -f '${clipImage.imagePath}' ] || printf '%s' '${root.entry.replace(/'/g, "'\\''")}' | cliphist decode > '${clipImage.imagePath}'`
         ]
 
         onExited: (exitCode, exitStatus) => {

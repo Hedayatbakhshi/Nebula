@@ -10,8 +10,7 @@ WidgetHost {
     id: root
     configKey: "dateWidget"
     defaultPos: Qt.point(300, 300)
-    implicitWidth: 210
-    implicitHeight: 215
+    tile: WidgetSizes.small
 
     readonly property int dayOfWeek: ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"].indexOf(ServiceClock.day)
 
@@ -19,7 +18,7 @@ WidgetHost {
     Rectangle {
         anchors.fill: parent
         radius: 24
-        color: Colors.surface
+        color: WidgetSizes.cardColor
 
         ColumnLayout {
             anchors.centerIn: parent

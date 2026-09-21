@@ -138,9 +138,8 @@ Item {
                     onCurrentValChanged: {
                         if (!currentVal || currentVal === SettingsConfig.theme.matugenScheme) return
                         SettingsConfig.theme = Object.assign({}, SettingsConfig.theme, { matugenScheme: currentVal })
-                        if (Colors.wallpaper !== "")
-                            Quickshell.execDetached([ServiceWallpaper.wallpaperScript, Colors.wallpaper, currentVal,
-                                                     SettingsConfig.theme.matugenTheme, ServiceWallpaper.transitionType])
+                        if (Colors.sourceWallpaper !== "")
+                            ServiceWallpaper.reapply()
                     }
                 }
 

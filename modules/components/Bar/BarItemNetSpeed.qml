@@ -1,0 +1,19 @@
+import QtQuick
+import qs.modules.services
+
+BarStatItem {
+    id: root
+
+    readonly property string direction: BarLayout.opt(root.itemId, "direction") ?? "both"
+    readonly property string down: "↓ " + ServiceSystemInfo.formatNetSpeed(ServiceSystemInfo.netDownloadBps)
+    readonly property string up: "↑ " + ServiceSystemInfo.formatNetSpeed(ServiceSystemInfo.netUploadBps)
+
+    widthTemplate: root.direction === "both" ? "↓ 1023.9 KB/s  ↑ 1023.9 KB/s" : "↓ 1023.9 KB/s"
+    icon: "swap_vert"
+    shortLabel: "NET"
+    value: 0
+    graphValue: root.direction === "up" ? ServiceSystemInfo.netUploadBps : ServiceSystemInfo.netDownloadBps
+    graphMax: 0
+    label: root.direction === "down" ? root.down : root.direction === "up" ? root.up : root.down + "  " + root.up
+    tip: root.down + "   " + root.up
+}

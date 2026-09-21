@@ -11,8 +11,7 @@ WidgetHost {
     id: root
     configKey: "pomodoro"
     defaultPos: Qt.point(400, 120)
-    implicitWidth: 200
-    implicitHeight: 234
+    tile: WidgetSizes.small
 
     // ── Timer state ────────────────────────────────────────────────────
     property bool isWorking: true
@@ -70,14 +69,14 @@ WidgetHost {
     // ── Drag / edit ────────────────────────────────────────────────────
 
     // ── Background ─────────────────────────────────────────────────────
-    Rectangle { anchors.fill: parent; radius: 24; color: Colors.surface }
+    Rectangle { anchors.fill: parent; radius: 24; color: WidgetSizes.cardColor }
 
     // ── Arc + center content ───────────────────────────────────────────
     Item {
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.top: parent.top
         anchors.topMargin: 14
-        width: 164; height: 164
+        width: root.height - 70; height: width
 
         CustomGaugeProgress {
             anchors.fill: parent
@@ -102,7 +101,7 @@ WidgetHost {
             CustomText {
                 anchors.horizontalCenter: parent.horizontalCenter
                 content: root.formatTime(root.timeRemaining)
-                size: 38; weight: 700; customColor: root.modeColor
+                size: Math.round((root.height - 70) * 0.2); weight: 700; customColor: root.modeColor
                 font.family: SettingsConfig.general.displayFont ?? "Titan One"
             }
         }

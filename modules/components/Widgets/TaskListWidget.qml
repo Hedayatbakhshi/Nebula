@@ -16,14 +16,16 @@ WidgetHost {
     id: root
     configKey: "taskList"
     tile: WidgetSizes.large
+    resizable: true
+    minSpan: Qt.size(3, root.expanded ? 3 : 2)
+    maxSpan: Qt.size(5, root.expanded ? 5 : 2)
     defaultPos: Qt.point(960, 200)
 
     // Collapsed by default: two tasks and a progress bar is enough at a glance.
     // Tapping the header opens the full list plus the quick-add field.
     property bool expanded: false
-    readonly property int collapsedRows: 2
+    readonly property int collapsedRows: root.overdueCount > 0 ? 2 : 3
 
-    implicitHeight: expanded ? WidgetSizes.large.height : WidgetSizes.strip.height
     Behavior on implicitHeight { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
 
     // Collapsing while typing would strand the keyboard grab
@@ -76,7 +78,7 @@ WidgetHost {
     Rectangle {
         anchors.fill: parent
         radius: WidgetSizes.radius
-        color: Colors.surface
+        color: WidgetSizes.cardColor
 
         // ── Header ────────────────────────────────────────────────────
         Item {

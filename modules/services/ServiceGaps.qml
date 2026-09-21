@@ -5,6 +5,7 @@ import Quickshell
 import QtQuick
 import qs.modules.utils
 import qs.modules.settings
+import "../components/Bar/BarOps.js" as BarOps
 
 Singleton {
     id: root
@@ -24,11 +25,15 @@ Singleton {
     readonly property int topFinal: zeroed ? 0 : topAuto + topExtra
 
     readonly property int rightGap:  zeroed ? 0 : (SettingsConfig.general.gapRight  ?? 5)
-    readonly property int bottomGap: zeroed ? 0 : (SettingsConfig.general.gapBottom ?? 5)
+    readonly property int dockReserve: BarOps.dockReserve(SettingsConfig.bar?.dock, SettingsConfig.general,
+                                                          ServiceGameMode.hideWidgets, GlobalStates.dockPresent)
+    readonly property int bottomGap: zeroed ? 0 : root.dockReserve + (SettingsConfig.general.gapBottom ?? 5)
     readonly property int leftGap:   zeroed ? 0 : (SettingsConfig.general.gapLeft   ?? 5)
 
     // ── Apply ───────────────────────────────────────────────────────────
     function exec() {
+        if (!SettingsConfig.settingsReady)
+            return
         Quickshell.execDetached(["hyprctl", "eval",
             "hl.config({ general = { gaps_out = { top = "    + root.topFinal  +
             ", right = "  + root.rightGap  +
@@ -59,8 +64,20 @@ Singleton {
     }
 
     Component.onCompleted: {
+        if (!SettingsConfig.settingsReady)
+            return
         root.exec()
         startupRetry.start()
+    }
+
+    Connections {
+        target: SettingsConfig
+        function onSettingsReadyChanged() {
+            if (!SettingsConfig.settingsReady)
+                return
+            root.exec()
+            startupRetry.start()
+        }
     }
 
     // ── Reactive triggers ────────────────────────────────────────────────

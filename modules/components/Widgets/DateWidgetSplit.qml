@@ -10,8 +10,7 @@ WidgetHost {
     id: root
     configKey: "dateWidget"
     defaultPos: Qt.point(300, 300)
-    implicitWidth: 210
-    implicitHeight: 110
+    tile: Qt.size(WidgetSizes.span(2), WidgetSizes.span(1))
 
     Row {
         anchors.fill: parent

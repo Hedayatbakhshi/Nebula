@@ -10,8 +10,8 @@ WidgetHost {
     id: root
     configKey: "weatherForecast"
     defaultPos: Qt.point(120, 300)
-    implicitWidth: 320
-    implicitHeight: 185
+    backdropRadius: 28
+    tile: WidgetSizes.wide
 
     function getDayName(dateStr) {
         if (!dateStr) return "---"
@@ -38,7 +38,7 @@ WidgetHost {
     Rectangle {
         anchors.fill: parent
         radius: 28
-        color: Colors.surface
+        color: WidgetSizes.cardColor
 
         ColumnLayout {
             anchors.fill: parent

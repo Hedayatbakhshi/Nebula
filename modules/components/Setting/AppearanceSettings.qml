@@ -7,6 +7,7 @@ import qs.modules.utils
 import qs.modules.settings
 import qs.modules.services
 import qs.modules.customComponents
+import qs.modules.components.Bar
 import Qt.labs.platform
 import "../../MatrialShapes/" as MaterialShapes
 import "../../MatrialShapes/material-shapes.js" as MaterialShapeFn
@@ -18,43 +19,6 @@ Item {
     anchors.margins: 5
 
     property var monitorList: ServiceDisplay.monitorList
-
-    // ── Dashboard section order ───────────────────────────────────────────
-    // Mirrors Dashboard.qml's normalisation so the settings list and the
-    // dashboard can never disagree about what the saved order means.
-    readonly property var dashSections: [
-        { key: "profile",      label: "Profile",      icon: "person" },
-        { key: "controls",     label: "Controls",     icon: "tune" },
-        { key: "quickActions", label: "Quick",        icon: "apps" },
-        { key: "notifications", label: "Alerts",      icon: "notifications" },
-        { key: "calendar",     label: "Calendar",     icon: "calendar_month" }
-    ]
-
-    readonly property var dashDefaultOrder: dashSections.map(s => s.key)
-
-    readonly property var dashOrder: {
-        const saved = SettingsConfig.dashboard?.order
-        if (!Array.isArray(saved) || saved.length === 0) return root.dashDefaultOrder
-        const known = saved.filter(k => root.dashDefaultOrder.indexOf(k) !== -1)
-        const missing = root.dashDefaultOrder.filter(k => known.indexOf(k) === -1)
-        return known.concat(missing)
-    }
-
-    function dashMeta(key) {
-        for (var i = 0; i < root.dashSections.length; i++)
-            if (root.dashSections[i].key === key) return root.dashSections[i]
-        return { key: key, label: key, icon: "widgets" }
-    }
-
-    readonly property var dashSegments: {
-        const out = []
-        const o = root.dashOrder
-        for (var i = 0; i < o.length; i++) {
-            const m = root.dashMeta(o[i])
-            out.push({ value: o[i], label: m.label, icon: m.icon })
-        }
-        return out
-    }
 
     FileDialog {
         id: imagePicker
@@ -336,21 +300,36 @@ Item {
                         Layout.fillWidth: true
                         ColumnLayout {
                             spacing: 2
-                            CustomText { content: "Bar Centre"; size: 14 }
-                            CustomText { content: "What sits in the middle of the bar; all of them expand on hover"; size: 12; customColor: Colors.outline }
+                            CustomText { content: "Bar Layout"; size: 14 }
+                            CustomText { content: "Move, add and hide items and blocks on the bar · right-click the bar works too"; size: 12; customColor: Colors.outline }
                         }
                         Item { Layout.fillWidth: true }
-                        M3ButtonGroup {
-                            model: [
-                                { value: "clock", label: "Clock", icon: "schedule" },
-                                { value: "music", label: "Music", icon: "music_note" },
-                                { value: "both",  label: "Both",  icon: "splitscreen" }
-                            ]
-                            activeCheck: function(value) {
-                                return (SettingsConfig.general.barCenter ?? "clock") === value
+                        M3Button {
+                            icon: "edit"
+                            label: "Edit bar"
+                            onClicked: {
+                                GlobalStates.settingsOpen = false
+                                GlobalStates.barEditMode = true
                             }
-                            onSegmentClicked: function(value) {
-                                SettingsConfig.general = Object.assign({}, SettingsConfig.general, { barCenter: value })
+                        }
+                    }
+                }
+
+                CustomCard {
+                    autoRadius: false; topRadius: 5; bottomRadius: 5
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 16
+                        ColumnLayout {
+                            spacing: 2
+                            CustomText { content: "Weather Panel"; size: 14 }
+                            CustomText { content: "Clicking the temperature opens the weather panel"; size: 12; customColor: Colors.outline }
+                        }
+                        Item { Layout.fillWidth: true }
+                        CustomToogle {
+                            isToggleOn: SettingsConfig.general.barWeatherPanel ?? true
+                            onToggled: function(state) {
+                                SettingsConfig.general = Object.assign({}, SettingsConfig.general, { barWeatherPanel: state })
                             }
                         }
                     }
@@ -518,7 +497,7 @@ Item {
                                 Layout.maximumWidth: 170
                                 spacing: 2
                                 CustomText { content: "Bottom"; size: 14 }
-                                CustomText { Layout.fillWidth: true; wrapMode: Text.WordWrap; content: "Gap from bottom screen edge"; size: 12; customColor: Colors.outline }
+                                CustomText { Layout.fillWidth: true; wrapMode: Text.WordWrap; content: "Gap from bottom screen edge · dock space is added automatically in Full and Pill"; size: 12; customColor: Colors.outline }
                             }
                             Item { Layout.fillWidth: true }
                             M3Slider {
@@ -729,51 +708,13 @@ Item {
                             }
                             Item { Layout.fillWidth: true }
                             CustomToogle {
-                                isToggleOn: SettingsConfig.general.dockMusicPlayer
+                                isToggleOn: BarLayout.dockMusic
                                 onToggled: function(state) {
-                                    SettingsConfig.general = Object.assign({}, SettingsConfig.general, { dockMusicPlayer: state })
+                                    BarLayout.setDockMusic(state)
                                 }
                             }
                         }
                     }
-                }
-            }
-
-            // ── Dashboard ────────────────────────────────────────────────
-            CustomText { Layout.topMargin: 16; content: "Dashboard"; size: 13; customColor: Colors.primary }
-
-            CustomText {
-                Layout.topMargin: 2
-                Layout.fillWidth: true
-                wrapMode: Text.WordWrap
-                content: "Click one to show or hide it, drag to reorder. They stack in the dashboard in this order, which sizes itself to whatever you leave on."
-                size: 12
-                customColor: Colors.outline
-            }
-
-            M3ButtonGroup {
-                Layout.fillWidth: true
-                Layout.topMargin: 10
-                Layout.preferredHeight: 56
-
-                fillWidth: true
-                reorderable: true
-                iconSize: 20
-                textSize: 12
-                model: root.dashSegments
-
-                activeCheck: key => SettingsConfig.dashboard?.[key] ?? true
-
-                onSegmentClicked: key => {
-                    var patch = {}
-                    patch[key] = !(SettingsConfig.dashboard?.[key] ?? true)
-                    SettingsConfig.dashboard = Object.assign({}, SettingsConfig.dashboard, patch)
-                }
-
-                onSegmentMoved: (from, to) => {
-                    const arr = root.dashOrder.slice()
-                    arr.splice(to, 0, arr.splice(from, 1)[0])
-                    SettingsConfig.dashboard = Object.assign({}, SettingsConfig.dashboard, { order: arr })
                 }
             }
 

@@ -15,6 +15,9 @@ WidgetHost {
     id: root
     configKey: "networkGraph"
     tile: WidgetSizes.strip
+    resizable: true
+    minSpan: Qt.size(3, 1.5)
+    maxSpan: Qt.size(6, 3)
     defaultPos: Qt.point(100, 780)
 
     // Previews read canned values and never start the pollers
@@ -90,7 +93,7 @@ WidgetHost {
     Rectangle {
         anchors.fill: parent
         radius: WidgetSizes.radius
-        color: Colors.surface
+        color: WidgetSizes.cardColor
 
         // ── Header ────────────────────────────────────────────────────
         RowLayout {
@@ -120,8 +123,10 @@ WidgetHost {
             anchors.right: parent.right
             anchors.leftMargin: 20
             anchors.rightMargin: 20
-            y: 38
-            height: 60
+            anchors.top: parent.top
+            anchors.topMargin: 38
+            anchors.bottom: rates.top
+            anchors.bottomMargin: 10
 
             CustomSparkline {
                 id: downTrace
@@ -177,7 +182,9 @@ WidgetHost {
             anchors.right: parent.right
             anchors.leftMargin: 20
             anchors.rightMargin: 20
-            y: 106
+            id: rates
+            anchors.bottom: parent.bottom
+            anchors.bottomMargin: 14
             spacing: 0
 
             RowLayout {

@@ -7,11 +7,14 @@ import qs.modules.settings
 import qs.modules.customComponents
 import "../Widgets" as W
 import QtQuick.Controls
+import qs.modules.components.Widgets as WM
 
 Item {
     id: root
     anchors.fill: parent
     anchors.margins: 5
+
+    readonly property bool panelOn: SettingsConfig.widgets.showWidgets ?? true
 
     // ── Reusable section header ───────────────────────────────────────────
     component SectionLabel: CustomText {
@@ -19,126 +22,6 @@ Item {
         size: 13
         customColor: Colors.primary
     }
-
-    // ── Live previews ─────────────────────────────────────────────────────
-    // Each card renders the real widget with preview: true, which suppresses
-    // positioning, dragging and (where it matters) expensive animation.
-    Component { id: cProfileCard;   W.ProfileCard          { preview: true } }
-    Component { id: cProfileTile;   W.ProfileTile          { preview: true } }
-    Component { id: cMusicCircle;   W.CircularMusicPlayer  { preview: true } }
-    Component { id: cClockClassic;  W.NewClock             { preview: true } }
-    Component { id: cClockMinimal;  W.DigitalClockMinimal  { preview: true } }
-    Component { id: cClockStacked;  W.DigitalClockStacked  { preview: true } }
-    Component { id: cClockOutline;  W.DigitalClockOutline  { preview: true } }
-    Component { id: cClockEcho;     W.DigitalClockEcho     { preview: true } }
-    Component { id: cClockColumn;   W.DigitalClockColumn   { preview: true } }
-    Component { id: cClockTicker;   W.DigitalClockTicker   { preview: true } }
-    Component { id: cClockSlab;     W.DigitalClockSlab     { preview: true } }
-    Component { id: cClockThin;     W.DigitalClockThin     { preview: true } }
-    Component { id: cClockPair;     W.DigitalClockPair     { preview: true } }
-    Component { id: cAnalogClassic; W.AnalogClockClassic   { preview: true } }
-    Component { id: cAnalogMinimal; W.AnalogClockMinimal   { preview: true } }
-    Component { id: cAnalogShape;   W.AnalogClockShape     { preview: true } }
-    Component { id: cDateDefault;   W.DateWidget           { preview: true } }
-    Component { id: cDateCalendar;  W.DateWidgetCalendar   { preview: true } }
-    Component { id: cDatePill;      W.DateWidgetPill       { preview: true } }
-    Component { id: cDateSplit;     W.DateWidgetSplit      { preview: true } }
-    Component { id: cDateBold;      W.DateWidgetBold       { preview: true } }
-    Component { id: cDateGhost;     W.DateWidgetGhost      { preview: true } }
-    Component { id: cDateAccent;    W.DateWidgetAccent     { preview: true } }
-    Component { id: cDateInline;    W.DateWidgetInline     { preview: true } }
-    Component { id: cWeatherSlant;  W.WeatherWidgetSlanted { preview: true } }
-    Component { id: cWeatherCast;   W.WeatherWidgetForecast{ preview: true } }
-    Component { id: cWeatherDetail; W.WeatherWidgetDetails { preview: true } }
-    Component { id: cSunArc;        W.SunArcWidget         { preview: true } }
-    Component { id: cWeatherHourly; W.WeatherHourlyWidget    { preview: true } }
-    Component { id: cWeatherWind;   W.WeatherWindWidget      { preview: true } }
-    Component { id: cWeatherBaro;   W.WeatherBarometerWidget { preview: true } }
-    Component { id: cMoonPhase;     W.MoonPhaseWidget      { preview: true } }
-    Component { id: cPomodoro;      W.PomodoroWidget       { preview: true } }
-    Component { id: cTaskList;      W.TaskListWidget       { preview: true } }
-    Component { id: cStickyNote;    W.StickyNoteWidget     { preview: true } }
-    Component { id: cHeadlines;     W.HeadlinesWidget      { preview: true } }
-    Component { id: cSysDefault;    W.SystemMonitorWidget  { preview: true } }
-    Component { id: cSysCompact;    W.SystemMonitorCompact { preview: true } }
-    Component { id: cSysPulse;      W.SystemMonitorPulse   { preview: true } }
-    Component { id: cBattDefault;   W.BatteryWidget        { preview: true } }
-    Component { id: cBattMinimal;   W.BatteryWidgetMinimal { preview: true } }
-    Component { id: cBattRing;      W.BatteryWidgetRing    { preview: true } }
-    Component { id: cAlbumArt;      W.AlbumArtWidget       { preview: true } }
-    Component { id: cSpectrum;      W.SpectrumWidget       { preview: true } }
-    Component { id: cNetGraph;      W.NetworkGraphWidget   { preview: true } }
-
-    // ── Catalog ───────────────────────────────────────────────────────────
-    // show      — the SettingsConfig.widgets key that turns the family on
-    // styleKey  — the key holding which variant is active (omitted if only one)
-    // style     — this card's variant value
-    // def       — the family's default variant, for the ?? fallback
-    readonly property var catalog: [
-        { section: "Personal", items: [
-            { label: "Card", comp: cProfileCard, show: "showProfileCard", styleKey: "profileCardStyle", style: "card", def: "card" },
-            { label: "Tile", comp: cProfileTile, show: "showProfileCard", styleKey: "profileCardStyle", style: "tile", def: "card" }
-        ]},
-        { section: "Music", items: [
-            { label: "Circular Player", comp: cMusicCircle, show: "showCircularMusicPlayer" },
-            { label: "Album Art",       comp: cAlbumArt,    show: "showAlbumArt" },
-            { label: "Spectrum",        comp: cSpectrum,    show: "showSpectrum" }
-        ]},
-        { section: "Digital Clock", items: [
-            { label: "Classic", comp: cClockClassic, show: "showClock", styleKey: "digitalClockStyle", style: "classic", def: "classic" },
-            { label: "Minimal", comp: cClockMinimal, show: "showClock", styleKey: "digitalClockStyle", style: "minimal", def: "classic" },
-            { label: "Stacked", comp: cClockStacked, show: "showClock", styleKey: "digitalClockStyle", style: "stacked", def: "classic" },
-            { label: "Outline", comp: cClockOutline, show: "showClock", styleKey: "digitalClockStyle", style: "outline", def: "classic" },
-            { label: "Echo",    comp: cClockEcho,    show: "showClock", styleKey: "digitalClockStyle", style: "echo",    def: "classic" },
-            { label: "Column",  comp: cClockColumn,  show: "showClock", styleKey: "digitalClockStyle", style: "column",  def: "classic" },
-            { label: "Ticker",  comp: cClockTicker,  show: "showClock", styleKey: "digitalClockStyle", style: "ticker",  def: "classic" },
-            { label: "Slab",    comp: cClockSlab,    show: "showClock", styleKey: "digitalClockStyle", style: "slab",    def: "classic" },
-            { label: "Thin",    comp: cClockThin,    show: "showClock", styleKey: "digitalClockStyle", style: "thin",    def: "classic" },
-            { label: "Pair",    comp: cClockPair,    show: "showClock", styleKey: "digitalClockStyle", style: "pair",    def: "classic" }
-        ]},
-        { section: "Analog Clock", items: [
-            { label: "Classic", comp: cAnalogClassic, show: "showAnalogClock", styleKey: "analogClockStyle", style: "classic", def: "classic" },
-            { label: "Minimal", comp: cAnalogMinimal, show: "showAnalogClock", styleKey: "analogClockStyle", style: "minimal", def: "classic" },
-            { label: "Shape",   comp: cAnalogShape,   show: "showAnalogClock", styleKey: "analogClockStyle", style: "shape",   def: "classic" }
-        ]},
-        { section: "Date", items: [
-            { label: "Default",  comp: cDateDefault,  show: "showDateWidget", styleKey: "dateWidgetStyle", style: "default",  def: "default" },
-            { label: "Calendar", comp: cDateCalendar, show: "showDateWidget", styleKey: "dateWidgetStyle", style: "calendar", def: "default" },
-            { label: "Pill",     comp: cDatePill,     show: "showDateWidget", styleKey: "dateWidgetStyle", style: "pill",     def: "default" },
-            { label: "Split",    comp: cDateSplit,    show: "showDateWidget", styleKey: "dateWidgetStyle", style: "split",    def: "default" },
-            { label: "Bold",     comp: cDateBold,     show: "showDateWidget", styleKey: "dateWidgetStyle", style: "bold",     def: "default" },
-            { label: "Ghost",    comp: cDateGhost,    show: "showDateWidget", styleKey: "dateWidgetStyle", style: "ghost",    def: "default" },
-            { label: "Accent",   comp: cDateAccent,   show: "showDateWidget", styleKey: "dateWidgetStyle", style: "accent",   def: "default" },
-            { label: "Inline",   comp: cDateInline,   show: "showDateWidget", styleKey: "dateWidgetStyle", style: "inline",   def: "default" }
-        ]},
-        { section: "Weather", items: [
-            { label: "Slanted",  comp: cWeatherSlant,  show: "showWeatherSlanted" },
-            { label: "Forecast", comp: cWeatherCast,   show: "showWeatherForecast" },
-            { label: "Details",  comp: cWeatherDetail, show: "showWeatherDetails" },
-            { label: "Hourly",   comp: cWeatherHourly, show: "showWeatherHourly" },
-            { label: "Wind",     comp: cWeatherWind,   show: "showWeatherWind" },
-            { label: "Pressure", comp: cWeatherBaro,   show: "showWeatherBarometer" },
-            { label: "Sun Arc",  comp: cSunArc,        show: "showSunArc" },
-            { label: "Moon",     comp: cMoonPhase,     show: "showMoonPhase" }
-        ]},
-        { section: "Productivity", items: [
-            { label: "Tasks",    comp: cTaskList,   show: "showTaskList" },
-            { label: "Note",     comp: cStickyNote, show: "showStickyNote" },
-            { label: "Pomodoro", comp: cPomodoro,   show: "showPomodoro" }
-        ]},
-        { section: "News", items: [
-            { label: "Headlines", comp: cHeadlines, show: "showHeadlines" }
-        ]},
-        { section: "System", items: [
-            { label: "Monitor",   comp: cSysDefault,  show: "showSystemMonitor", styleKey: "systemMonitorStyle", style: "default", def: "default" },
-            { label: "Compact",   comp: cSysCompact,  show: "showSystemMonitor", styleKey: "systemMonitorStyle", style: "compact", def: "default" },
-            { label: "Pulse",     comp: cSysPulse,    show: "showSystemMonitor", styleKey: "systemMonitorStyle", style: "pulse",   def: "default" },
-            { label: "Battery",   comp: cBattDefault, show: "showBattery", styleKey: "batteryStyle", style: "default", def: "default" },
-            { label: "Bar",       comp: cBattMinimal, show: "showBattery", styleKey: "batteryStyle", style: "minimal", def: "default" },
-            { label: "Ring",      comp: cBattRing,    show: "showBattery", styleKey: "batteryStyle", style: "ring",    def: "default" },
-            { label: "Network",   comp: cNetGraph,    show: "showNetworkGraph" }
-        ]}
-    ]
 
     readonly property var networkWindows: [
         { name: "1 min" }, { name: "3 min" }, { name: "5 min" },
@@ -163,7 +46,7 @@ Item {
     function isActive(item) {
         if (!(SettingsConfig.widgets[item.show] ?? false)) return false
         if (!item.styleKey) return true
-        return (SettingsConfig.widgets[item.styleKey] ?? item.def) === item.style
+        return WM.WidgetCatalog.styleValue(item) === item.style
     }
 
     // One click both enables the family and picks the variant; clicking the
@@ -203,10 +86,19 @@ Item {
 
                 Item { Layout.fillWidth: true }
 
+                CustomToogle {
+                    isToggleOn: root.panelOn
+                    onToggled: function(state) {
+                        SettingsConfig.widgets = Object.assign({}, SettingsConfig.widgets, { showWidgets: state })
+                    }
+                }
+
                 Rectangle {
                     implicitWidth: arrangeRow.implicitWidth + 26
                     implicitHeight: 34
                     radius: 17
+                    opacity: root.panelOn ? 1 : 0.4
+                    Behavior on opacity { EffectsAnim { speed: "fast" } }
                     color: Colors.primary
 
                     RowLayout {
@@ -220,6 +112,7 @@ Item {
                     RippleEffect {
                         anchors.fill: parent
                         radius: 17
+                        enabled: root.panelOn
                         hoverColor: Qt.alpha(Colors.primaryText, 0.10)
                         rippleColor: Qt.alpha(Colors.primaryText, 0.24)
                         // Settings is a separate window sitting over the desktop —
@@ -234,14 +127,132 @@ Item {
 
             CustomText {
                 Layout.topMargin: 6
-                content: "Click a widget to place it on the desktop. Click it again to remove it."
+                content: root.panelOn
+                    ? "Click a widget to place it on the desktop. Click it again to remove it."
+                    : "The desktop panel is off. Widgets you pick here appear when you switch it back on."
                 size: 12
                 customColor: Colors.outline
             }
 
+            SectionLabel { content: "Appearance" }
+
+            ColumnLayout {
+                Layout.topMargin: 6
+                Layout.fillWidth: true
+                spacing: 3
+
+                CustomCard {
+                    autoRadius: false
+                    topRadius: 20
+                    bottomRadius: WidgetSizes.cardStyle !== "flat" ? 5 : 20
+                    RowLayout {
+                        Layout.fillWidth: true
+                        ColumnLayout {
+                            spacing: 2
+                            CustomText { content: "Card Surface"; size: 14 }
+                            CustomText {
+                                content: "How widget backgrounds treat the wallpaper"
+                                size: 12
+                                customColor: Colors.outline
+                            }
+                        }
+                        Item { Layout.fillWidth: true }
+                        M3ButtonGroup {
+                            model: [
+                                { value: "flat",    label: "Solid",  icon: "square" },
+                                { value: "frosted", label: "Frost",  icon: "blur_on" },
+                                { value: "liquid",  label: "Glass",  icon: "water_drop" }
+                            ]
+                            activeCheck: function(v) { return WidgetSizes.cardStyle === v }
+                            onSegmentClicked: function(v) {
+                                SettingsConfig.widgets = Object.assign({}, SettingsConfig.widgets, { cardStyle: v })
+                            }
+                        }
+                    }
+                }
+
+                CustomCard {
+                    autoRadius: false
+                    topRadius: 5
+                    bottomRadius: 5
+                    visible: WidgetSizes.liquidGlass
+                    RowLayout {
+                        Layout.fillWidth: true
+                        ColumnLayout {
+                            spacing: 2
+                            CustomText { content: "Glass Strength"; size: 14 }
+                            CustomText {
+                                content: "How much the edges bend the wallpaper"
+                                size: 12
+                                customColor: Colors.outline
+                            }
+                        }
+                        Item { Layout.fillWidth: true }
+                        M3Slider {
+                            Layout.preferredWidth: 160
+                            Layout.preferredHeight: 30
+                            stepCount: 5
+                            stepLabels: ["flat", "subtle", "normal", "thick", "heavy"]
+                            currentStep: {
+                                const vals = [0.35, 0.7, 1.0, 1.5, 2.2]
+                                const cur = SettingsConfig.widgets.glassStrength ?? 1.0
+                                let best = 0
+                                for (var i = 1; i < vals.length; i++)
+                                    if (Math.abs(vals[i] - cur) < Math.abs(vals[best] - cur)) best = i
+                                return best
+                            }
+                            onStepChanged: step => {
+                                const vals = [0.35, 0.7, 1.0, 1.5, 2.2]
+                                SettingsConfig.widgets = Object.assign({}, SettingsConfig.widgets, { glassStrength: vals[step] })
+                            }
+                        }
+                    }
+                }
+
+                CustomCard {
+                    autoRadius: false
+                    topRadius: 5
+                    bottomRadius: 20
+                    visible: WidgetSizes.cardStyle !== "flat"
+                    RowLayout {
+                        Layout.fillWidth: true
+                        ColumnLayout {
+                            spacing: 2
+                            CustomText { content: "Card Opacity"; size: 14 }
+                            CustomText {
+                                content: WidgetSizes.liquidGlass
+                                    ? "How much the glass is tinted toward the surface"
+                                    : "How much wallpaper shows through"
+                                size: 12
+                                customColor: Colors.outline
+                            }
+                        }
+                        Item { Layout.fillWidth: true }
+                        M3Slider {
+                            Layout.preferredWidth: 160
+                            Layout.preferredHeight: 30
+                            stepCount: 5
+                            stepLabels: ["glass", "frosted", "hazy", "light", "solid"]
+                            currentStep: {
+                                const vals = [0.30, 0.45, 0.60, 0.75, 0.90]
+                                const cur = SettingsConfig.widgets.cardOpacity ?? 0.60
+                                let best = 0
+                                for (var i = 1; i < vals.length; i++)
+                                    if (Math.abs(vals[i] - cur) < Math.abs(vals[best] - cur)) best = i
+                                return best
+                            }
+                            onStepChanged: step => {
+                                const vals = [0.30, 0.45, 0.60, 0.75, 0.90]
+                                SettingsConfig.widgets = Object.assign({}, SettingsConfig.widgets, { cardOpacity: vals[step] })
+                            }
+                        }
+                    }
+                }
+            }
+
             // ── Gallery ──────────────────────────────────────────────────
             Repeater {
-                model: root.catalog
+                model: WM.WidgetCatalog.catalog
 
                 delegate: ColumnLayout {
                     id: sectionDelegate

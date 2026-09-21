@@ -17,6 +17,7 @@ Item {
     anchors.fill: parent
 
     signal backClicked
+    property bool showBack: true
 
     property bool scanning: false
     property bool passwordPrompt: false
@@ -150,6 +151,7 @@ Item {
                 radius: 16
                 icon: "chevron_backward"
                 iconSize: 20
+                visible: root.showBack
                 onClicked: root.backClicked()
             }
 

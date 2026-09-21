@@ -18,6 +18,91 @@ Singleton{
     readonly property int    recordingSeconds: WfRecorder.elapsed
     readonly property string lastFilename:  WfRecorder.filename
 
+    property int  recordingBytes: 0
+    property var  recordingMarks: []
+
+    readonly property string recordingProfile: {
+        const rec = SettingsConfig.recording
+        var parts = [rec.codec === "libx264" ? "h264" : rec.codec, rec.framerate + " fps"]
+        if (rec.audioEnabled) parts.push(root.audioSourceLabel)
+        return parts.join(" · ")
+    }
+
+    readonly property string audioSourceLabel: {
+        if (!SettingsConfig.recording.audioEnabled) return "no audio"
+        const s = SettingsConfig.recording.audioSource ?? "mic"
+        if (s === "system") return "system audio"
+        if (s === "both")   return "mic + system"
+        return "mic"
+    }
+
+    function humanBytes(bytes) {
+        const b = Number(bytes)
+        if (!isFinite(b) || b <= 0) return ""
+        if (b < 1024 * 1024) return (b / 1024).toFixed(0) + " KB"
+        if (b < 1024 * 1024 * 1024) return (b / (1024 * 1024)).toFixed(1) + " MB"
+        return (b / (1024 * 1024 * 1024)).toFixed(2) + " GB"
+    }
+
+    Timer {
+        running: root.isRecording
+        interval: 2000
+        repeat: true
+        triggeredOnStart: true
+        onTriggered: {
+            if (root.lastFilename === "") return
+            sizeProc.command = ["stat", "-c", "%s", root.lastFilename]
+            sizeProc.running = true
+        }
+    }
+
+    Process {
+        id: sizeProc
+        stdout: SplitParser {
+            onRead: line => {
+                const n = parseInt(String(line).trim())
+                if (!isNaN(n)) root.recordingBytes = n
+            }
+        }
+    }
+
+    function markMoment() {
+        if (!root.isRecording || root.lastFilename === "") return
+        const stamp = root.getFormattedRecordingTime()
+        const next  = root.recordingMarks.slice()
+        next.push(stamp)
+        root.recordingMarks = next
+        Quickshell.execDetached(["sh", "-c",
+            "printf '%s\\n' " + root._shq(stamp) + " >> " + root._shq(root.lastFilename + ".marks.txt")])
+    }
+
+    onIsRecordingChanged: {
+        if (root.isRecording) {
+            root.recordingMarks = []
+            root.recordingBytes = 0
+        }
+    }
+
+    property string lastColor: ""
+
+    Process {
+        id: colorProc
+        stdout: SplitParser {
+            onRead: line => {
+                const hex = String(line).trim()
+                if (hex === "") return
+                root.lastColor = hex
+                ServiceNotification.sendNotification("Colour copied", hex, "Tools", "color-picker")
+            }
+        }
+    }
+
+    function pickColor() {
+        if (colorProc.running) return
+        colorProc.command = ["sh", "-c", "hyprpicker -a -f hex"]
+        colorProc.running = true
+    }
+
     // Send stop notification when recording finishes
     Connections {
         target: WfRecorder

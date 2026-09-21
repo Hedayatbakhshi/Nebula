@@ -29,6 +29,10 @@ Item {
     // keeps the quiet traffic readable without clipping the peak.
     property bool logScale: false
 
+    property bool bars: false
+    property real barWidth: 2
+    property real barGap: 1.5
+
     // Call this to append a new data point
     function addValue(v) {
         const copy = values.slice()
@@ -50,6 +54,29 @@ Item {
             if (pts.length < 2) return
 
             const maxVal = root.maxOverride > 0 ? root.maxOverride : Math.max(...pts, 1)
+
+            if (root.bars) {
+                const slot = root.barWidth + root.barGap
+                const count = Math.max(1, Math.floor((width + root.barGap) / slot))
+                const first = Math.max(0, pts.length - count)
+                const shown = pts.slice(first)
+                const normB = root.logScale
+                    ? v => Math.log1p(Math.max(0, v)) / Math.log1p(maxVal)
+                    : v => v / maxVal
+                for (let i = 0; i < shown.length; i++) {
+                    const h = Math.max(2, normB(shown[i]) * height * 0.95)
+                    const x = width - (shown.length - i) * slot + root.barGap
+                    ctx.beginPath()
+                    ctx.roundedRect(x, height - h, root.barWidth, h,
+                                    root.barWidth / 2, root.barWidth / 2)
+                    ctx.fillStyle = i === shown.length - 1
+                        ? root.lineColor
+                        : Qt.rgba(root.lineColor.r, root.lineColor.g, root.lineColor.b, 0.55)
+                    ctx.fill()
+                }
+                return
+            }
+
             const stepX  = width / (root.maxPoints - 1)
             const offsetX = (root.maxPoints - pts.length) * stepX
 
@@ -118,6 +145,7 @@ Item {
             function onMaxOverrideChanged() { canvas.requestPaint() }
             function onLineColorChanged() { canvas.requestPaint() }
             function onLogScaleChanged() { canvas.requestPaint() }
+            function onBarsChanged() { canvas.requestPaint() }
             function onCornerRadiusChanged() { canvas.requestPaint() }
             function onGradientFillChanged() { canvas.requestPaint() }
         }

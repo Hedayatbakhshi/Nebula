@@ -13,6 +13,9 @@ WidgetHost {
     id: root
     configKey: "stickyNote"
     tile: WidgetSizes.small
+    resizable: true
+    minSpan: Qt.size(2, 2)
+    maxSpan: Qt.size(5, 5)
     defaultPos: Qt.point(620, 660)
 
     readonly property string savedText: SettingsConfig.widgets.stickyNoteText ?? ""
@@ -42,7 +45,7 @@ WidgetHost {
     Rectangle {
         anchors.fill: parent
         radius: WidgetSizes.radius
-        color: Colors.surface
+        color: WidgetSizes.cardColor
 
         RowLayout {
             id: header

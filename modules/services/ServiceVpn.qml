@@ -17,6 +17,8 @@ Singleton {
     property string city: ""
     property string serverId: ""
     property string ip: ""
+    property string protocol: ""
+    property int load: -1
 
     function connectFastest() {
         if (root.busy || !root.installed) return
@@ -33,12 +35,52 @@ Singleton {
         disconnectProcess.running = true
     }
 
+    // `protonvpn status` is the only source that survives a shell restart — the
+    // connect command's output is long gone by then. Both shapes are accepted:
+    // the labelled block status prints, and the one-line sentence connect prints.
+    function _parseDetails(out) {
+        function grab(re) {
+            const m = out.match(re)
+            return m ? m[1].trim() : ""
+        }
+        let server  = grab(/^\s*Server:\s*(.+)$/mi)
+        let country = grab(/^\s*Country:\s*(.+)$/mi)
+        let city    = grab(/^\s*City:\s*(.+)$/mi)
+
+        const inline = server.match(/^(\S+)\s+in\s+([^,]+),\s*(.+)$/)
+        if (inline) {
+            server = inline[1].trim()
+            if (!city)    city    = inline[2].trim()
+            if (!country) country = inline[3].trim()
+        }
+
+        if (!server)  server  = grab(/Connected to (\S+)/i)
+        if (!country) country = grab(/Connected to \S+ in [^,]+,\s*([^.\n]+)/i)
+        if (!city)    city    = grab(/Connected to \S+ in ([^,]+),/i)
+
+        const ip      = grab(/^\s*IP(?:\s*address)?:\s*([0-9a-fA-F:.]+)/mi)
+                     || grab(/new IP address is ([0-9a-fA-F:.]*[0-9a-fA-F])/i)
+        const load     = grab(/^\s*Load:\s*(\d+)\s*%/mi)
+        const protocol = grab(/^\s*Protocol:\s*(\S+)/mi)
+
+        // Only ever fill in — a status print that omits a field must not wipe what
+        // the connect output already told us.
+        if (server)  root.serverId = server
+        if (country) root.country  = country
+        if (city)    root.city     = city
+        if (ip)      root.ip       = ip
+        if (load)     root.load     = parseInt(load, 10)
+        if (protocol) root.protocol = protocol.toLowerCase()
+    }
+
     function _resetConnectionState() {
         root.connected = false
         root.country = ""
         root.city = ""
         root.serverId = ""
         root.ip = ""
+        root.protocol = ""
+        root.load = -1
     }
 
     Component.onCompleted: {
@@ -78,6 +120,7 @@ Singleton {
             const out = statusProcess._buffer
             if (/Status:\s*Connected/i.test(out)) {
                 root.connected = true
+                root._parseDetails(out)
             } else if (/Status:\s*Disconnected/i.test(out)) {
                 if (root.connected) root._resetConnectionState()
                 root.connected = false
@@ -102,13 +145,8 @@ Singleton {
             const out = connectProcess._buffer
 
             if (code === 0) {
-                const m = out.match(/Connected to (\S+) in ([^,]+), ([^.]+)\./)
-                const ipM = out.match(/Your new IP address is ([0-9a-fA-F:.]+)\./)
                 root.connected = true
-                root.serverId = m ? m[1] : ""
-                root.city = m ? m[2].trim() : ""
-                root.country = m ? m[3].trim() : ""
-                root.ip = ipM ? ipM[1] : ""
+                root._parseDetails(out)
             } else {
                 root._resetConnectionState()
                 if (/sign.?in|log.?in|not authenticated/i.test(out)) {

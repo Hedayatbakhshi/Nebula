@@ -12,6 +12,8 @@ Scope {
     property string currentUser: "steel"  // Default user, change as needed
     property bool unlockInProgress: false
     property bool showFailure: false
+    property int failedAttempts: 0
+    property bool capsLockOn: false
 
     // Clear the failure text once the user starts typing
     onCurrentTextChanged: showFailure = false
@@ -47,6 +49,8 @@ Scope {
             root.currentText = ""
             root.showFailure = true
             root.unlockInProgress = false
+            root.failedAttempts += 1
+            root.failed()
         }
 
         function onReadyToLaunch() {
@@ -62,6 +66,7 @@ Scope {
             console.error("Greetd error:", error)
             root.showFailure = true
             root.unlockInProgress = false
+            root.failed()
         }
 
         function onStateChanged() {

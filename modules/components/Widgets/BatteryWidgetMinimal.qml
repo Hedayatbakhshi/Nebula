@@ -27,7 +27,7 @@ WidgetHost {
     Rectangle {
         anchors.fill: parent
         radius: WidgetSizes.radius
-        color: Colors.surface
+        color: WidgetSizes.cardColor
 
         // Subtle level fill — tinted from left edge. Kept light: at 100% it
         // covers the whole card, and with a near-white primary a heavier tint

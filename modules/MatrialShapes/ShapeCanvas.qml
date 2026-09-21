@@ -1,5 +1,6 @@
 import QtQuick
 import "shapes/morph.js" as Morph
+import "shape-ring.js" as Ring
 
 Canvas {
     id: root
@@ -11,6 +12,76 @@ Canvas {
     property bool debug: false
     // When true, scales the normalized shape to fill the full width × height instead of min(w,h) × min(w,h)
     property bool stretchToFill: false
+
+    property real strokeProgress: -1
+    property real strokeWidth: 4
+    property color strokeColor: color
+    property color strokeTrackColor: "transparent"
+
+    function ringFor(size) {
+        if (!root.roundedPolygon)
+            return []
+        const cubics = root.morph.asCubics(root.progress)
+        if (!cubics || cubics.length === 0)
+            return []
+        return Ring.ringPoints(cubics, size, root.strokeWidth)
+    }
+
+    function progressAt(px, py) {
+        return Ring.progressAt(root.ringFor(Math.min(root.width, root.height)), px, py)
+    }
+
+    function pointAtProgress(p) {
+        return Ring.pointAt(root.ringFor(Math.min(root.width, root.height)), p)
+    }
+
+    function nearRing(px, py, tolerance) {
+        return Ring.nearRing(root.ringFor(Math.min(root.width, root.height)), px, py, tolerance)
+    }
+
+    function paintRing(ctx, cubics, size) {
+        const ring = Ring.ringPoints(cubics, size, root.strokeWidth)
+        if (ring.length < 3) return
+
+        ctx.lineWidth = root.strokeWidth
+        ctx.lineCap = "round"
+        ctx.lineJoin = "round"
+
+        ctx.strokeStyle = root.strokeTrackColor
+        ctx.beginPath()
+        ctx.moveTo(ring[0].x, ring[0].y)
+        for (let i = 1; i < ring.length; i++) ctx.lineTo(ring[i].x, ring[i].y)
+        ctx.stroke()
+
+        const progress = Math.max(0, Math.min(1, root.strokeProgress))
+        if (progress <= 0) return
+
+        const lengths = []
+        let total = 0
+        for (let i = 1; i < ring.length; i++) {
+            const l = Math.hypot(ring[i].x - ring[i - 1].x, ring[i].y - ring[i - 1].y)
+            lengths.push(l)
+            total += l
+        }
+
+        let remaining = total * progress
+        ctx.strokeStyle = root.strokeColor
+        ctx.beginPath()
+        ctx.moveTo(ring[0].x, ring[0].y)
+        for (let i = 1; i < ring.length && remaining > 0; i++) {
+            const l = lengths[i - 1]
+            if (l <= remaining) {
+                ctx.lineTo(ring[i].x, ring[i].y)
+                remaining -= l
+            } else {
+                const f = remaining / l
+                ctx.lineTo(ring[i - 1].x + f * (ring[i].x - ring[i - 1].x),
+                           ring[i - 1].y + f * (ring[i].y - ring[i - 1].y))
+                remaining = 0
+            }
+        }
+        ctx.stroke()
+    }
 
     // Internals: size
     property var bounds: roundedPolygon.calculateBounds()
@@ -51,6 +122,10 @@ Canvas {
     onBorderWidthChanged: requestPaint()
     onBorderColorChanged: requestPaint()
     onDebugChanged: requestPaint()
+    onStrokeProgressChanged: requestPaint()
+    onStrokeColorChanged: requestPaint()
+    onStrokeTrackColorChanged: requestPaint()
+    onStrokeWidthChanged: requestPaint()
     onPaint: {
         var ctx = getContext("2d")
         ctx.fillStyle = root.color
@@ -60,6 +135,11 @@ Canvas {
         if (cubics.length === 0) return
 
         const size = Math.min(root.width, root.height)
+
+        if (root.strokeProgress >= 0) {
+            root.paintRing(ctx, cubics, size)
+            return
+        }
 
         ctx.save()
         if (root.polygonIsNormalized) {

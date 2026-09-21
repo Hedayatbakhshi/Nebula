@@ -162,7 +162,7 @@ Item {
             width: view.tileSize
             height: view.height
 
-            readonly property bool chosen: ServiceWallpaper.getOriginalPath(slot.modelData) === Colors.wallpaper
+            readonly property bool chosen: ServiceWallpaper.getOriginalPath(slot.modelData) === Colors.sourceWallpaper
 
             readonly property real childLoc:
                 slot.index * view.pitch + view.tileSize / 2 - view.contentX

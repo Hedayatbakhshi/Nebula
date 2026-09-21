@@ -7,22 +7,36 @@ import qs.modules.settings
 import qs.modules.customComponents
 import "../../MatrialShapes/" as MaterialShapes
 import "../../MatrialShapes/material-shapes.js" as MaterialShapeFn
+import "../../MatrialShapes/shape-library.js" as ShapeLibrary
 
 WidgetHost {
     id: root
     configKey: "analogClock"
     tile: WidgetSizes.small
     defaultPos: Qt.point(400, 200)
+    backdropMask: shapeMask
 
     property real clockSize: WidgetSizes.small.width
 
-    // Cookie9 shape face
+    readonly property string shapeLock: SettingsConfig.widgets.analogShapeLock ?? ""
+    readonly property var faceShape: root.shapeLock !== ""
+        ? (ShapeLibrary.get(root.shapeLock) ?? MaterialShapeFn.getCookie12Sided())
+        : MaterialShapeFn.getCookie12Sided()
+
+    optionsComponent: Component {
+        ShapePicker {
+            selected: root.shapeLock
+            autoHint: "The classic 12-sided cookie"
+            onPicked: name => SettingsConfig.widgets = Object.assign({}, SettingsConfig.widgets, { analogShapeLock: name })
+        }
+    }
+
     MaterialShapes.ShapeCanvas {
         anchors.centerIn: parent
         width: root.clockSize
         height: root.clockSize
-        roundedPolygon: MaterialShapeFn.getCookie12Sided()
-        color: Colors.surface
+        roundedPolygon: root.faceShape
+        color: WidgetSizes.cardColor
     }
 
     // Hour hand
@@ -84,5 +98,33 @@ WidgetHost {
         width: 6; height: 6; radius: 3
         color: Colors.primaryText
         z: 11
+    }
+    Item {
+        id: maskSource
+        anchors.fill: parent
+
+        MaterialShapes.ShapeCanvas {
+            anchors.centerIn: parent
+            width: root.clockSize
+            height: root.clockSize
+            roundedPolygon: root.faceShape
+            color: "white"
+        }
+    }
+
+    Item {
+        width: 0
+        height: 0
+        clip: true
+
+        ShaderEffectSource {
+            id: shapeMask
+            width: root.width
+            height: root.height
+            textureSize: Qt.size(root.width, root.height)
+            sourceItem: maskSource
+            hideSource: true
+            live: true
+        }
     }
 }

@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hyprland setup — Nebula</title>
+<meta name="description" content="The autostart entries and environment variables Nebula needs in your Hyprland config, in both hyprlang and Lua syntax.">
+<link rel="icon" href="assets/img/favicon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="assets/css/site.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<div class="docs">
+  <aside class="sidebar" data-open="false" aria-label="Documentation navigation"></aside>
+
+  <main class="content" id="main">
+    <p class="crumb"></p>
+    <h1>Hyprland setup</h1>
+    <p class="lede">Nebula is only the shell. It does not ship, generate or edit a Hyprland config, so the autostart and environment lines below are yours to add.</p>
+
+<h2>What has to be started</h2>
+
+<p>Three processes: the wallpaper daemon, the clipboard watcher, and the shell
+   itself.</p>
+
+<div class="code"><span class="lang">hyprland.conf</span><pre>exec-once = awww-daemon
+exec-once = wl-paste --watch cliphist store
+exec-once = QSG_RENDER_LOOP=threaded quickshell
+
+env = QML_IMPORT_PATH,$HOME/.local/lib/qt6/qml
+env = NEBULA_VENV,$HOME/.local/state/quickshell/.venv</pre></div>
+
+<h3>Hyprland 0.55 and later, with a Lua config</h3>
+
+<div class="code"><span class="lang">lua</span><pre>hl.exec_cmd(<span class="st">"awww-daemon"</span>)
+hl.exec_cmd(<span class="st">"wl-paste --watch cliphist store"</span>)
+hl.exec_cmd(<span class="st">"QSG_RENDER_LOOP=threaded quickshell"</span>)
+
+hl.env(<span class="st">"QML_IMPORT_PATH"</span>, os.getenv(<span class="st">"HOME"</span>) .. <span class="st">"/.local/lib/qt6/qml"</span>)
+hl.env(<span class="st">"NEBULA_VENV"</span>,     os.getenv(<span class="st">"HOME"</span>) .. <span class="st">"/.local/state/quickshell/.venv"</span>)</pre></div>
+
+<div class="callout">
+  <div class="hd"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>Why these two variables</div>
+  <p><code>QML_IMPORT_PATH</code> is how Qt finds the compiled WfRecorder plugin, which
+     the screen recorder needs. <code>NEBULA_VENV</code> is how the shell finds the
+     Python interpreter that runs colour generation, weather, holidays and the file
+     drop server. If either is unset, the features that depend on them fail quietly.</p>
+</div>
+
+<h2>Keybinds</h2>
+
+<p>The shell registers named global shortcuts rather than grabbing keys itself, so
+   you choose the keys. See <a href="keybindings.html">Keybindings</a> for the full
+   list of names.</p>
+
+<div class="code"><span class="lang">lua</span><pre>hl.bind(<span class="st">"SUPER + CTRL + RETURN"</span>, hl.dsp.global(<span class="st">"quickshell:appLauncher"</span>))
+hl.bind(<span class="st">"SUPER + L"</span>,             hl.dsp.global(<span class="st">"quickshell:lock"</span>), { locked = <span class="kw">true</span> })</pre></div>
+
+<p>In hyprlang syntax the same two binds are:</p>
+
+<div class="code"><span class="lang">hyprland.conf</span><pre>bind = SUPER CTRL, RETURN, global, quickshell:appLauncher
+bind = SUPER, L, global, quickshell:lock</pre></div>
+
+<h2>A ready-made set</h2>
+
+<p>A complete set of binds is committed at
+   <a href="https://github.com/iamSt3el/Nebula/blob/master/config/hypr/nebula.conf" rel="noopener"><code>config/hypr/nebula.conf</code></a>.
+   Source it from your own config rather than copying it, so updates reach you:</p>
+
+<div class="code"><span class="lang">hyprland.conf</span><pre>source = ~/.config/quickshell/config/hypr/nebula.conf</pre></div>
+
+  </main>
+
+  <nav class="toc" aria-label="On this page"></nav>
+</div>
+
+<script src="assets/js/site.js"></script>
+</body>
+</html>
