@@ -126,6 +126,14 @@ Singleton{
         {
             name: "Lock Screen",
             icon: "lock"
+        },
+        {
+            name: "Sticky Notes",
+            icon: "sticky_note_2"
+        },
+        {
+            name: "Layouts",
+            icon: "dashboard_customize"
         }
     ]
 

@@ -48,14 +48,12 @@ WidgetHost {
     }
 
     // ── Card background ───────────────────────────────────────────────
-    Rectangle {
+    WidgetCard {
         anchors.fill: parent
-        radius: 24
-        color: WidgetSizes.cardColor
 
         ColumnLayout {
             anchors.fill: parent
-            anchors.margins: 18
+            anchors.margins: parent.pad
             spacing: 10
 
             // ── Header ────────────────────────────────────────────────

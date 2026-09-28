@@ -7,20 +7,30 @@ import qs.modules.customComponents
 Scope {
     id: scope
 
-    property bool everOpened: false
+    property bool loaded: false
 
     Connections {
         target: GlobalStates
         function onSettingsOpenChanged() {
-            if (GlobalStates.settingsOpen)
-                scope.everOpened = true
+            if (GlobalStates.settingsOpen) {
+                unloadTimer.stop()
+                scope.loaded = true
+            } else {
+                unloadTimer.restart()
+            }
         }
+    }
+
+    Timer {
+        id: unloadTimer
+        interval: 10000
+        onTriggered: if (!GlobalStates.settingsOpen) scope.loaded = false
     }
 
     LazyLoader {
         id: settingsLoader
 
-        activeAsync: scope.everOpened
+        activeAsync: scope.loaded
 
         component: FloatingWindow {
             implicitWidth: 1000
@@ -28,7 +38,10 @@ Scope {
             title: "Settings"
             color: "transparent"
 
+            readonly property real animT: settingsContent.t
+
             SettingsContent {
+                id: settingsContent
                 onSettingClosed: GlobalStates.settingsOpen = false
             }
         }
@@ -41,7 +54,7 @@ Scope {
     Binding {
         target: settingsLoader.item
         property: "visible"
-        value: GlobalStates.settingsOpen
+        value: GlobalStates.settingsOpen || (!!settingsLoader.item && settingsLoader.item.animT > 0.01)
         restoreMode: Binding.RestoreNone
     }
 

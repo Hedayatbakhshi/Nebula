@@ -35,12 +35,12 @@ Item {
                     anchors.centerIn: parent
                     content: "remove"
                     iconSize: minusMouse.containsMouse && root.val > 0 ? 20 : 17
+                    Behavior on iconSize { SpatialAnim { speed: "fast" } }
                     color: root.val <= 0 ? Colors.outline
                          : minusMouse.pressed ? Colors.primary
                          : minusMouse.containsMouse ? Colors.inverseSurface
                          : Colors.surfaceVariantText
 
-                    Behavior on iconSize { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
                     Behavior on color    { ColorAnimation  { duration: 120 } }
                 }
 
@@ -97,12 +97,12 @@ Item {
                     anchors.centerIn: parent
                     content: "add"
                     iconSize: plusMouse.containsMouse && root.val < root.limit ? 20 : 17
+                    Behavior on iconSize { SpatialAnim { speed: "fast" } }
                     color: root.val >= root.limit ? Colors.outline
                          : plusMouse.pressed ? Colors.primary
                          : plusMouse.containsMouse ? Colors.inverseSurface
                          : Colors.surfaceVariantText
 
-                    Behavior on iconSize { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
                     Behavior on color    { ColorAnimation  { duration: 120 } }
                 }
 

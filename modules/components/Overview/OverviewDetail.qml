@@ -159,7 +159,7 @@ ColumnLayout {
         Image {
             id: stageWall
             anchors.fill: parent
-            source: WallpaperTheme.wallpaper
+            source: WallpaperTheme.wallpaperScreen
             fillMode: Image.PreserveAspectCrop
             sourceSize: Qt.size(1280, 720)
             asynchronous: true

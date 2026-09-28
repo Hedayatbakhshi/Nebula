@@ -14,8 +14,7 @@ import qs.modules.settings
 Singleton {
     id: root
 
-    readonly property string script: Quickshell.env("HOME") + "/.config/quickshell/scripts/claude_usage.py"
-    readonly property string limitsScript: Quickshell.env("HOME") + "/.config/quickshell/scripts/claude_limits.py"
+    readonly property string cli: Quickshell.shellDir + "/bin/nebula"
 
     // Refresh interval. Usage moves in minutes, not seconds.
     readonly property int intervalMs: 120000
@@ -104,7 +103,7 @@ Singleton {
 
     Process {
         id: limitScan
-        command: ["python3", root.limitsScript]
+        command: [root.cli, "claude-limits"]
 
         stdout: StdioCollector {
             onStreamFinished: {
@@ -130,7 +129,7 @@ Singleton {
 
     Process {
         id: scan
-        command: ["python3", root.script]
+        command: [root.cli, "claude-usage"]
 
         stdout: StdioCollector {
             onStreamFinished: {

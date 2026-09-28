@@ -69,7 +69,7 @@ WidgetHost {
     // ── Drag / edit ────────────────────────────────────────────────────
 
     // ── Background ─────────────────────────────────────────────────────
-    Rectangle { anchors.fill: parent; radius: 24; color: WidgetSizes.cardColor }
+    WidgetCard { anchors.fill: parent }
 
     // ── Arc + center content ───────────────────────────────────────────
     Item {

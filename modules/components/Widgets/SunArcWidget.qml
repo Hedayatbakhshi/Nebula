@@ -77,10 +77,8 @@ WidgetHost {
     readonly property real sunAngle: Math.PI * (1 + progress)
 
     // ── Card ──────────────────────────────────────────────────────────
-    Rectangle {
+    WidgetCard {
         anchors.fill: parent
-        radius: WidgetSizes.radius
-        color: WidgetSizes.cardColor
 
         Canvas {
             id: canvas

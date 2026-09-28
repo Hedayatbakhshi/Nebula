@@ -76,7 +76,7 @@ Item {
 
         Image {
             anchors.fill: parent
-            source: WallpaperTheme.wallpaper
+            source: WallpaperTheme.wallpaperScreen
             fillMode: Image.PreserveAspectCrop
             sourceSize.width: root.preview ? 480 : 1300
             asynchronous: true
@@ -104,6 +104,7 @@ Item {
             CustomText {
                 content: LockSession.user
                 size: Math.round(40 * root.u)
+                renderType: Text.QtRendering
                 weight: 700
                 customColor: "#ffffff"
             }
@@ -182,7 +183,7 @@ Item {
             x: 34 * root.u
             anchors.bottom: parent.bottom
             anchors.bottomMargin: 26 * root.u
-            CustomText { content: root.weather?.value ?? ""; size: Math.round(56 * root.u); weight: 700; customColor: Colors.tertiaryContainerText }
+            CustomText { content: root.weather?.value ?? ""; size: Math.round(56 * root.u); renderType: Text.QtRendering; weight: 700; customColor: Colors.tertiaryContainerText }
             CustomText {
                 width: Math.min(implicitWidth, root.colW * 2 - 60 * root.u)
                 content: root.weather?.sub ?? ""
@@ -229,7 +230,7 @@ Item {
             x: 34 * root.u
             anchors.bottom: parent.bottom
             anchors.bottomMargin: 24 * root.u
-            CustomText { content: root.battery?.value ?? ""; size: Math.round(52 * root.u); weight: 700 }
+            CustomText { content: root.battery?.value ?? ""; size: Math.round(52 * root.u); renderType: Text.QtRendering; weight: 700 }
             CustomText {
                 content: (root.battery?.sub ?? "") !== "" ? "Charging" : "Battery"
                 size: Math.round(19 * root.u)
@@ -305,7 +306,7 @@ Item {
             ColumnLayout {
                 Layout.fillWidth: true
                 spacing: 2 * root.u
-                CustomText { Layout.fillWidth: true; content: ServiceMusic.activeTrack?.title ?? ""; size: Math.round(34 * root.u); weight: 700 }
+                CustomText { Layout.fillWidth: true; content: ServiceMusic.activeTrack?.title ?? ""; size: Math.round(34 * root.u); renderType: Text.QtRendering; weight: 700 }
                 CustomText { Layout.fillWidth: true; content: ServiceMusic.activeTrack?.artist ?? ""; size: Math.round(22 * root.u); weight: 400; customColor: Colors.surfaceVariantText }
                 Rectangle {
                     Layout.topMargin: 16 * root.u
@@ -348,7 +349,7 @@ Item {
             ColumnLayout {
                 Layout.fillWidth: true
                 spacing: 16 * root.u
-                CustomText { content: root.greeter ? "Sign in" : "Unlock"; size: Math.round(40 * root.u); weight: 700 }
+                CustomText { content: root.greeter ? "Sign in" : "Unlock"; size: Math.round(40 * root.u); renderType: Text.QtRendering; weight: 700 }
                 LockAuthField {
                     id: auth
                     context: root.context

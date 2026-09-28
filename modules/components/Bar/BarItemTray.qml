@@ -13,15 +13,18 @@ Item {
     readonly property real plate: BarLayout.platePxFor(root.box, root.iconPx, 18, 30)
     readonly property bool shown: ServiceSystemTray.active
     readonly property int limit: BarLayout.opt(root.itemId, "visible") ?? 3
+    readonly property bool vertical: !!root.host && root.host.vertical === true
+    readonly property bool verticalReady: true
 
-    implicitWidth: loader.item ? loader.item.implicitWidth : 0
-    implicitHeight: root.plate
+    implicitWidth: root.vertical ? root.plate : loader.item ? loader.item.implicitWidth : 0
+    implicitHeight: root.vertical ? (loader.item ? loader.item.implicitHeight : 0) : root.plate
 
     Loader {
         id: loader
         active: root.shown
-        anchors.verticalCenter: parent.verticalCenter
+        anchors.centerIn: parent
         sourceComponent: SystemTray {
+            columns: root.vertical ? 1 : 0
             iconPx: root.iconPx
             plate: root.plate
             limit: root.limit

@@ -14,6 +14,8 @@ Item {
     readonly property bool shown: root.groups.length > 0
 
     readonly property real icon: root.host && root.host.iconSize ? root.host.iconSize : 32
+    readonly property bool vertical: !!root.host && root.host.vertical === true
+    readonly property bool verticalReady: true
     readonly property int entriesVersion: ServiceApps.list.length
     readonly property bool showEmpty: BarLayout.opt(root.itemId, "showEmpty") === true
     readonly property int slotCount: parseInt(SettingsConfig.general?.workspaceCount ?? 10) || 10
@@ -46,13 +48,15 @@ Item {
         return out
     }
 
-    implicitWidth: row.implicitWidth
-    implicitHeight: root.icon + 22
+    implicitWidth: root.vertical ? root.icon + 22 : row.implicitWidth
+    implicitHeight: root.vertical ? row.implicitHeight : root.icon + 22
 
-    Row {
+    Grid {
         id: row
         anchors.centerIn: parent
         spacing: 8
+        rows: root.vertical ? -1 : 1
+        columns: root.vertical ? 1 : -1
 
         Repeater {
             model: root.groups
@@ -66,19 +70,23 @@ Item {
                 readonly property bool isActive:
                     (ServiceWorkspaces.getWorkspace(group.wsId)?.active) ?? false
 
-                width: groupRow.implicitWidth + 18
-                height: root.icon + 14
-                radius: height / 2
+                width: root.vertical ? root.icon + 14 : groupRow.implicitWidth + 18
+                height: root.vertical ? groupRow.implicitHeight + 18 : root.icon + 14
+                radius: Math.min(width, height) / 2
                 color: group.isActive ? Colors.secondaryContainer : Colors.surfaceContainer
                 Behavior on color { EffectsColorAnim { speed: "fast" } }
 
-                Row {
+                Grid {
                     id: groupRow
-                    anchors { left: parent.left; leftMargin: 6; verticalCenter: parent.verticalCenter }
+                    x: root.vertical ? (parent.width - width) / 2 : 6
+                    y: root.vertical ? 6 : (parent.height - height) / 2
                     spacing: 8
+                    rows: root.vertical ? -1 : 1
+                    columns: root.vertical ? 1 : -1
+                    horizontalItemAlignment: Grid.AlignHCenter
+                    verticalItemAlignment: Grid.AlignVCenter
 
                     Rectangle {
-                        anchors.verticalCenter: parent.verticalCenter
                         width: 26; height: 26
                         radius: 13
                         color: group.isActive ? Colors.primary : Colors.surfaceContainerHighest
@@ -110,28 +118,26 @@ Item {
                             readonly property bool isActive: app.tops.some(t => t?.activated === true)
                             readonly property int winCount: Math.min(app.tops.length, 3)
 
-                            anchors.verticalCenter: parent.verticalCenter
                             width: root.icon
                             height: root.icon + 8
 
                             Image {
                                 id: appIcon
-                                anchors { horizontalCenter: parent.horizontalCenter; top: parent.top }
-                                width: root.icon - 2
-                                height: root.icon - 2
+                                anchors { horizontalCenter: parent.horizontalCenter; top: parent.top; topMargin: (root.icon - 2 - height) / 2 }
+                                width: appMa.containsMouse ? Math.round((root.icon - 2) * 1.12) : root.icon - 2
+                                height: width
+                                Behavior on width { NumberAnimation { duration: 220; easing.type: Easing.OutBack; easing.overshoot: 0.5 } }
+                                smooth: true
+                                mipmap: true
                                 source: root.entriesVersion >= 0
                                     ? Quickshell.iconPath(
                                         DesktopEntries.heuristicLookup(app.modelData.appId)?.icon, "image-missing")
                                     : ""
-                                sourceSize.width: 48
-                                sourceSize.height: 48
+                                sourceSize.width: 96
+                                sourceSize.height: 96
                                 asynchronous: true
                                 fillMode: Image.PreserveAspectFit
 
-                                scale: appMa.containsMouse ? 1.12 : 1.0
-                                Behavior on scale {
-                                    NumberAnimation { duration: 220; easing.type: Easing.OutBack; easing.overshoot: 0.5 }
-                                }
                             }
 
                             Rectangle {
@@ -162,8 +168,7 @@ Item {
                     }
 
                     CustomText {
-                        anchors.verticalCenter: parent.verticalCenter
-                        visible: group.apps.length === 0
+                        visible: group.apps.length === 0 && !root.vertical
                         content: "empty"
                         size: 11
                         weight: 500

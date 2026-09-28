@@ -25,6 +25,7 @@ Item {
     readonly property bool _darkroom: root.style === "darkroom"
     readonly property bool _deck: root.style === "deck"
     readonly property bool _tessera: root.style === "tessera"
+    readonly property bool _tear: root.style === "tear"
 
     readonly property string _rawArt: root._deck && !LockSession.greeter && !root.preview
         ? (ServiceMusic.activeTrack?.artUrl ?? "") : ""
@@ -67,21 +68,21 @@ Item {
             blur: 1.0
             blurMax: root._blurMax
             autoPaddingEnabled: false
-            saturation: root._darkroom ? 0.4 : root._deck ? 0.6 : 0.3
-            brightness: root._deck ? -0.45 : root._bloom ? -0.08 : 0.0
+            saturation: root._darkroom ? 0.4 : root._deck ? 0.6 : root._tear ? 0.5 : 0.3
+            brightness: root._deck ? -0.45 : root._bloom ? -0.08 : root._tear ? -0.42 : 0.0
         }
     }
 
     Wall {
         visible: !root._tessera
-        source: WallpaperTheme.wallpaper
+        source: WallpaperTheme.wallpaperScreen
         opacity: root._darkroom ? 0.16 : 1
         layer.enabled: !root._veil && !root._orbit
         transform: Scale {
             origin.x: root.width / 2
             origin.y: root.height / 2
-            xScale: root._darkroom || root._deck || root._bloom ? 1.15 : 1
-            yScale: root._darkroom || root._deck || root._bloom ? 1.15 : 1
+            xScale: root._darkroom || root._deck || root._bloom || root._tear ? 1.15 : 1
+            yScale: root._darkroom || root._deck || root._bloom || root._tear ? 1.15 : 1
         }
     }
 
@@ -146,6 +147,35 @@ Item {
                 GradientStop { position: 0.0; color: root._orbit ? Qt.rgba(0.05, 0.03, 0.04, 0.10) : Qt.alpha(Colors.surface, 0.35) }
                 GradientStop { position: 0.45; color: root._orbit ? Qt.rgba(0.05, 0.03, 0.04, 0.55) : Qt.alpha(Colors.surface, 0.55) }
                 GradientStop { position: 1.0; color: root._orbit ? Qt.rgba(0.05, 0.03, 0.04, 0.94) : Qt.alpha(Colors.surface, 0.84) }
+            }
+
+            PathLine { x: root.width; y: 0 }
+            PathLine { x: root.width; y: root.height }
+            PathLine { x: 0; y: root.height }
+            PathLine { x: 0; y: 0 }
+        }
+    }
+
+    Shape {
+        anchors.fill: parent
+        visible: root._tear
+        preferredRendererType: Shape.CurveRenderer
+
+        ShapePath {
+            strokeWidth: 0
+            strokeColor: "transparent"
+            startX: 0; startY: 0
+
+            fillGradient: RadialGradient {
+                centerX: root.width * 0.5
+                centerY: root.height * 0.46
+                centerRadius: root.height * 0.9
+                focalX: centerX
+                focalY: centerY
+                focalRadius: 0
+                GradientStop { position: 0.0; color: Qt.alpha(Colors.primary, 0.14) }
+                GradientStop { position: 0.55; color: Qt.rgba(0.04, 0.03, 0.02, 0.35) }
+                GradientStop { position: 1.0; color: Qt.rgba(0.02, 0.015, 0.01, 0.8) }
             }
 
             PathLine { x: root.width; y: 0 }

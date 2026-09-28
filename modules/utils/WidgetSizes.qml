@@ -25,12 +25,13 @@ Singleton {
     readonly property int originX: Math.round((screenSize.x - span(gridCols)) / 2)
     readonly property int originY: Math.round((screenSize.y - span(gridRows)) / 2)
 
+    readonly property int colStep: pitch / 2
     function colAt(x) { return Math.round((x - originX) / pitch) }
     function rowAt(y) { return Math.round((y - originY) / rowStep) / 2 }
 
     function snapX(x, w) {
-        const c = Math.max(0, Math.min(colAt(x), gridCols - cellsCovering(w)))
-        return originX + c * pitch
+        const c = Math.max(0, Math.min(Math.round((x - originX) / colStep), gridCols * 2 - halvesCovering(w)))
+        return originX + c * colStep
     }
     function snapY(y, h) {
         const r = Math.max(0, Math.min(Math.round((y - originY) / rowStep),
@@ -38,22 +39,22 @@ Singleton {
         return originY + r * rowStep
     }
 
-    // Shared corner radius, so tiles read as one family
     readonly property int radius: 24
+    function padFor(w) { return w <= span(2) + 1 ? 16 : 20 }
+    function nestedRadius(w) { return Math.max(6, radius - padFor(w)) }
 
-    readonly property string cardStyle: SettingsConfig.widgets.cardStyle
-        ?? ((SettingsConfig.widgets.blurBackground ?? false) ? "frosted" : "flat")
+    readonly property string cardStyle: {
+        const s = SettingsConfig.widgets.cardStyle
+            ?? ((SettingsConfig.widgets.blurBackground ?? false) ? "frosted" : "flat")
+        return s === "liquid" ? "frosted" : s
+    }
 
     readonly property bool blurBackground: root.cardStyle !== "flat"
-    readonly property bool liquidGlass: root.cardStyle === "liquid"
     readonly property real cardOpacity: SettingsConfig.widgets.cardOpacity ?? 0.60
-    readonly property real glassStrength: SettingsConfig.widgets.glassStrength ?? 1.0
 
-    readonly property color cardColor: root.cardStyle === "liquid"
-        ? Qt.rgba(0, 0, 0, 0)
-        : (root.cardStyle === "frosted"
-            ? Qt.alpha(Colors.surface, root.cardOpacity)
-            : Colors.surface)
+    readonly property color cardColor: root.cardStyle === "frosted"
+        ? Qt.alpha(Colors.surface, root.cardOpacity)
+        : Colors.surface
 
     // ── Named tiles ───────────────────────────────────────────────────
     readonly property size small: Qt.size(span(2), span(2))

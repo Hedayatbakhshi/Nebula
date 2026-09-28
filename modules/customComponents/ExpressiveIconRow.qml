@@ -16,6 +16,8 @@ Item {
     readonly property real gap: 7
     readonly property real growth: 0.28
     property real minWidth: 46
+    property color idleColor: Colors.surfaceContainerHigh
+    property color hoverColor: Colors.surfaceContainerHighest
     property real rowHeight: 40
 
     readonly property int perRow: root.count > 0
@@ -77,19 +79,18 @@ Item {
                         Behavior on radius { SpatialAnim { speed: "fast" } }
 
                         color: btn.active ? Colors.primary
-                             : btnArea.containsMouse ? Colors.surfaceContainerHighest
-                             : Colors.surfaceContainerHigh
+                             : btnArea.containsMouse ? root.hoverColor
+                             : root.idleColor
                         Behavior on color { EffectsColorAnim { speed: "fast" } }
 
                         MaterialIconSymbol {
                             anchors.centerIn: parent
                             content: btn.entry ? root.iconFor(btn.entry, btn.active) : ""
-                            iconSize: 19
+                            iconSize: btn.isPressed ? 16 : 19
+                            Behavior on iconSize { SpatialAnim { speed: "fast" } }
                             customColor: btn.active ? Colors.primaryText : Colors.surfaceText
                             fill: btn.active ? 1 : 0
                             Behavior on fill { EffectsAnim { speed: "fast" } }
-                            scale: btn.isPressed ? 0.86 : 1
-                            Behavior on scale { SpatialAnim { speed: "fast" } }
                         }
 
                         MouseArea {

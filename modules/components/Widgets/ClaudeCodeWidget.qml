@@ -85,17 +85,15 @@ WidgetHost {
         return [v[0]].concat(v)
     }
 
-    Rectangle {
+    WidgetCard {
         anchors.fill: parent
-        radius: WidgetSizes.radius
-        color: WidgetSizes.cardColor
 
         RowLayout {
             id: header
             anchors.left: parent.left
             anchors.right: parent.right
-            anchors.leftMargin: 18
-            anchors.rightMargin: 18
+            anchors.leftMargin: parent.pad
+            anchors.rightMargin: parent.pad
             y: 13
             spacing: 6
 

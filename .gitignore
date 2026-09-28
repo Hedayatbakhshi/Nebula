@@ -18,3 +18,7 @@ plugins/*/build/
 
 # Python virtualenv
 venv/
+
+# Nebula plugin build output — rebuild with plugins/Nebula/build.sh
+plugins/Nebula/build/
+plugins/Nebula/compile_commands.json

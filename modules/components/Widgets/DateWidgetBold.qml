@@ -22,10 +22,8 @@ WidgetHost {
     readonly property int _ringSteps: 12
     readonly property string _font: SettingsConfig.general.displayFont ?? "Titan One"
 
-    Rectangle {
+    WidgetCard {
         anchors.fill: parent
-        radius: WidgetSizes.radius
-        color: WidgetSizes.cardColor
 
         ColumnLayout {
             anchors.centerIn: parent

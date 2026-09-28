@@ -42,6 +42,9 @@ Rectangle {
 
     CustomToolTip {
         content: ServiceNetwork.connectionLabel.length > 0 ? ServiceNetwork.connectionLabel : "No network"
+        detail: ServiceNetwork.connectionType === "ethernet" ? "Wired · " + ServiceNetwork.activeInterface
+              : ServiceNetwork.connectedNetwork ? "Signal " + Math.round((ServiceNetwork.connectedNetwork.signalStrength ?? 0) * 100) + "% · click for networks"
+              : "Click to pick a network"
         visible: hov.containsMouse && !(root.host && root.host.panelKind === "network")
     }
 }

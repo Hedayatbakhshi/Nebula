@@ -17,7 +17,6 @@ import qs.modules.components.Osd
 import qs.modules.components.Widgets
 import qs.modules.services
 import qs.modules.customComponents
-import "../Bar/BarPath.js" as BarPath
 import "../Bar/BarOps.js" as BarOps
 
 PanelWindow{
@@ -33,16 +32,47 @@ PanelWindow{
     property bool isPrimary: true
 
     readonly property bool barEditing: GlobalStates.barEditMode && isPrimary
-    readonly property bool launcherPreview: layout.barEditing && barEditor.selectedItem === "launcher"
+    property bool editorsLive: false
+    property Item editChrome: null
+    property Item drawerHost: null
+    property Item dashEditor: null
+    property Item dashInspector: null
+    readonly property Item editTopSurface: topSurface
+    readonly property Item editBottomSurface: bottomSurface
+    function loadEditors() {
+        layout.editChrome = editChromeComp.createObject(root)
+        layout.drawerHost = drawerComp.createObject(root)
+        layout.dashEditor = dashEditorComp.createObject(root)
+        layout.dashInspector = dashInspectorComp.createObject(root)
+        layout.syncDrawer()
+        Qt.callLater(() => layout.editorsLive = true)
+    }
+    function unloadEditors() {
+        for (const o of [layout.editChrome, layout.drawerHost, layout.dashEditor, layout.dashInspector])
+            if (o) o.destroy()
+        layout.editChrome = null
+        layout.drawerHost = null
+        layout.dashEditor = null
+        layout.dashInspector = null
+        layout.editorsLive = false
+    }
+    Timer {
+        id: editorsUnload
+        interval: 10000
+        onTriggered: if (!layout.barEditing) layout.unloadEditors()
+    }
+    readonly property bool launcherPreview: layout.barEditing && barEditor.panelStage && barEditor.selectedItem === "launcher"
     readonly property string panelPreview: {
-        const k = layout.barEditing ? BarLayout.panelFor(barEditor.selectedItem) : ""
+        const k = layout.barEditing && barEditor.panelStage ? BarLayout.panelFor(barEditor.selectedItem) : ""
         return k === "launcher" ? "" : k
     }
     readonly property bool dashPreview: layout.panelPreview !== ""
     readonly property bool anyPreview: layout.launcherPreview || layout.dashPreview
     readonly property string dashAnchor: {
-        const opener = layout.panelPreview === "dashboard" ? "dashboard"
-            : barEditor.selectedItem.indexOf("dash:") === 0 ? "dashboard" : barEditor.selectedItem
+        if (layout.panelPreview === "wallpaper" || layout.panelPreview === "clipboard")
+            return "center"
+        const opener = layout.panelPreview === "dashboard" || barEditor.selectedItem.indexOf("dash:") === 0
+            ? BarLayout.panelHostItem("dashboard") : barEditor.selectedItem
         const b = BarLayout.allBlocks.find(x => x.items.indexOf(opener) >= 0)
         return b ? b.anchor : "right"
     }
@@ -53,10 +83,12 @@ PanelWindow{
     readonly property real popupY: topSurface.rowItem.y + Appearance.size.barHeight + (topSurface.barMode === "pill" ? 8 : 4)
 
     WlrLayershell.namespace: "quickshell:bar"
+    exclusionMode: ExclusionMode.Ignore
     WlrLayershell.keyboardFocus: layout.barEditing ? WlrKeyboardFocus.Exclusive
                                : isPrimary && (GlobalStates.clipboardOpen || GlobalStates.wallpaperOpen
                                                || GlobalStates.fileDropOpen
                                                || GlobalStates.powerPanelOpen
+                                               || GlobalStates.scenesPanelOpen
                                                || GlobalStates.dockSearchActive
                                                || (GlobalStates.appLauncherOpen && GlobalStates.launcherHosted)) ? WlrKeyboardFocus.OnDemand
                                                              : WlrKeyboardFocus.None
@@ -65,8 +97,28 @@ PanelWindow{
         topSurface.floatKind = ""
         barEditor.cancel()
         barEditor.selectedItem = ""
-        if (layout.barEditing) drawerHost.open()
-        else drawerHost.close()
+        barEditor.panelStage = false
+        barEditor.drawerMode = ""
+        if (layout.barEditing) {
+            editorsUnload.stop()
+            if (!layout.editChrome)
+                layout.loadEditors()
+        } else if (layout.editChrome) {
+            editorsUnload.restart()
+        }
+    }
+
+    readonly property bool drawerWanted: layout.barEditing && barEditor.drawerMode !== "" && barEditor.drawerMode !== "inspector"
+        && !(barEditor.drawerMode === "options" && barEditor.selectedItem === "dashboard")
+    onDrawerWantedChanged: layout.syncDrawer()
+    function syncDrawer() {
+        const d = layout.drawerHost
+        if (!d)
+            return
+        if (layout.drawerWanted && barEditor.drawerMode === "settings" && d.tab === "add")
+            d.tab = "bar"
+        if (layout.drawerWanted) d.open()
+        else d.close()
     }
 
     Binding {
@@ -79,14 +131,14 @@ PanelWindow{
     Binding {
         target: GlobalStates
         property: "previewInsetRight"
-        value: drawerHost.width + 48
+        value: (barEditor.drawerMode !== "" && drawerHost ? drawerHost.width : 400) + 48
         when: layout.isPrimary && layout.launcherPreview && !layout.previewRight
     }
 
     Binding {
         target: GlobalStates
         property: "previewInsetLeft"
-        value: drawerHost.width + 48
+        value: (barEditor.drawerMode !== "" && drawerHost ? drawerHost.width : 400) + 48
         when: layout.isPrimary && layout.launcherPreview && layout.previewRight
     }
 
@@ -108,165 +160,185 @@ PanelWindow{
         intersection: Intersection.Xor;
 
         Region {
-            readonly property Item blk: topSurface.visibleBlocks[0] ?? null
-            x: blk ? topSurface.rowItem.x + blk.parent.x + blk.x : 0
-            y: blk ? topSurface.rowItem.y + blk.y : 0
-            width:  blk && isPrimary ? blk.width  : 0
-            height: blk && isPrimary ? blk.height : 0
+            readonly property Item blk: isPrimary ? (topSurface.visibleBlocks[0] ?? null) : null
+            readonly property rect r: blk ? topSurface.blockRect(blk) : Qt.rect(0, 0, 0, 0)
+            x: r.x
+            y: r.y
+            width: r.width
+            height: r.height
             intersection: Intersection.Subtract
         }
         Region {
-            readonly property Item blk: topSurface.visibleBlocks[1] ?? null
-            x: blk ? topSurface.rowItem.x + blk.parent.x + blk.x : 0
-            y: blk ? topSurface.rowItem.y + blk.y : 0
-            width:  blk && isPrimary ? blk.width  : 0
-            height: blk && isPrimary ? blk.height : 0
+            readonly property Item blk: isPrimary ? (topSurface.visibleBlocks[1] ?? null) : null
+            readonly property rect r: blk ? topSurface.blockRect(blk) : Qt.rect(0, 0, 0, 0)
+            x: r.x
+            y: r.y
+            width: r.width
+            height: r.height
             intersection: Intersection.Subtract
         }
         Region {
-            readonly property Item blk: topSurface.visibleBlocks[2] ?? null
-            x: blk ? topSurface.rowItem.x + blk.parent.x + blk.x : 0
-            y: blk ? topSurface.rowItem.y + blk.y : 0
-            width:  blk && isPrimary ? blk.width  : 0
-            height: blk && isPrimary ? blk.height : 0
+            readonly property Item blk: isPrimary ? (topSurface.visibleBlocks[2] ?? null) : null
+            readonly property rect r: blk ? topSurface.blockRect(blk) : Qt.rect(0, 0, 0, 0)
+            x: r.x
+            y: r.y
+            width: r.width
+            height: r.height
             intersection: Intersection.Subtract
         }
         Region {
-            readonly property Item blk: topSurface.visibleBlocks[3] ?? null
-            x: blk ? topSurface.rowItem.x + blk.parent.x + blk.x : 0
-            y: blk ? topSurface.rowItem.y + blk.y : 0
-            width:  blk && isPrimary ? blk.width  : 0
-            height: blk && isPrimary ? blk.height : 0
+            readonly property Item blk: isPrimary ? (topSurface.visibleBlocks[3] ?? null) : null
+            readonly property rect r: blk ? topSurface.blockRect(blk) : Qt.rect(0, 0, 0, 0)
+            x: r.x
+            y: r.y
+            width: r.width
+            height: r.height
             intersection: Intersection.Subtract
         }
         Region {
-            readonly property Item blk: topSurface.visibleBlocks[4] ?? null
-            x: blk ? topSurface.rowItem.x + blk.parent.x + blk.x : 0
-            y: blk ? topSurface.rowItem.y + blk.y : 0
-            width:  blk && isPrimary ? blk.width  : 0
-            height: blk && isPrimary ? blk.height : 0
+            readonly property Item blk: isPrimary ? (topSurface.visibleBlocks[4] ?? null) : null
+            readonly property rect r: blk ? topSurface.blockRect(blk) : Qt.rect(0, 0, 0, 0)
+            x: r.x
+            y: r.y
+            width: r.width
+            height: r.height
             intersection: Intersection.Subtract
         }
         Region {
-            readonly property Item blk: topSurface.visibleBlocks[5] ?? null
-            x: blk ? topSurface.rowItem.x + blk.parent.x + blk.x : 0
-            y: blk ? topSurface.rowItem.y + blk.y : 0
-            width:  blk && isPrimary ? blk.width  : 0
-            height: blk && isPrimary ? blk.height : 0
+            readonly property Item blk: isPrimary ? (topSurface.visibleBlocks[5] ?? null) : null
+            readonly property rect r: blk ? topSurface.blockRect(blk) : Qt.rect(0, 0, 0, 0)
+            x: r.x
+            y: r.y
+            width: r.width
+            height: r.height
             intersection: Intersection.Subtract
         }
         Region {
-            readonly property Item blk: topSurface.visibleBlocks[6] ?? null
-            x: blk ? topSurface.rowItem.x + blk.parent.x + blk.x : 0
-            y: blk ? topSurface.rowItem.y + blk.y : 0
-            width:  blk && isPrimary ? blk.width  : 0
-            height: blk && isPrimary ? blk.height : 0
+            readonly property Item blk: isPrimary ? (topSurface.visibleBlocks[6] ?? null) : null
+            readonly property rect r: blk ? topSurface.blockRect(blk) : Qt.rect(0, 0, 0, 0)
+            x: r.x
+            y: r.y
+            width: r.width
+            height: r.height
             intersection: Intersection.Subtract
         }
         Region {
-            readonly property Item blk: topSurface.visibleBlocks[7] ?? null
-            x: blk ? topSurface.rowItem.x + blk.parent.x + blk.x : 0
-            y: blk ? topSurface.rowItem.y + blk.y : 0
-            width:  blk && isPrimary ? blk.width  : 0
-            height: blk && isPrimary ? blk.height : 0
+            readonly property Item blk: isPrimary ? (topSurface.visibleBlocks[7] ?? null) : null
+            readonly property rect r: blk ? topSurface.blockRect(blk) : Qt.rect(0, 0, 0, 0)
+            x: r.x
+            y: r.y
+            width: r.width
+            height: r.height
             intersection: Intersection.Subtract
         }
 
         Region {
-            readonly property Item tb: topSurface.openTabs[0] ?? null
-            x: tb ? topSurface.rowItem.x + tb.parent.x + tb.x + tb.tabX : 0
-            y: tb ? topSurface.rowItem.y : 0
-            width:  tb && isPrimary ? tb.tabW : 0
-            height: tb && isPrimary ? tb.tabH : 0
+            readonly property Item tb: isPrimary ? (topSurface.openTabs[0] ?? null) : null
+            readonly property rect r: tb ? topSurface.tabRect(tb) : Qt.rect(0, 0, 0, 0)
+            x: r.x
+            y: r.y
+            width: r.width
+            height: r.height
             intersection: Intersection.Subtract
         }
         Region {
-            readonly property Item tb: topSurface.openTabs[1] ?? null
-            x: tb ? topSurface.rowItem.x + tb.parent.x + tb.x + tb.tabX : 0
-            y: tb ? topSurface.rowItem.y : 0
-            width:  tb && isPrimary ? tb.tabW : 0
-            height: tb && isPrimary ? tb.tabH : 0
+            readonly property Item tb: isPrimary ? (topSurface.openTabs[1] ?? null) : null
+            readonly property rect r: tb ? topSurface.tabRect(tb) : Qt.rect(0, 0, 0, 0)
+            x: r.x
+            y: r.y
+            width: r.width
+            height: r.height
             intersection: Intersection.Subtract
         }
         Region {
-            readonly property Item tb: topSurface.openTabs[2] ?? null
-            x: tb ? topSurface.rowItem.x + tb.parent.x + tb.x + tb.tabX : 0
-            y: tb ? topSurface.rowItem.y : 0
-            width:  tb && isPrimary ? tb.tabW : 0
-            height: tb && isPrimary ? tb.tabH : 0
+            readonly property Item tb: isPrimary ? (topSurface.openTabs[2] ?? null) : null
+            readonly property rect r: tb ? topSurface.tabRect(tb) : Qt.rect(0, 0, 0, 0)
+            x: r.x
+            y: r.y
+            width: r.width
+            height: r.height
             intersection: Intersection.Subtract
         }
         Region {
-            readonly property Item tb: topSurface.openTabs[3] ?? null
-            x: tb ? topSurface.rowItem.x + tb.parent.x + tb.x + tb.tabX : 0
-            y: tb ? topSurface.rowItem.y : 0
-            width:  tb && isPrimary ? tb.tabW : 0
-            height: tb && isPrimary ? tb.tabH : 0
+            readonly property Item tb: isPrimary ? (topSurface.openTabs[3] ?? null) : null
+            readonly property rect r: tb ? topSurface.tabRect(tb) : Qt.rect(0, 0, 0, 0)
+            x: r.x
+            y: r.y
+            width: r.width
+            height: r.height
             intersection: Intersection.Subtract
         }
 
         Region {
             readonly property Item blk: bottomSurface.visible ? (bottomSurface.visibleBlocks[0] ?? null) : null
-            x: blk ? bottomSurface.rowItem.x + blk.parent.x + blk.x : 0
-            y: blk ? (bottomSurface.dockHidden ? layout.height - 8 : bottomSurface.rowItem.y + blk.parent.y + blk.y) : 0
-            width:  blk ? blk.width  : 0
-            height: blk ? (bottomSurface.dockHidden ? 8 : blk.height) : 0
+            readonly property rect r: blk ? (bottomSurface.dockHidden ? bottomSurface.hiddenRect(blk) : bottomSurface.blockRect(blk)) : Qt.rect(0, 0, 0, 0)
+            x: r.x
+            y: r.y
+            width: r.width
+            height: r.height
             intersection: Intersection.Subtract
         }
         Region {
             readonly property Item blk: bottomSurface.visible ? (bottomSurface.visibleBlocks[1] ?? null) : null
-            x: blk ? bottomSurface.rowItem.x + blk.parent.x + blk.x : 0
-            y: blk ? (bottomSurface.dockHidden ? layout.height - 8 : bottomSurface.rowItem.y + blk.parent.y + blk.y) : 0
-            width:  blk ? blk.width  : 0
-            height: blk ? (bottomSurface.dockHidden ? 8 : blk.height) : 0
+            readonly property rect r: blk ? (bottomSurface.dockHidden ? bottomSurface.hiddenRect(blk) : bottomSurface.blockRect(blk)) : Qt.rect(0, 0, 0, 0)
+            x: r.x
+            y: r.y
+            width: r.width
+            height: r.height
             intersection: Intersection.Subtract
         }
         Region {
             readonly property Item blk: bottomSurface.visible ? (bottomSurface.visibleBlocks[2] ?? null) : null
-            x: blk ? bottomSurface.rowItem.x + blk.parent.x + blk.x : 0
-            y: blk ? (bottomSurface.dockHidden ? layout.height - 8 : bottomSurface.rowItem.y + blk.parent.y + blk.y) : 0
-            width:  blk ? blk.width  : 0
-            height: blk ? (bottomSurface.dockHidden ? 8 : blk.height) : 0
+            readonly property rect r: blk ? (bottomSurface.dockHidden ? bottomSurface.hiddenRect(blk) : bottomSurface.blockRect(blk)) : Qt.rect(0, 0, 0, 0)
+            x: r.x
+            y: r.y
+            width: r.width
+            height: r.height
             intersection: Intersection.Subtract
         }
         Region {
             readonly property Item blk: bottomSurface.visible ? (bottomSurface.visibleBlocks[3] ?? null) : null
-            x: blk ? bottomSurface.rowItem.x + blk.parent.x + blk.x : 0
-            y: blk ? (bottomSurface.dockHidden ? layout.height - 8 : bottomSurface.rowItem.y + blk.parent.y + blk.y) : 0
-            width:  blk ? blk.width  : 0
-            height: blk ? (bottomSurface.dockHidden ? 8 : blk.height) : 0
+            readonly property rect r: blk ? (bottomSurface.dockHidden ? bottomSurface.hiddenRect(blk) : bottomSurface.blockRect(blk)) : Qt.rect(0, 0, 0, 0)
+            x: r.x
+            y: r.y
+            width: r.width
+            height: r.height
             intersection: Intersection.Subtract
         }
         Region {
             readonly property Item blk: bottomSurface.visible ? (bottomSurface.visibleBlocks[4] ?? null) : null
-            x: blk ? bottomSurface.rowItem.x + blk.parent.x + blk.x : 0
-            y: blk ? (bottomSurface.dockHidden ? layout.height - 8 : bottomSurface.rowItem.y + blk.parent.y + blk.y) : 0
-            width:  blk ? blk.width  : 0
-            height: blk ? (bottomSurface.dockHidden ? 8 : blk.height) : 0
+            readonly property rect r: blk ? (bottomSurface.dockHidden ? bottomSurface.hiddenRect(blk) : bottomSurface.blockRect(blk)) : Qt.rect(0, 0, 0, 0)
+            x: r.x
+            y: r.y
+            width: r.width
+            height: r.height
             intersection: Intersection.Subtract
         }
         Region {
             readonly property Item blk: bottomSurface.visible ? (bottomSurface.visibleBlocks[5] ?? null) : null
-            x: blk ? bottomSurface.rowItem.x + blk.parent.x + blk.x : 0
-            y: blk ? (bottomSurface.dockHidden ? layout.height - 8 : bottomSurface.rowItem.y + blk.parent.y + blk.y) : 0
-            width:  blk ? blk.width  : 0
-            height: blk ? (bottomSurface.dockHidden ? 8 : blk.height) : 0
+            readonly property rect r: blk ? (bottomSurface.dockHidden ? bottomSurface.hiddenRect(blk) : bottomSurface.blockRect(blk)) : Qt.rect(0, 0, 0, 0)
+            x: r.x
+            y: r.y
+            width: r.width
+            height: r.height
             intersection: Intersection.Subtract
         }
         Region {
             readonly property Item tb: bottomSurface.visible ? (bottomSurface.openTabs[0] ?? null) : null
-            x: tb ? bottomSurface.rowItem.x + tb.parent.x + tb.x + tb.tabX : 0
-            y: tb ? bottomSurface.rowItem.y + tb.parent.y + tb.y + tb.barH - tb.tabH : 0
-            width:  tb ? tb.tabW : 0
-            height: tb ? tb.tabH : 0
+            readonly property rect r: tb ? bottomSurface.tabRect(tb) : Qt.rect(0, 0, 0, 0)
+            x: r.x
+            y: r.y
+            width: r.width
+            height: r.height
             intersection: Intersection.Subtract
         }
         Region {
             readonly property Item tb: bottomSurface.visible ? (bottomSurface.openTabs[1] ?? null) : null
-            x: tb ? bottomSurface.rowItem.x + tb.parent.x + tb.x + tb.tabX : 0
-            y: tb ? bottomSurface.rowItem.y + tb.parent.y + tb.y + tb.barH - tb.tabH : 0
-            width:  tb ? tb.tabW : 0
-            height: tb ? tb.tabH : 0
+            readonly property rect r: tb ? bottomSurface.tabRect(tb) : Qt.rect(0, 0, 0, 0)
+            x: r.x
+            y: r.y
+            width: r.width
+            height: r.height
             intersection: Intersection.Subtract
         }
 
@@ -278,7 +350,8 @@ PanelWindow{
         }
 
         Region{
-            x: 0; y: 0
+            x: 0
+            y: ServiceGaps.barSide === "bottom" ? layout.height - Appearance.size.barHeight : 0
             width:  isPrimary ? 0 : layout.width
             height: isPrimary ? 0 : Appearance.size.barHeight
             intersection: Intersection.Subtract
@@ -314,10 +387,18 @@ PanelWindow{
         }
 
         Region {
-            x:      notifPopups.x
-            y:      notifPopups.y
-            width:  (isPrimary && notifPopups.height > 0) ? notifPopups.width : 0
-            height: isPrimary ? notifPopups.height : 0
+            x:      notifPopups.item ? notifPopups.x + notifPopups.item.x : 0
+            y:      notifPopups.item ? notifPopups.y + notifPopups.item.y : 0
+            width:  (isPrimary && notifPopups.item && notifPopups.item.height > 0) ? notifPopups.item.width : 0
+            height: isPrimary && notifPopups.item ? notifPopups.item.height : 0
+            intersection: Intersection.Subtract
+        }
+
+        Region {
+            x:      notifStyled.hit.x
+            y:      notifStyled.hit.y
+            width:  isPrimary ? notifStyled.hit.width : 0
+            height: isPrimary ? notifStyled.hit.height : 0
             intersection: Intersection.Subtract
         }
     }
@@ -339,43 +420,57 @@ PanelWindow{
         visible: isPrimary
 
         function inDrawerAt(x, y) {
+            if (!editChrome || !drawerHost)
+                return false
+            const r = editChrome.shelfRect
+            if (r.width > 0 && x >= r.x && x <= r.x + r.width && y >= r.y && y <= r.y + r.height)
+                return true
             return drawerHost.visible
                 && x >= drawerHost.x && x <= drawerHost.x + drawerHost.width
                 && y >= drawerHost.y && y <= drawerHost.y + drawerHost.height
         }
 
-        function surfaceAt(y) {
+        function surfaceAt(x, y) {
             if (bottomSurface.visible && BarLayout.dockOn) {
-                const bandTop = bottomSurface.rowItem.y + bottomSurface.rowItem.height - bottomSurface.barH - 40
-                if (y >= bandTop)
+                const p = bottomSurface.toFrame(x, y)
+                if (bottomSurface.inBand(p.x, p.y, 40))
                     return bottomSurface
             }
-            if (y <= topSurface.rowItem.y + topSurface.barH + 36)
+            const q = topSurface.toFrame(x, y)
+            if (topSurface.inBand(q.x, q.y, 36))
                 return topSurface
             return null
         }
 
         function trackApp(x, y) {
             barEditor.overDrawer = root.inDrawerAt(x, y)
-            const host = bottomSurface.visibleBlocks.find(b => b.hasItem("dockApps"))
-            const g = host ? host.appGeom() : null
-            if (barEditor.overDrawer || !g || root.surfaceAt(y) !== bottomSurface
-                    || x < g.x - 30 || x > g.x + g.w + 30) {
+            let g = null
+            for (const b of bottomSurface.visibleBlocks) {
+                g = b.appGeom()
+                if (g)
+                    break
+            }
+            const f = bottomSurface.toFrame(x, y)
+            if (barEditor.overDrawer || !g || root.surfaceAt(x, y) !== bottomSurface
+                    || f.x < g.x - 30 || f.x > g.x + g.w + 30) {
                 barEditor.appDropIndex = -1
                 return
             }
-            barEditor.appDropIndex = BarOps.appDropIndex(g.apps, barEditor.appId, x)
+            barEditor.appDropIndex = BarOps.appDropIndex(g.apps, barEditor.appId, f.x)
         }
 
         function trackItem(x, y) {
             const inDrawer = root.inDrawerAt(x, y)
             barEditor.overDrawer = inDrawer
             barEditor.refusedTarget = ""
-            const surf = inDrawer ? null : root.surfaceAt(y)
+            const surf = inDrawer ? null : root.surfaceAt(x, y)
             if (!surf) {
                 barEditor.dropBlock = ""
                 return
             }
+            const f = surf.toFrame(x, y)
+            x = f.x
+            y = f.y
             let best = null
             let bestD = 1e9
             for (const b of surf.visibleBlocks) {
@@ -401,8 +496,10 @@ PanelWindow{
             barEditor.dropIndex = best.dropIndexAt(x - (surf.rowItem.x + best.parent.x + best.x))
         }
 
-        function trackBlock(x, y) {
-            const surf = (bottomSurface.visible && BarLayout.dockOn && y > layout.height / 2) ? bottomSurface : topSurface
+        function trackBlock(sx, sy) {
+            const surf = root.surfaceAt(sx, sy) ?? root.nearestSurface(sx, sy)
+            const f = surf.toFrame(sx, sy)
+            const x = f.x
             const W = surf.rowItem.width
             const rel = x - surf.rowItem.x
             const side = rel < W / 3 ? "left" : (rel > 2 * W / 3 ? "right" : "center")
@@ -431,9 +528,24 @@ PanelWindow{
             barEditor.dropAnchor = side
             barEditor.dropEdge = surf.edge
             barEditor.dropBlockIndex = idx
-            barEditor.caretX = surf.rowItem.x + Math.max(4, Math.min(W - 4, caret))
-            barEditor.caretY = surf.rowItem.y + group.y + 4
-            barEditor.caretH = surf.barH - 8
+            const cr = surf.toScreen(surf.rowItem.x + Math.max(4, Math.min(W - 4, caret)) - 1.5,
+                                     surf.rowItem.y + group.y + 4, 3, surf.barH - 8)
+            barEditor.caretX = cr.x
+            barEditor.caretY = cr.y
+            barEditor.caretW = cr.width
+            barEditor.caretH = cr.height
+        }
+
+        function nearestSurface(x, y) {
+            if (!bottomSurface.visible || !BarLayout.dockOn)
+                return topSurface
+            const dist = s => {
+                const r = s.bandRect
+                const dx = x < r.x ? r.x - x : (x > r.x + r.width ? x - r.x - r.width : 0)
+                const dy = y < r.y ? r.y - y : (y > r.y + r.height ? y - r.y - r.height : 0)
+                return Math.hypot(dx, dy)
+            }
+            return dist(bottomSurface) < dist(topSurface) ? bottomSurface : topSurface
         }
 
         QtObject {
@@ -457,11 +569,30 @@ PanelWindow{
             property string selectedItem: ""
             property string dropEdge: "top"
             property real caretY: 0
+            property real caretW: 3
             property real caretH: 0
             property string refusedTarget: ""
             property string appId: ""
             property bool appPinned: false
             property int appDropIndex: -1
+            property bool panelStage: false
+            property string drawerMode: ""
+
+            onDrawerModeChanged: {
+                if (barEditor.drawerMode === "options" && barEditor.selectedItem.indexOf("dash:") === 0)
+                    barEditor.drawerMode = "inspector"
+            }
+
+            onSelectedItemChanged: {
+                if (barEditor.selectedItem === "") {
+                    barEditor.panelStage = false
+                    if (barEditor.drawerMode === "options" || barEditor.drawerMode === "inspector") barEditor.drawerMode = ""
+                } else if (barEditor.selectedItem.indexOf("dash:") === 0) {
+                    if (barEditor.drawerMode === "options") barEditor.drawerMode = "inspector"
+                } else if (barEditor.drawerMode === "inspector") {
+                    barEditor.drawerMode = barEditor.selectedItem === "dashboard" ? "options" : ""
+                }
+            }
 
             function beginItem(id, blockId, idx, w) {
                 const e = BarLayout.entry(id)
@@ -574,9 +705,11 @@ PanelWindow{
                 onClicked: mouse => {
                     if (barEditor.mode !== "")
                         return
+                    if (editChrome && editChrome.closeAll())
+                        return
                     if (barEditor.selectedItem !== "")
                         barEditor.selectedItem = ""
-                    else if (mouse.y > topSurface.rowItem.y + Appearance.size.barHeight + 40)
+                    else if (!root.surfaceAt(mouse.x, mouse.y))
                         GlobalStates.barEditMode = false
                 }
             }
@@ -605,25 +738,60 @@ PanelWindow{
         Rectangle {
             z: 250
             visible: barEditor.mode === "block" && barEditor.caretX >= 0
-            x: barEditor.caretX - 1.5
+            x: barEditor.caretX
             y: barEditor.caretY
-            width: 3
+            width: barEditor.caretW
             height: barEditor.caretH
             radius: 1.5
             color: Colors.primary
         }
 
-        BarEditDrawer {
-            id: drawerHost
-            z: 220
-            editor: barEditor
-            maxHeight: layout.height * 0.7
-            width: Math.min(640, parent.width - 32)
-            x: !layout.anyPreview ? (parent.width - width) / 2
-                : layout.previewRight ? 24 : parent.width - width - 24
-            y: topSurface.rowItem.y + Appearance.size.barHeight + 48
-            Behavior on x {
-                SpatialAnim { speed: "default" }
+        Component {
+            id: editChromeComp
+            BarEditChrome {
+                z: 210
+                editor: barEditor
+                topSurface: layout.editTopSurface
+                bottomSurface: layout.editBottomSurface
+                editing: layout.barEditing && layout.editorsLive
+                previewRight: layout.previewRight
+            }
+        }
+
+        Component {
+            id: drawerComp
+            BarEditDrawer {
+                z: 220
+                editor: barEditor
+                maxHeight: layout.height * 0.7
+                width: Math.min(640, root.width - 32)
+                x: !layout.anyPreview ? (root.width - width) / 2
+                    : layout.previewRight ? 24 : root.width - width - 24
+                y: BarLayout.barSide === "top" ? layout.editTopSurface.rowItem.y + Appearance.size.barHeight + 48
+                    : BarLayout.dockSide === "top" ? ServiceGaps.topFinal + 24 : 48
+                Behavior on x {
+                    SpatialAnim { speed: "default" }
+                }
+            }
+        }
+
+        Component {
+            id: dashEditorComp
+            DashEditorWindow {
+                z: 221
+                editor: barEditor
+                editing: layout.barEditing && layout.editorsLive
+                topLimit: 96
+            }
+        }
+
+        Component {
+            id: dashInspectorComp
+            DashInspector {
+                z: 221
+                editor: barEditor
+                editing: layout.barEditing && layout.editorsLive
+                topLimit: 96
             }
         }
 
@@ -664,8 +832,18 @@ PanelWindow{
             focus: layout.barEditing
             Keys.onEscapePressed: {
                 if (barEditor.mode !== "") barEditor.cancel()
+                else if (editChrome && editChrome.closeAll()) return
                 else if (barEditor.selectedItem !== "") barEditor.selectedItem = ""
                 else GlobalStates.barEditMode = false
+            }
+            Keys.onPressed: event => {
+                if (!(event.modifiers & Qt.ControlModifier) || !editChrome)
+                    return
+                if (event.key === Qt.Key_Z && (event.modifiers & Qt.ShiftModifier)) editChrome.redo()
+                else if (event.key === Qt.Key_Z) editChrome.undo()
+                else if (event.key === Qt.Key_Y) editChrome.redo()
+                else return
+                event.accepted = true
             }
         }
 
@@ -684,9 +862,23 @@ PanelWindow{
         }
     }
 
-    NotificationPanel{
+    Loader {
         id: notifPopups
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        anchors.rightMargin: topSurface.side === "right" ? topSurface.bandRect.width
+            : bottomSurface.visible && bottomSurface.side === "right" ? bottomSurface.bandRect.width : 0
+        anchors.bottomMargin: topSurface.side === "bottom" ? topSurface.bandRect.height : 0
+        active: isPrimary && (SettingsConfig.general?.notifPopupStyle ?? "corner") === "corner"
+        sourceComponent: NotificationPanel {}
+    }
+
+    NotificationPopups {
+        id: notifStyled
+        anchors.fill: parent
         visible: isPrimary
+        topSurface: topSurface
+        bottomSurface: bottomSurface
     }
 
     readonly property int _topGap: ServiceGaps.topFinal

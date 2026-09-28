@@ -176,24 +176,35 @@ ColumnLayout {
                 Layout.preferredHeight: 48
                 Layout.alignment: Qt.AlignVCenter
                 radius: root.submitRadius >= 0 ? root.submitRadius : height / 2
-                color: root.accent
+                color: "transparent"
 
                 readonly property bool _wanted: root.showSubmit
                     && (root.submitAlways || (root.context?.currentText?.length ?? 0) > 0)
 
                 opacity: submit._wanted ? 1 : 0
-                scale: submit._wanted ? 1 : 0.7
                 visible: opacity > 0
 
                 Behavior on opacity { NumberAnimation { duration: 160 } }
-                Behavior on scale {
-                    NumberAnimation { duration: 200; easing.type: Easing.OutBack }
+
+                Rectangle {
+                    z: -1
+                    anchors.centerIn: parent
+                    width: submit._wanted ? submit.width : Math.round(submit.width * 0.7)
+                    height: width
+                    radius: root.submitRadius >= 0 ? root.submitRadius * width / Math.max(1, submit.width) : width / 2
+                    color: root.accent
+                    Behavior on width {
+                        NumberAnimation { duration: 200; easing.type: Easing.OutBack }
+                    }
                 }
 
                 MaterialIconSymbol {
                     anchors.centerIn: parent
                     content: "arrow_forward"
-                    iconSize: 22
+                    iconSize: submit._wanted ? 22 : 15
+                    Behavior on iconSize {
+                        NumberAnimation { duration: 200; easing.type: Easing.OutBack }
+                    }
                     customColor: root.onAccent
                     visible: !root._busy
                 }

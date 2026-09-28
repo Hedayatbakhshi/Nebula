@@ -33,10 +33,8 @@ WidgetHost {
         return "On battery"
     }
 
-    Rectangle {
+    WidgetCard {
         anchors.fill: parent
-        radius: WidgetSizes.radius
-        color: WidgetSizes.cardColor
     }
 
     // ── Gauge ─────────────────────────────────────────────────────────

@@ -195,10 +195,8 @@ Item {
                             radius: 16
                             color: Colors.surfaceContainerHighest
                             opacity: ServiceStorage.canGoUp ? 1 : 0.4
-                            scale: ServiceStorage.canGoUp ? 1 : 0.9
 
                             Behavior on opacity { EffectsAnim { speed: "fast" } }
-                            Behavior on scale { SpatialAnim { speed: "fast" } }
 
                             MaterialIconSymbol {
                                 anchors.centerIn: parent

@@ -13,6 +13,8 @@ Singleton {
     property list<NotificationItem> popups: allNotifications.filter(n => n.popup)
     property int notificationsNumber: allNotifications.length
     property bool muted: false
+    property real muteUntil: 0
+    readonly property bool dnd: root.muted || (SettingsConfig.notifications?.doNotDisturb ?? false)
 
     property bool popupsPaused: false
 
@@ -25,14 +27,45 @@ Singleton {
                                             || ServiceGameMode.dndActive
                                             || GlobalStates.notificationCenterOpen
 
-    Component.onCompleted: muted = SettingsConfig.toggles?.notificationMuted ?? false
-    onMutedChanged: SettingsConfig.toggles = Object.assign({}, SettingsConfig.toggles, { notificationMuted: muted })
+    Component.onCompleted: {
+        const until = SettingsConfig.toggles?.notificationMutedUntil ?? 0
+        const on = SettingsConfig.toggles?.notificationMuted ?? false
+        const expired = on && until > 0 && until <= Date.now()
+        root.muteUntil = expired ? 0 : until
+        root.muted = on && !expired
+    }
+    onMutedChanged: root._saveMute()
+
+    function _saveMute() {
+        SettingsConfig.toggles = Object.assign({}, SettingsConfig.toggles, {
+            notificationMuted: root.muted,
+            notificationMutedUntil: root.muted ? root.muteUntil : 0
+        })
+    }
+
+    function setDnd(on, until) {
+        root.muteUntil = on ? (until ?? 0) : 0
+        if (!on && (SettingsConfig.notifications?.doNotDisturb ?? false))
+            SettingsConfig.notifications = Object.assign({}, SettingsConfig.notifications, { doNotDisturb: false })
+        if (root.muted === on)
+            root._saveMute()
+        else
+            root.muted = on
+    }
+
+    Timer {
+        running: root.muted && root.muteUntil > 0
+        interval: Math.max(1000, root.muteUntil - Date.now())
+        onTriggered: root.setDnd(false)
+    }
 
     function _playNotificationSound() {
         const p = SettingsConfig.notifications?.soundPath ?? ""
         const resolved = p !== "" ? p : Qt.resolvedUrl("../../notification.wav").toString().replace("file://", "")
         Quickshell.execDetached(["paplay", resolved])
     }
+
+    signal arrived(var item)
 
     NotificationServer {
         id: server
@@ -46,7 +79,7 @@ Singleton {
 
         onNotification: notif => {
             notif.tracked = true
-            if (SettingsConfig.notifications?.playSound ?? false)
+            if ((SettingsConfig.notifications?.playSound ?? false) && !root.dnd)
                 root._playNotificationSound()
 
             var item = notifComp.createObject(root, {
@@ -59,6 +92,7 @@ Singleton {
             if (root.allNotifications.length > 100)
                 root.allNotifications.splice(0, root.allNotifications.length - 100)
             root.allNotifications = root.allNotifications.slice()
+            root.arrived(item)
 
             // Find existing group for this app
             var existingGroup = null
@@ -191,7 +225,7 @@ Singleton {
     }
 
     function toggleMute() {
-        root.muted = !root.muted
+        root.setDnd(!root.muted)
     }
 
 function sendNotification(summary, body, appName, appIcon, imagePath) {

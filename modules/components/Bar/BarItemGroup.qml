@@ -20,6 +20,10 @@ Item {
 
     readonly property real iconSize: 0
     readonly property bool editing: !!root.host && root.host.editing === true
+    readonly property bool vertical: !!root.host && root.host.vertical === true
+    readonly property bool verticalReady: true
+    readonly property Item frame: root.host ? root.host.frame : null
+    readonly property string panelKind: root.host ? root.host.panelKind : ""
 
     function hoverOpen(kind, item) {
         if (root.host)
@@ -59,10 +63,14 @@ Item {
     implicitWidth: Math.max(row.implicitWidth, root.placeholder ? 34 : 0)
     implicitHeight: Math.max(row.implicitHeight, root.placeholder ? 26 : 0)
 
-    Row {
+    Grid {
         id: row
         anchors.centerIn: parent
         spacing: root.gap
+        rows: root.vertical ? -1 : 1
+        columns: root.vertical ? 1 : -1
+        horizontalItemAlignment: Grid.AlignHCenter
+        verticalItemAlignment: Grid.AlignVCenter
 
         Repeater {
             id: rep

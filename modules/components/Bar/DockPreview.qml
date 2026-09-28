@@ -1,6 +1,4 @@
 import Quickshell
-import Quickshell.Wayland
-import Quickshell.Widgets
 import QtQuick
 import QtQuick.Layouts
 import qs.modules.customComponents
@@ -9,29 +7,26 @@ import qs.modules.settings
 
 Item {
     id: root
-    readonly property int cardWidth: 180
-    readonly property int cardSpacing: 6
+    readonly property int rowHeight: 38
+    readonly property int rowSpacing: 2
     readonly property int layoutMargins: 8
+    readonly property int headerHeight: 28
+    readonly property int maxRows: 8
 
     property var appEntry: null
-    property bool capturing: true
     property real maxWidth: 100000
 
     signal activated
 
     readonly property var tops: root.appEntry?.toplevels ?? []
     readonly property int count: Math.max(1, root.tops.length)
-    readonly property real rowWidth: root.count * (root.cardWidth + root.cardSpacing) - root.cardSpacing
-    readonly property real naturalWidth: root.layoutMargins * 2 + root.rowWidth
-    readonly property bool overflowing: root.naturalWidth > root.maxWidth + 0.5
+    readonly property int shownRows: Math.min(root.count, root.maxRows)
+    readonly property real listHeight: root.shownRows * (root.rowHeight + root.rowSpacing) - root.rowSpacing
 
-    implicitWidth: Math.min(root.naturalWidth, root.maxWidth)
-    implicitHeight: 180
+    implicitWidth: Math.min(300, root.maxWidth)
+    implicitHeight: root.layoutMargins * 2 + root.headerHeight + 6 + root.listHeight
 
-    onAppEntryChanged: {
-        wheelAnim.stop()
-        strip.contentX = 0
-    }
+    onAppEntryChanged: list.contentY = 0
 
     ColumnLayout {
         anchors.fill: parent
@@ -40,6 +35,9 @@ Item {
 
         RowLayout {
             Layout.fillWidth: true
+            Layout.preferredHeight: root.headerHeight
+            Layout.leftMargin: 4
+            Layout.rightMargin: 4
             spacing: 8
 
             Image {
@@ -64,7 +62,7 @@ Item {
             }
 
             CustomText {
-                visible: root.overflowing
+                visible: root.tops.length > 1
                 content: root.tops.length + " windows"
                 size: 10
                 weight: 600
@@ -72,193 +70,83 @@ Item {
             }
         }
 
-        Item {
+        ListView {
+            id: list
             Layout.fillWidth: true
             Layout.fillHeight: true
+            model: root.tops
+            spacing: root.rowSpacing
+            clip: true
+            boundsBehavior: Flickable.StopAtBounds
+            interactive: root.tops.length > root.maxRows
 
-            Flickable {
-                id: strip
-                anchors.fill: parent
-                contentWidth: root.rowWidth
-                contentHeight: height
-                flickableDirection: Flickable.HorizontalFlick
-                boundsBehavior: Flickable.StopAtBounds
-                interactive: root.overflowing
-                clip: true
+            delegate: Rectangle {
+                id: row
+                required property var modelData
+                readonly property bool focused: !!row.modelData.activated
+                width: ListView.view.width
+                height: root.rowHeight
+                radius: 12
+                color: row.focused ? Colors.surfaceContainerHighest
+                     : rowRipple.containsMouse ? Colors.surfaceContainerHigh : "transparent"
+                Behavior on color { EffectsColorAnim { speed: "fast" } }
 
-                Row {
-                    height: strip.height
-                    spacing: root.cardSpacing
+                RippleEffect {
+                    id: rowRipple
+                    anchors.fill: parent
+                    radius: 12
+                    onClicked: {
+                        row.modelData.activate()
+                        root.activated()
+                    }
+                }
 
-                    Repeater {
-                        model: root.tops
+                RowLayout {
+                    anchors.fill: parent
+                    anchors.leftMargin: 12
+                    anchors.rightMargin: 5
+                    spacing: 6
 
-                        delegate: Rectangle {
-                            id: card
-                            required property var modelData
-                            readonly property bool inView: card.x + card.width > strip.contentX
-                                && card.x < strip.contentX + strip.width
-                            width: root.cardWidth
-                            height: strip.height
-                            color: Colors.surfaceContainerHigh
+                    Rectangle {
+                        Layout.preferredWidth: 6
+                        Layout.preferredHeight: 6
+                        radius: 3
+                        color: Colors.primary
+                        visible: row.focused
+                    }
+
+                    CustomText {
+                        Layout.fillWidth: true
+                        content: row.modelData.title || (DesktopEntries.heuristicLookup(root.appEntry?.appId ?? "")?.name ?? "")
+                        size: 12
+                        weight: row.focused ? 600 : 500
+                        elide: Text.ElideRight
+                        customColor: Colors.surfaceText
+                    }
+
+                    Rectangle {
+                        Layout.preferredWidth: 28
+                        Layout.preferredHeight: 28
+                        radius: 14
+                        color: closeRipple.containsMouse ? Colors.surfaceContainerHighest : "transparent"
+                        opacity: rowRipple.containsMouse || closeRipple.containsMouse || row.focused ? 1 : 0
+                        Behavior on opacity { EffectsAnim { speed: "fast" } }
+
+                        MaterialIconSymbol {
+                            anchors.centerIn: parent
+                            content: "close"
+                            iconSize: 15
+                            customColor: closeRipple.containsMouse ? Colors.error : Colors.outline
+                        }
+
+                        RippleEffect {
+                            id: closeRipple
+                            anchors.fill: parent
                             radius: 14
-                            clip: true
-
-                            RippleEffect {
-                                anchors.fill: parent
-                                radius: 14
-                                onClicked: {
-                                    card.modelData.activate()
-                                    root.activated()
-                                }
-                            }
-
-                            ColumnLayout {
-                                anchors.fill: parent
-                                anchors.margins: 8
-                                spacing: 6
-
-                                RowLayout {
-                                    Layout.fillWidth: true
-                                    spacing: 4
-
-                                    CustomText {
-                                        Layout.fillWidth: true
-                                        content: card.modelData.title ?? ""
-                                        size: 10
-                                        weight: 600
-                                        elide: Text.ElideRight
-                                    }
-
-                                    Rectangle {
-                                        Layout.preferredWidth: 22
-                                        Layout.preferredHeight: 22
-                                        radius: 11
-                                        color: closeRipple.containsMouse
-                                               ? Colors.surfaceContainerHighest : "transparent"
-
-                                        MaterialIconSymbol {
-                                            anchors.centerIn: parent
-                                            content: "close"
-                                            iconSize: 13
-                                            customColor: closeRipple.containsMouse ? Colors.error : Colors.outline
-                                        }
-
-                                        RippleEffect {
-                                            id: closeRipple
-                                            anchors.fill: parent
-                                            radius: 11
-                                            onClicked: card.modelData.close()
-                                        }
-                                    }
-                                }
-
-                                ScreencopyView {
-                                    Layout.fillWidth: true
-                                    Layout.fillHeight: true
-                                    captureSource: root.capturing && card.inView ? card.modelData : null
-                                    live: true
-                                    paintCursor: false
-                                    constraintSize: Qt.size(root.cardWidth, 120)
-                                }
-                            }
+                            onClicked: row.modelData.close()
                         }
                     }
                 }
-            }
-
-            MouseArea {
-                anchors.fill: parent
-                acceptedButtons: Qt.NoButton
-                onWheel: wheel => {
-                    wheel.accepted = false
-                    if (!root.overflowing)
-                        return
-                    const maxX = Math.max(0, strip.contentWidth - strip.width)
-                    if (wheel.pixelDelta.x !== 0 || wheel.pixelDelta.y !== 0) {
-                        const d = wheel.pixelDelta.x !== 0 ? wheel.pixelDelta.x : wheel.pixelDelta.y
-                        wheelAnim.stop()
-                        strip.contentX = Math.max(0, Math.min(maxX, strip.contentX - d))
-                        wheel.accepted = true
-                        return
-                    }
-                    const a = wheel.angleDelta.x !== 0 ? wheel.angleDelta.x : wheel.angleDelta.y
-                    if (a === 0)
-                        return
-                    const step = -a / 120 * (root.cardWidth + root.cardSpacing)
-                    const from = wheelAnim.running ? wheelAnim.to : strip.contentX
-                    strip.cancelFlick()
-                    wheelAnim.stop()
-                    wheelAnim.to = Math.max(0, Math.min(maxX, from + step))
-                    wheelAnim.start()
-                    wheel.accepted = true
-                }
-            }
-
-            NumberAnimation {
-                id: wheelAnim
-                target: strip
-                property: "contentX"
-                duration: 380
-                easing.type: Easing.OutCubic
-            }
-
-            Rectangle {
-                anchors.left: parent.left
-                anchors.top: parent.top
-                anchors.bottom: parent.bottom
-                width: 28
-                visible: root.overflowing && !strip.atXBeginning
-                gradient: Gradient {
-                    orientation: Gradient.Horizontal
-                    GradientStop { position: 0.0; color: Colors.surface }
-                    GradientStop { position: 1.0; color: Qt.alpha(Colors.surface, 0) }
-                }
-            }
-
-            Rectangle {
-                anchors.right: parent.right
-                anchors.top: parent.top
-                anchors.bottom: parent.bottom
-                width: 28
-                visible: root.overflowing && !strip.atXEnd
-                gradient: Gradient {
-                    orientation: Gradient.Horizontal
-                    GradientStop { position: 0.0; color: Qt.alpha(Colors.surface, 0) }
-                    GradientStop { position: 1.0; color: Colors.surface }
-                }
-            }
-        }
-
-        Rectangle {
-            id: track
-            visible: root.overflowing
-            Layout.fillWidth: true
-            Layout.preferredHeight: 4
-            radius: 2
-            color: Colors.surfaceContainerHigh
-
-            Rectangle {
-                readonly property real ratio: strip.width / Math.max(1, strip.contentWidth)
-                width: Math.max(24, track.width * ratio)
-                height: parent.height
-                radius: 2
-                x: (track.width - width) * (strip.contentX / Math.max(1, strip.contentWidth - strip.width))
-                color: Colors.primary
-            }
-
-            MouseArea {
-                anchors.fill: parent
-                anchors.topMargin: -6
-                anchors.bottomMargin: -6
-                cursorShape: Qt.PointingHandCursor
-                function seek(mx) {
-                    const maxX = Math.max(0, strip.contentWidth - strip.width)
-                    wheelAnim.stop()
-                    strip.contentX = Math.max(0, Math.min(maxX, mx / track.width * maxX))
-                }
-                onPressed: mouse => seek(mouse.x)
-                onPositionChanged: mouse => { if (pressed) seek(mouse.x) }
             }
         }
     }

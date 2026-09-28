@@ -16,6 +16,7 @@ Item {
     property string customColor: Colors.surfaceText
 
     property bool scrolling: true
+    property int renderType: Text.NativeRendering
     property real gap: 44           // blank run between the text and its repeat
     property real speed: 26         // px per second
     property int startDelay: 1600   // hold at the start so it's readable first
@@ -38,6 +39,7 @@ Item {
             size: root.size
             weight: root.weight
             customColor: root.customColor
+            renderType: root.renderType
             // Constrained only when parked, so the idle state elides rather than
             // ending on a hard clip mid-glyph.
             width: root.animating || root.width <= 0
@@ -50,6 +52,7 @@ Item {
             size: root.size
             weight: root.weight
             customColor: root.customColor
+            renderType: root.renderType
             width: implicitWidth
             visible: root.animating
         }

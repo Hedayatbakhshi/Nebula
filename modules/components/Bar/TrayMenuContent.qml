@@ -16,7 +16,8 @@ Item {
     readonly property string currentTitle: root.stack.length ? root.stack[root.stack.length - 1].text : root.title
 
     readonly property var levels: [root.handle].concat(root.stack.map(l => l.entry))
-    readonly property var opener: openers.count === root.levels.length ? openers.objectAt(openers.count - 1) : null
+    property var openerList: []
+    readonly property var opener: root.openerList.length === root.levels.length ? root.openerList[root.openerList.length - 1] : null
 
     readonly property var groups: {
         const o = root.opener
@@ -76,6 +77,14 @@ Item {
         delegate: QsMenuOpener {
             required property var modelData
             menu: modelData
+        }
+        onObjectAdded: (index, object) => {
+            const list = root.openerList.slice()
+            list.splice(index, 0, object)
+            root.openerList = list
+        }
+        onObjectRemoved: (index, object) => {
+            root.openerList = root.openerList.filter(o => o !== object)
         }
     }
 

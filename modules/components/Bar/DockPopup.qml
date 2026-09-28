@@ -99,7 +99,6 @@ PopupWindow {
             width:  implicitWidth
             height: implicitHeight
             appEntry: root.appEntry
-            capturing: !root.menuMode || previewContent.visible
             opacity: root.previewOpacity
             visible: opacity > 0.01
         }

@@ -9,7 +9,7 @@ import qs.modules.settings
 Singleton {
     id: root
 
-    readonly property string scriptPath: Quickshell.env("HOME") + "/.config/quickshell/scripts/filedrop.py"
+    readonly property string cli: Quickshell.shellDir + "/bin/nebula"
     readonly property string shareListPath: Quickshell.env("HOME") + "/.cache/quickshell/filedrop-share.json"
     readonly property string qrPath: "/tmp/nebula_drop_qr.png"
 
@@ -41,7 +41,7 @@ Singleton {
         root.peer = ""
         root.url = ""
         root._writeShareList()
-        server.command = ["python3", root.scriptPath,
+        server.command = [root.cli, "drop",
                           "--dir", root.saveDir,
                           "--share-list", root.shareListPath]
         server.running = true

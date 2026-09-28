@@ -1,13 +1,10 @@
 #!/usr/bin/env bash
 # Nebula Shell — standalone installer
-# Usage: bash <(curl -fsSL https://raw.githubusercontent.com/iamSt3el/Nebula/main/install.sh)
+# Usage: bash <(curl -fsSL https://raw.githubusercontent.com/iamSt3el/Nebula/master/install.sh)
 #        bash install.sh [--force] [--skip-sysupdate]
 #
 # Installs the Nebula shell only. It never edits your Hyprland config —
 # autostart and keybind snippets live in config/hypr/ for you to copy.
-
-cd "$(dirname "$0")" 2>/dev/null || true   # no-op when piped via curl
-export base="$(pwd)"
 
 # ── colours ────────────────────────────────────────────────────────────────────
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'
@@ -17,7 +14,7 @@ BOLD='\033[1m'; DIM='\033[2m'; RESET='\033[0m'
 RULE='──────────────────────────────────────────────────────────────'
 
 STEP_N=0
-TOTAL_STEPS=18
+TOTAL_STEPS=19
 WARNINGS=()
 START_TS=$SECONDS
 
@@ -44,6 +41,7 @@ REPO_URL="https://github.com/iamSt3el/Nebula.git"
 INSTALL_DIR="$XDG_CONFIG_HOME/quickshell"
 VENV_DIR="$XDG_STATE_HOME/quickshell/.venv"
 PLUGIN_DIR="$INSTALL_DIR/plugins/WfRecorder"
+NEBULA_PLUGIN_DIR="$INSTALL_DIR/plugins/Nebula"
 
 # ── option defaults ───────────────────────────────────────────────────────────
 ask=true
@@ -135,16 +133,24 @@ echo ""
 # ── sanity: must be Arch ──────────────────────────────────────────────────────
 has pacman || die "pacman not found — this installer is for Arch Linux only."
 
+HYPR_DIR="$XDG_CONFIG_HOME/hypr"
+if [[ -f "$HYPR_DIR/hyprland.conf" && ! -f "$HYPR_DIR/hyprland.lua" ]]; then
+  warn "Found hyprland.conf but no hyprland.lua — Nebula needs a Lua Hyprland config (0.56+). Workspace switching, the overview and window actions will not work until you move to hyprland.lua."
+fi
+
 # ── offer backup ──────────────────────────────────────────────────────────────
 step "Backup (optional)"
-echo -e "  Would you like to back up ${CYAN}~/.config${RESET} and ${CYAN}~/.local${RESET} before we start? [y/N]"
-read -rp "   ❯ " bk
+bk=n
+if $ask; then
+  echo -e "  Back up ${CYAN}~/.config${RESET} before we start? [y/N]"
+  read -rp "   ❯ " bk
+fi
 case $bk in
   y|Y)
     BACKUP_DIR="$HOME/nebula-backup-$(date +%Y%m%d-%H%M%S)"
     info "Backing up to $BACKUP_DIR ..."
+    has rsync || sudo pacman -S --needed --noconfirm rsync
     rsync -a --info=progress2 "$XDG_CONFIG_HOME/" "$BACKUP_DIR/config/"
-    rsync -a --info=progress2 "$HOME/.local/"     "$BACKUP_DIR/local/"
     ok "Backup complete"
     ;;
   *) info "Skipping backup" ;;
@@ -186,8 +192,11 @@ ok "AUR helper: $AUR_HELPER"
 step "Nebula source"
 if [[ -d "$INSTALL_DIR/.git" ]]; then
   warn "$INSTALL_DIR already exists."
-  echo -e "  Update to latest? [y/N]"
-  read -rp "   ❯ " upd
+  upd=n
+  if $ask; then
+    echo -e "  Update to latest? [y/N]"
+    read -rp "   ❯ " upd
+  fi
   if [[ "${upd,,}" == "y" ]]; then
     v git -C "$INSTALL_DIR" pull --ff-only
   else
@@ -196,8 +205,11 @@ if [[ -d "$INSTALL_DIR/.git" ]]; then
 else
   if [[ -d "$INSTALL_DIR" ]]; then
     warn "$INSTALL_DIR exists but is not a git repo."
-    echo -e "  Back it up and replace? [y/N]"
-    read -rp "   ❯ " rep
+    rep=n
+    if $ask; then
+      echo -e "  Back it up and replace? [y/N]"
+      read -rp "   ❯ " rep
+    fi
     [[ "${rep,,}" == "y" ]] || die "Move or delete $INSTALL_DIR and re-run."
     mv "$INSTALL_DIR" "${INSTALL_DIR}.bak.$(date +%s)"
     ok "Backed up"
@@ -208,15 +220,21 @@ fi
 # ── pacman packages ───────────────────────────────────────────────────────────
 step "Pacman packages"
 PACMAN_PKGS=(
-  hyprland pipewire wireplumber networkmanager
-  bluez bluez-utils upower
-  python grim wf-recorder swappy wl-clipboard
-  cava brightnessctl curl unzip
+  hyprland hypridle hyprpicker
+  pipewire pipewire-pulse wireplumber libpipewire libpulse
+  networkmanager bluez bluez-utils upower
+  python grim slurp wf-recorder swappy wl-clipboard wtype ffmpeg
+  cava brightnessctl curl unzip jq xdg-utils libnotify
+  imagemagick qrencode mpv tesseract tesseract-data-eng gperftools
   qt6-base qt6-declarative qt6-wayland qt6-svg qt6-multimedia
-  libpipewire libqalculate
+  libqalculate
+  noto-fonts noto-fonts-cjk noto-fonts-emoji ttf-fira-sans ttf-fira-code ttf-jetbrains-mono
   gcc cmake extra-cmake-modules
 )
+PACMAN_PKGS_OPT=(ddcutil papirus-icon-theme)
 v sudo pacman -S --needed --noconfirm "${PACMAN_PKGS[@]}"
+sudo pacman -S --needed --noconfirm "${PACMAN_PKGS_OPT[@]}" \
+  || warn "Optional packages failed (ddcutil, papirus-icon-theme)"
 
 # ── uv (fast Python package manager) ─────────────────────────────────────────
 step "uv (Python toolchain)"
@@ -239,11 +257,11 @@ ok "uv: $(uv --version 2>/dev/null || echo 'installed')"
 # ── AUR packages ──────────────────────────────────────────────────────────────
 step "AUR packages"
 AUR_PKGS=(
-  quickshell-git grimblast-git cliphist
+  quickshell-git grimblast-git cliphist awww-git
   matugen-bin
   ttf-material-symbols-variable-git
 )
-AUR_PKGS_OPT=(hyprlock hypridle)
+AUR_PKGS_OPT=(gowall)
 
 if $ask; then
   for pkg in "${AUR_PKGS[@]}"; do v "$AUR_HELPER" -S --needed "$pkg"; done
@@ -251,11 +269,11 @@ else
   v "$AUR_HELPER" -S --needed --noconfirm "${AUR_PKGS[@]}"
 fi
 
-info "Installing optional packages (hyprlock, hypridle)..."
+info "Installing optional packages (gowall for palette recolouring)..."
 if $ask; then
   for pkg in "${AUR_PKGS_OPT[@]}"; do v "$AUR_HELPER" -S --needed "$pkg" || true; done
 else
-  "$AUR_HELPER" -S --needed --noconfirm "${AUR_PKGS_OPT[@]}" || warn "Some optional AUR packages failed (hyprlock, hypridle)"
+  "$AUR_HELPER" -S --needed --noconfirm "${AUR_PKGS_OPT[@]}" || warn "Optional AUR package failed (gowall)"
 fi
 
 # awww-git is a Rust crate — limit parallel jobs to avoid OOM in low-RAM systems
@@ -268,45 +286,44 @@ else
     || warn "awww-git failed — retry manually: CARGO_BUILD_JOBS=1 $AUR_HELPER -S awww-git"
 fi
 
-# ttf-rubik AUR package is broken (bad PKGBUILD glob); download font directly instead
-step "Rubik font (direct download)"
+# Rubik (UI) and Titan One (display) straight from the Google Fonts repo;
+# the ttf-rubik AUR package is broken
+step "Fonts"
 FONTS_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/fonts"
+GF="https://raw.githubusercontent.com/google/fonts/main"
 mkdir -p "$FONTS_DIR"
-if fc-list | grep -qi "Rubik"; then
-  ok "Rubik font already installed"
-else
-  info "Downloading Rubik variable font from Google Fonts..."
-  curl -L --fail \
-    "https://github.com/googlefonts/rubik/releases/latest/download/Rubik.zip" \
-    -o /tmp/nebula-rubik.zip \
-    && unzip -o /tmp/nebula-rubik.zip "fonts/variable/*.ttf" -d /tmp/nebula-rubik/ \
-    && cp /tmp/nebula-rubik/fonts/variable/*.ttf "$FONTS_DIR/" \
-    && fc-cache -f "$FONTS_DIR" \
-    && ok "Rubik font installed to $FONTS_DIR" \
-    || warn "Rubik font download failed — install ttf-rubik manually later"
-  rm -rf /tmp/nebula-rubik.zip /tmp/nebula-rubik/
-fi
+
+fetch_font() {
+  local name="$1" dir="$2"; shift 2
+  if fc-list | grep -qi "$name"; then
+    ok "$name already installed"
+    return
+  fi
+  local pair
+  for pair in "$@"; do
+    curl -L --fail -s "$GF/$dir/${pair%%|*}" -o "$FONTS_DIR/${pair##*|}" \
+      || { warn "$name download failed"; return; }
+  done
+  ok "$name installed"
+}
+
+fetch_font "Rubik"             ofl/rubik              "Rubik%5Bwght%5D.ttf|Rubik[wght].ttf" "Rubik-Italic%5Bwght%5D.ttf|Rubik-Italic[wght].ttf"
+fetch_font "Titan One"         ofl/titanone           "TitanOne-Regular.ttf|TitanOne-Regular.ttf"
+fetch_font "Just Another Hand" apache/justanotherhand "JustAnotherHand-Regular.ttf|JustAnotherHand-Regular.ttf"
+fc-cache -f "$FONTS_DIR" >/dev/null
 
 # ── Python venv via uv ────────────────────────────────────────────────────────
 step "Python environment"
 mkdir -p "$(dirname "$VENV_DIR")"
 v uv venv --prompt nebula "$VENV_DIR" -p 3.12
-if [[ -f "$INSTALL_DIR/scripts/requirements.txt" ]]; then
-  v uv pip install -r "$INSTALL_DIR/scripts/requirements.txt" --python "$VENV_DIR/bin/python"
-else
-  v uv pip install materialyoucolor requests Pillow --python "$VENV_DIR/bin/python"
-fi
+v uv pip install materialyoucolor requests Pillow --python "$VENV_DIR/bin/python"
 ok "Python venv ready at $VENV_DIR"
 
-# ── Emoji data for the launcher's `:` mode ────────────────────────────────────
-step "Emoji data"
-if [[ -f "$INSTALL_DIR/scripts/gen_emoji.py" ]]; then
-  v python3 "$INSTALL_DIR/scripts/gen_emoji.py" \
-    && ok "Emoji index written to assets/emoji.json" \
-    || warn "Emoji index failed — launcher ':' mode will be empty until you run scripts/gen_emoji.py"
-else
-  warn "No scripts/gen_emoji.py — skipping (launcher ':' mode will be empty)"
-fi
+# ── nebula command ────────────────────────────────────────────────────────────
+step "nebula command"
+mkdir -p "$HOME/.local/bin"
+ln -sfn "$INSTALL_DIR/bin/nebula" "$HOME/.local/bin/nebula"
+ok "nebula linked to ~/.local/bin/nebula (run \`nebula help\`)"
 
 # ── WfRecorder plugin ─────────────────────────────────────────────────────────
 step "WfRecorder plugin"
@@ -318,10 +335,22 @@ else
   warn "No build.sh at $PLUGIN_DIR — skipping (screen recording may not work)"
 fi
 
+# ── Nebula plugin (stats, sparklines, material shapes) ────────────────────────
+step "Nebula plugin"
+if [[ -f "$NEBULA_PLUGIN_DIR/build.sh" ]]; then
+  v bash "$NEBULA_PLUGIN_DIR/build.sh"
+  ok "Plugin built"
+else
+  warn "No build.sh at $NEBULA_PLUGIN_DIR — stats, sparklines and shapes need it"
+fi
+
 # ── wallpaper directory ───────────────────────────────────────────────────────
 step "Wallpaper directory"
 WALLPAPER_DIR="$HOME/wallpaper"
 [[ -d "$WALLPAPER_DIR" ]] || { mkdir -p "$WALLPAPER_DIR"; ok "Created $WALLPAPER_DIR"; }
+if [[ -z "$(ls -A "$WALLPAPER_DIR" 2>/dev/null)" ]]; then
+  cp "$INSTALL_DIR/assets/wallpapers/nebula-default.jpg" "$WALLPAPER_DIR/" && ok "Added a starter wallpaper"
+fi
 ok "Wallpapers → $WALLPAPER_DIR"
 
 # ── services ──────────────────────────────────────────────────────────────────
@@ -372,56 +401,21 @@ if [[ -f "$FISH_CONF" ]] && ! grep -q "NEBULA_VENV" "$FISH_CONF"; then
   ok "Patched: $FISH_CONF"
 fi
 
-# ── matugen templates ─────────────────────────────────────────────────────────
-step "matugen templates"
+# ── colour templates ──────────────────────────────────────────────────────────
+# Nebula renders app colours itself (`nebula apps`) from these templates;
+# matugen is only used for the album-art palette.
+step "Colour templates"
 MATUGEN_DIR="$XDG_CONFIG_HOME/matugen"
-MATUGEN_TPL_SRC="$INSTALL_DIR/config/matugen/templates"
-MATUGEN_TPL_DST="$MATUGEN_DIR/templates"
-
-mkdir -p "$MATUGEN_TPL_DST"
-# rsync --update: never overwrites a destination file that is newer
-rsync -av --update "$MATUGEN_TPL_SRC/quickshell-colors.json"       "$MATUGEN_TPL_DST/"
-rsync -av --update "$MATUGEN_TPL_SRC/quickshell-music-colors.json" "$MATUGEN_TPL_DST/"
-rsync -av --update "$MATUGEN_TPL_SRC/hyprland-colors.conf"         "$MATUGEN_TPL_DST/"
-ok "Templates copied to $MATUGEN_TPL_DST"
-
-# Patch ~/.config/matugen/config.toml — add the [templates.quickshell*] blocks
-# if they aren't already present, leaving all other user entries untouched.
-MATUGEN_CONF="$MATUGEN_DIR/config.toml"
-if [[ ! -f "$MATUGEN_CONF" ]]; then
-  cat > "$MATUGEN_CONF" <<'TOML'
-[config]
-version_check = false
-TOML
-  ok "Created $MATUGEN_CONF"
+TPL_SRC="$INSTALL_DIR/config/matugen"
+mkdir -p "$MATUGEN_DIR/templates"
+rsync -a --update "$TPL_SRC/templates/" "$MATUGEN_DIR/templates/"
+if [[ -f "$MATUGEN_DIR/music_config.toml" ]]; then
+  ok "music_config.toml already present"
+else
+  cp "$TPL_SRC/music_config.toml" "$MATUGEN_DIR/music_config.toml"
+  ok "Created $MATUGEN_DIR/music_config.toml"
 fi
-
-patch_toml() {
-  local key="$1" block="$2"
-  if grep -q "\[templates\.${key}\]" "$MATUGEN_CONF"; then
-    ok "matugen config: [templates.$key] already present"
-  else
-    echo "" >> "$MATUGEN_CONF"
-    echo "$block" >> "$MATUGEN_CONF"
-    ok "matugen config: added [templates.$key]"
-  fi
-}
-
-patch_toml "quickshell" \
-"[templates.quickshell]
-input_path  = '~/.config/matugen/templates/quickshell-colors.json'
-output_path = '~/.cache/quickshell/colors.json'"
-
-patch_toml "quickshell_music" \
-"[templates.quickshell_music]
-input_path  = '~/.config/matugen/templates/quickshell-music-colors.json'
-output_path = '~/.cache/quickshell/music_colors.json'"
-
-patch_toml "hyprland" \
-"[templates.hyprland]
-input_path  = '~/.config/matugen/templates/hyprland-colors.conf'
-output_path = '~/.config/hypr/colors.conf'
-post_hook   = 'hyprctl reload'"
+ok "Templates in $MATUGEN_DIR/templates"
 
 # ── done ──────────────────────────────────────────────────────────────────────
 ELAPSED=$((SECONDS - START_TS))
@@ -430,9 +424,9 @@ echo ""
 echo -e "${GREEN}${BOLD}  ✓  Nebula installed${RESET}  ${DIM}in $((ELAPSED / 60))m $((ELAPSED % 60))s${RESET}"
 echo -e "${DIM}  ${RULE}${RESET}"
 echo ""
-echo -e "  ${BOLD}launch${RESET}      ${CYAN}QSG_RENDER_LOOP=threaded quickshell${RESET}"
+echo -e "  ${BOLD}launch${RESET}      ${CYAN}nebula start${RESET}"
 echo -e "  ${BOLD}wallpapers${RESET}  ${CYAN}~/wallpaper/${RESET}"
-echo -e "  ${BOLD}colors${RESET}      ${CYAN}matugen image <path-to-wallpaper>${RESET}"
+echo -e "  ${BOLD}set up${RESET}      ${CYAN}nebula setup${RESET}  ${DIM}(once the shell is running)${RESET}"
 echo ""
 echo -e "  ${DIM}Reload your shell (or log out and back in) to pick up NEBULA_VENV${RESET}"
 echo -e "  ${DIM}and QML_IMPORT_PATH.${RESET}"
@@ -441,12 +435,11 @@ echo -e "${DIM}  ${RULE}${RESET}"
 echo -e "  ${BOLD}Hyprland setup is up to you.${RESET} ${DIM}Nothing here touched your config.${RESET}"
 echo ""
 echo -e "  ${DIM}autostart + keybinds${RESET}  ${CYAN}$INSTALL_DIR/config/hypr/${RESET}"
-echo -e "  ${DIM}classic .conf users${RESET}   ${CYAN}config/hypr/nebula.conf${RESET}"
 echo ""
-echo -e "  ${DIM}At minimum, add to your Hyprland config:${RESET}"
-echo -e "    ${CYAN}exec-once = awww-daemon${RESET}"
-echo -e "    ${CYAN}exec-once = wl-paste --watch cliphist store${RESET}"
-echo -e "    ${CYAN}exec-once = QSG_RENDER_LOOP=threaded quickshell${RESET}"
+echo -e "  ${DIM}Add one line to your Hyprland autostart (hyprland.lua):${RESET}"
+echo -e "    ${CYAN}hl.exec_cmd(\"~/.local/bin/nebula start\")${RESET}"
+echo ""
+echo -e "  ${YELLOW}Nebula needs Hyprland 0.56+ with a Lua config.${RESET} ${DIM}hyprland.conf is not supported.${RESET}"
 echo ""
 
 if [[ ${#WARNINGS[@]} -gt 0 ]]; then

@@ -1,6 +1,7 @@
 import Quickshell
 import Quickshell.Hyprland
 import QtQuick
+import Qt5Compat.GraphicalEffects as GE
 import QtQuick.Shapes
 import qs.modules.utils
 import qs.modules.settings
@@ -42,8 +43,23 @@ Item {
     property real spanR: 0
     property string floatOpenerId: ""
     property string edge: "top"
+    property Item frame: null
     readonly property bool bottomEdge: barBlock.edge === "bottom"
+    readonly property bool far: barBlock.frame ? barBlock.frame.far : barBlock.bottomEdge
+    readonly property bool vertical: barBlock.frame ? barBlock.frame.vertical : false
+    readonly property real frameW: barBlock.frame ? barBlock.frame.width : layout.width
+    readonly property real frameH: barBlock.frame ? barBlock.frame.height : layout.height
     readonly property real iconSize: barBlock.bottomEdge ? BarLayout.dockIconSize : 0
+
+    function flipAbout(w, h) {
+        return Qt.matrix4x4(0, 1, 0, (w - h) / 2, 1, 0, 0, (h - w) / 2, 0, 0, 1, 0, 0, 0, 0, 1)
+    }
+
+    function mirrorAbout(w, h) {
+        return barBlock.frame && barBlock.frame.side === "right"
+            ? Qt.matrix4x4(1, 0, 0, 0, 0, -1, 0, h, 0, 0, 1, 0, 0, 0, 0, 1)
+            : Qt.matrix4x4(-1, 0, 0, w, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1)
+    }
 
     signal floatRequested(string kind, real centerX, string itemId)
     signal floatCloseRequested()
@@ -60,7 +76,7 @@ Item {
     readonly property bool editing: barBlock.editMode && !barBlock.leaving
     // this block's slice of the edit-mode sweep, from its own place on the screen
     readonly property real revealT: GlobalStates.barRevealAt(barBlock.absX + barBlock.width / 2,
-                                                             layout.width)
+                                                             barBlock.frameW)
     readonly property bool handlesIn: barBlock.revealT > 0.55
     readonly property bool isPill: barBlock.bottomEdge ? BarLayout.dockStyle === "pill" : ServiceGaps.isPill
     readonly property real barH: barBlock.bottomEdge ? BarLayout.dockHeight : Appearance.size.barHeight
@@ -100,10 +116,11 @@ Item {
     readonly property bool launchHost: layout.isPrimary && !barBlock.leaving
         && ServiceLauncher.position === "item" && barBlock.hasItem("launcher")
     function previewOpener(k) {
-        return k === "calendar" ? "clock" : k
+        return BarLayout.panelHostItem(k)
     }
     readonly property bool previewHost: layout.isPrimary && !barBlock.leaving && GlobalStates.panelPreview !== ""
-        && barBlock.hasItem(barBlock.previewOpener(GlobalStates.panelPreview))
+        && (GlobalStates.panelPreview === "wallpaper" || GlobalStates.panelPreview === "clipboard" ? barBlock.sysHost
+            : barBlock.hasItem(barBlock.previewOpener(GlobalStates.panelPreview)))
     readonly property string panelKind: barBlock.launchHost && GlobalStates.launcherPreview ? "launcher"
         : barBlock.previewHost ? GlobalStates.panelPreview
         : barBlock.editMode || barBlock.leaving ? ""
@@ -112,9 +129,21 @@ Item {
         : barBlock.clickedKind !== "" ? barBlock.clickedKind
         : barBlock.hovering ? barBlock.hoverKind : ""
 
-    readonly property real openHeight: layout.height - (barBlock.isPill ? ServiceGaps.pillMargin * 2 : 0)
-    readonly property real panelRoom: barBlock.bottomEdge ? layout.height - barBlock.barH - ServiceGaps.topFinal - 8
-                                                          : barBlock.openHeight - barBlock.barH - 8
+    readonly property real openHeight: barBlock.frameH - (barBlock.isPill ? ServiceGaps.pillMargin * 2 : 0)
+    readonly property string ownSide: barBlock.frame ? barBlock.frame.side
+        : barBlock.bottomEdge ? ServiceGaps.dockSide : ServiceGaps.barSide
+    readonly property real facingGap: ServiceGaps.reserveFor(BarOps.oppositeSide(barBlock.ownSide))
+    readonly property real panelRoom: barBlock.openHeight - barBlock.barH - barBlock.facingGap
+    readonly property real heightRoom: barBlock.vertical ? barBlock.frameW - 16 : barBlock.panelRoom
+    readonly property real widthRoom: barBlock.vertical ? barBlock.panelRoom : barBlock.frameW - 32
+
+    function alongOf(k) {
+        return barBlock.vertical ? barBlock.contentHeight(k) : barBlock.kindWidth(k)
+    }
+
+    function acrossOf(k) {
+        return barBlock.vertical ? barBlock.kindWidth(k) : barBlock.contentHeight(k)
+    }
 
     function hasItem(id) {
         return barBlock.itemIds.indexOf(id) >= 0
@@ -142,9 +171,9 @@ Item {
 
     function sourceFrom(item) {
         if (item) {
-            const p = item.mapToItem(barBlock, 0, 0)
-            barBlock.srcX = p.x
-            barBlock.srcW = item.width
+            const r = item.mapToItem(barBlock, 0, 0, item.width, item.height)
+            barBlock.srcX = r.x
+            barBlock.srcW = r.width
             return
         }
         for (let i = 0; i < rep.count; i++) {
@@ -177,7 +206,7 @@ Item {
     }
 
     function flushSource(kind) {
-        const w = barBlock.kindWidth(kind)
+        const w = barBlock.alongOf(kind)
         const tx = barBlock.alignX(w, barBlock.srcX + barBlock.srcW / 2)
         let l = barBlock.srcX
         let r = barBlock.srcX + barBlock.srcW
@@ -229,16 +258,21 @@ Item {
         barBlock.beginOpen(kind, item ?? null, false)
     }
 
+    Connections {
+        target: GlobalStates
+        function onDashboardRequested() {
+            const id = BarLayout.panelHostItem("dashboard")
+            if (!layout.isPrimary || !barBlock.hasItem(id) || barBlock.clickedKind === "dashboard")
+                return
+            const it = barBlock.itemFor(id)
+            if (it)
+                barBlock.openPanel("dashboard", it)
+        }
+    }
+
     function openPanel(kind, item) {
         if (barBlock.editMode)
             return
-        if (barBlock.isPill && (kind === "dashboard" || kind === "weather")) {
-            const local = item ? item.mapToItem(barBlock, item.width / 2, 0).x : barBlock.width / 2
-            const w = BarLayout.floatPanelW(kind)
-            const x = barBlock.alignX(w, local)
-            barBlock.floatRequested(kind, barBlock.absX + x + w / 2, barBlock.slotIdOf(item ?? null))
-            return
-        }
         if (barBlock.clickedKind === kind) {
             barBlock.closePanel()
             return
@@ -298,14 +332,14 @@ Item {
     HyprlandFocusGrab {
         windows: [QsWindow.window]
         active: barBlock.panelKind === "trayMenu" || barBlock.panelKind === "dockMenu"
-            || (["sound", "network", "bluetooth", "brightness", "powerMode", "power"].indexOf(barBlock.panelKind) >= 0
+            || (["sound", "network", "bluetooth", "brightness", "powerMode", "power", "battery", "soundscape", "scenes", "notifications"].indexOf(barBlock.panelKind) >= 0
                 && barBlock.clickedKind === barBlock.panelKind
                 && !barBlock.panelHeld)
             || (barBlock.panelKind === "tray" && barBlock.clickedKind === "tray")
         onCleared: {
             if (barBlock.panelHeld)
                 return
-            if (["trayMenu", "dockMenu", "tray", "sound", "network", "bluetooth", "brightness", "powerMode", "power"].indexOf(barBlock.panelKind) >= 0)
+            if (["trayMenu", "dockMenu", "tray", "sound", "network", "bluetooth", "brightness", "powerMode", "power", "battery", "soundscape", "scenes", "notifications"].indexOf(barBlock.panelKind) >= 0)
                 barBlock.closePanel()
         }
     }
@@ -316,21 +350,29 @@ Item {
         case "weather":   return BarLayout.panelW("weather")
         case "calendar":  return BarLayout.panelW("calendar")
         case "music":     return 440
-        case "musicArt":  return 440
+        case "musicWave": return 560
+        case "musicIsland": return 560
+        case "musicFill": return 420
+        case "musicType": return 400
+        case "musicSources": return 440
         case "tray":      return 28 + barBlock.trayCols * 36 + (barBlock.trayCols - 1) * 6
         case "trayMenu":  return 260
         case "sound":     return 360
+        case "soundscape": return 360
+        case "scenes":    return 360
         case "network":   return 340
         case "bluetooth": return 340
         case "brightness": return 340
         case "powerMode": return 320
+        case "battery":   return 400
         case "power":     return 340
+        case "notifications": return 400
         case "dockPreview": return barBlock.dockPreviewWidth
         case "dockMenu":  return 210
         case "clipboard": return Appearance.size.wallpaperPanelWidth
-        case "wallpaper": return Math.min(Appearance.size.wallpaperSelectorWidth, layout.width - 32)
+        case "wallpaper": return Math.min(Appearance.size.wallpaperSelectorWidth, barBlock.widthRoom)
         case "filedrop":  return 460
-        case "osd":       return 300
+        case "osd":       return barBlock.vertical ? 60 : 300
         case "launcher":  return BarLayout.panelW("launcher")
         }
         return 0
@@ -339,8 +381,7 @@ Item {
     function contentHeight(k) {
         switch (k) {
         case "dashboard": {
-            const full = barBlock.bottomEdge ? layout.height - barBlock.barH - ServiceGaps.topFinal - 8
-                                             : layout.height - barBlock.barH
+            const full = barBlock.heightRoom
             const it = barBlock.itemOf("dashboard")
             return BarLayout.panelHeightIn("dashboard",
                                            (it && it.anyFills === false) ? Math.min(full, it.implicitHeight) : full, full)
@@ -348,24 +389,32 @@ Item {
         case "weather":   return BarLayout.panelHeightIn("weather",
                                                          barBlock.itemOf("weather") ? barBlock.itemOf("weather").implicitHeight : Appearance.size.weatherPanelHeight,
                                                          barBlock.heightCap("weather"))
-        case "calendar":  return BarLayout.panelHeightIn("calendar", Appearance.size.calanderHeight, barBlock.panelRoom)
+        case "calendar":  return BarLayout.panelHeightIn("calendar", Appearance.size.calanderHeight, barBlock.heightRoom)
         case "music":     return 200
-        case "musicArt":  return 290
+        case "musicWave": return 262
+        case "musicIsland": return 136
+        case "musicFill": return 268
+        case "musicType": return 250
+        case "musicSources": return barBlock.itemOf("musicSources") ? barBlock.itemOf("musicSources").implicitHeight : 200
         case "tray":      return 28 + barBlock.trayRows * 36 + (barBlock.trayRows - 1) * 6
         case "trayMenu":  return barBlock.itemOf("trayMenu") ? barBlock.itemOf("trayMenu").implicitHeight : 160
         case "sound":     return barBlock.itemOf("sound") ? barBlock.itemOf("sound").implicitHeight : 420
+        case "soundscape": return barBlock.itemOf("soundscape") ? barBlock.itemOf("soundscape").implicitHeight : 560
+        case "scenes":    return barBlock.itemOf("scenes") ? barBlock.itemOf("scenes").implicitHeight : 420
         case "network":   return 460
         case "bluetooth": return 460
         case "brightness": return barBlock.itemOf("brightness") ? barBlock.itemOf("brightness").implicitHeight : 150
         case "powerMode": return barBlock.itemOf("powerMode") ? barBlock.itemOf("powerMode").implicitHeight + 28 : 316
         case "power":     return barBlock.itemOf("power") ? barBlock.itemOf("power").implicitHeight : 460
-        case "dockPreview": return 180
+        case "notifications": return barBlock.itemOf("notifications") ? barBlock.itemOf("notifications").implicitHeight : 480
+        case "battery":   return barBlock.itemOf("battery") ? barBlock.itemOf("battery").implicitHeight : 520
+        case "dockPreview": return barBlock.itemOf("dockPreview") ? barBlock.itemOf("dockPreview").implicitHeight : 90
         case "dockMenu":  return barBlock.itemOf("dockMenu") ? barBlock.itemOf("dockMenu").implicitHeight : 150
         case "clipboard": return Appearance.size.wallpaperPanelHeight
-        case "wallpaper": return Appearance.size.wallpaperPanelHeight
+        case "wallpaper": return ServiceWallpaper.panelHeight
         case "filedrop":  return 560
-        case "osd":       return 60
-        case "launcher":  return Math.max(320, Math.min(BarLayout.panelH("launcher"), barBlock.panelRoom))
+        case "osd":       return barBlock.vertical ? 280 : 60
+        case "launcher":  return Math.max(320, Math.min(BarLayout.panelH("launcher"), barBlock.heightRoom))
         }
         return 0
     }
@@ -386,7 +435,7 @@ Item {
     readonly property int dropDuration: barBlock.spanDuration
     readonly property var dropCurve: barBlock.sizeCurve
 
-    readonly property real tabTargetW: barBlock.kindWidth(barBlock.shownKind)
+    readonly property real tabTargetW: barBlock.alongOf(barBlock.shownKind)
     function alignX(w, cx) {
         const x = cx - w / 2
         const sl = barBlock.spanL - barBlock.absX
@@ -397,7 +446,7 @@ Item {
     readonly property real tabTargetX: barBlock.alignX(barBlock.tabTargetW, barBlock.srcX + barBlock.srcW / 2)
     property real tabX: barBlock.shownKind !== "" ? barBlock.tabTargetX : barBlock.srcX
     property real tabW: barBlock.shownKind !== "" ? barBlock.tabTargetW : barBlock.srcW
-    property real tabH: barBlock.shownKind !== "" ? barBlock.barH + barBlock.contentHeight(barBlock.shownKind) : barBlock.barH
+    property real tabH: barBlock.shownKind !== "" ? barBlock.barH + barBlock.acrossOf(barBlock.shownKind) : barBlock.barH
     Behavior on tabX {
         enabled: !barBlock.tabSnap && !barBlock.resizing
         NumberAnimation {
@@ -463,14 +512,14 @@ Item {
     function appGeom() {
         for (let i = 0; i < rep.count; i++) {
             const s = rep.itemAt(i)
-            if (!s || s.leaving || s.itemId !== "dockApps" || !s.loaderItem)
+            if (!s || s.leaving || BarLayout.baseId(s.itemId) !== "dockApps" || !s.loaderItem)
                 continue
             const it = s.loaderItem
-            const p = it.mapToItem(null, 0, 0)
+            const base = barBlock.absX + barBlock.pad + s.x + s.contentStart
             return {
-                x: p.x,
-                w: it.implicitWidth,
-                apps: it.appRects.map(r => ({ appId: r.appId, pinned: r.pinned, x: p.x + r.x, w: r.w }))
+                x: base,
+                w: s.contentWidth,
+                apps: it.appRects.map(r => ({ appId: r.appId, pinned: r.pinned, x: base + r.x, w: r.w }))
             }
         }
         return null
@@ -554,7 +603,7 @@ Item {
         if (!barBlock.editing || !barBlock.editor)
             return ""
         const sel = barBlock.editor.selectedItem
-        return (sel === "" || sel.indexOf("dash:") === 0 || !BarLayout.entry(sel)) ? "" : sel
+        return (sel === "" || sel.indexOf("dash:") === 0 || !BarLayout.entry(sel) || !BarLayout.isPlaced(sel)) ? "" : sel
     }
 
     readonly property bool emptyInEdit: barBlock.editing && barBlock.itemIds.length === 0
@@ -631,7 +680,41 @@ Item {
         return null
     }
 
+    property string residentKind: ""
+    readonly property var warmKinds: ["calendar", "weather"]
+
+    function preload(k) {
+        if (k === "" || barBlock.editMode || barBlock.kindWidth(k) <= 0 || slotA.kind === k || slotB.kind === k)
+            return
+        const cur = barBlock.curSlot === 0 ? slotA : slotB
+        const other = barBlock.curSlot === 0 ? slotB : slotA
+        const idle = s => !s.shown && s.opacity < 0.02
+        const target = idle(other) ? other : idle(cur) ? cur : null
+        if (target)
+            target.kind = k
+    }
+
+    Timer {
+        interval: 6000
+        running: true
+        onTriggered: {
+            if (!layout.isPrimary || !barBlock.visible || barBlock.width <= 0)
+                return
+            const ids = barBlock.itemIds ?? []
+            for (let i = 0; i < ids.length; i++) {
+                const k = BarLayout.panelFor(ids[i])
+                if (barBlock.warmKinds.indexOf(k) >= 0) {
+                    barBlock.residentKind = k
+                    barBlock.preload(k)
+                    return
+                }
+            }
+        }
+    }
+
     function showContent(k) {
+        if (k !== "")
+            barBlock.residentKind = k
         const cur = barBlock.curSlot === 0 ? slotA : slotB
         const other = barBlock.curSlot === 0 ? slotB : slotA
         if (k === "") {
@@ -679,9 +762,9 @@ Item {
         return ServiceApps.dockModel.find(e => (e.appId ?? "").toLowerCase() === want) ?? null
     }
     readonly property int dockWinCount: barBlock.dockAppEntry ? barBlock.dockAppEntry.toplevels.length : 0
-    readonly property real dockPreviewCap: Math.min(Math.max(barBlock.width, 236), layout.width - 32)
-    readonly property real dockPreviewWidth: Math.min(16 + Math.max(1, barBlock.dockWinCount) * 186 - 6,
-                                                      barBlock.dockPreviewCap)
+    readonly property real dockPreviewCap: barBlock.vertical ? Math.min(300, barBlock.widthRoom)
+        : Math.min(Math.max(barBlock.width, 236), barBlock.widthRoom)
+    readonly property real dockPreviewWidth: Math.min(300, barBlock.dockPreviewCap)
 
     onDockAppEntryChanged: barBlock.checkDockApp()
     onDockWinCountChanged: barBlock.checkDockApp()
@@ -779,7 +862,7 @@ Item {
     Item {
         id: tabHost
         x: barBlock.tabX
-        y: barBlock.bottomEdge ? barBlock.barH - barBlock.tabH : 0
+        y: barBlock.far ? barBlock.barH - barBlock.tabH : 0
         width: barBlock.tabW
         height: barBlock.tabH
         visible: barBlock.tabOpen
@@ -793,7 +876,7 @@ Item {
         Item {
             id: panelClip
             x: 0
-            y: barBlock.bottomEdge ? 0 : barBlock.barH
+            y: barBlock.far ? 0 : barBlock.barH
             width: tabHost.width
             height: Math.max(0, tabHost.height - barBlock.barH)
             clip: true
@@ -812,14 +895,14 @@ Item {
         ? barBlock.shownKind : ""
     readonly property bool sizeHandles: barBlock.sizeKind !== "" && (barBlock.resizing
         || (!tabXAnim.running && !tabWAnim.running && !tabHAnim.running))
-    readonly property real tabContentTop: barBlock.bottomEdge ? barBlock.barH - barBlock.tabH : barBlock.barH
+    readonly property real tabContentTop: barBlock.far ? barBlock.barH - barBlock.tabH : barBlock.barH
     readonly property real tabContentH: Math.max(0, barBlock.tabH - barBlock.barH)
     readonly property bool flushL: Math.abs(barBlock.tabX - (barBlock.spanL - barBlock.absX)) <= 0.5
     readonly property bool flushR: Math.abs(barBlock.tabX + barBlock.tabW - (barBlock.spanR - barBlock.absX)) <= 0.5
 
     function heightCap(k) {
         const it = barBlock.itemOf(k)
-        return it && it.maxContentH !== undefined ? Math.min(barBlock.panelRoom, it.maxContentH) : barBlock.panelRoom
+        return it && it.maxContentH !== undefined ? Math.min(barBlock.heightRoom, it.maxContentH) : barBlock.heightRoom
     }
 
     function beginResize() {
@@ -859,7 +942,7 @@ Item {
         height: handle.vertical ? 72 : 16
         hoverEnabled: true
         preventStealing: true
-        cursorShape: handle.vertical ? Qt.SizeHorCursor : Qt.SizeVerCursor
+        cursorShape: handle.vertical !== barBlock.vertical ? Qt.SizeHorCursor : Qt.SizeVerCursor
 
         onPressed: mouse => {
             barBlock.beginResize()
@@ -873,9 +956,17 @@ Item {
             const p = handle.mapToItem(barBlock, mouse.x, mouse.y)
             if (handle.vertical) {
                 const d = Math.abs(p.x - handle.anchorX)
-                barBlock.updateResize(handle.centred ? d * 2 : d, undefined)
+                const along = handle.centred ? d * 2 : d
+                if (barBlock.vertical)
+                    barBlock.updateResize(undefined, along)
+                else
+                    barBlock.updateResize(along, undefined)
             } else {
-                barBlock.updateResize(undefined, barBlock.bottomEdge ? -p.y : p.y - barBlock.barH)
+                const across = barBlock.far ? -p.y : p.y - barBlock.barH
+                if (barBlock.vertical)
+                    barBlock.updateResize(across, undefined)
+                else
+                    barBlock.updateResize(undefined, across)
             }
         }
         onReleased: barBlock.endResize()
@@ -917,18 +1008,22 @@ Item {
             anchors.verticalCenter: parent.verticalCenter
         }
         ResizeHandle {
-            side: barBlock.bottomEdge ? "top" : "bottom"
+            side: barBlock.far ? "top" : "bottom"
             anchors.horizontalCenter: parent.horizontalCenter
-            y: barBlock.bottomEdge ? 0 : parent.height - height
+            y: barBlock.far ? 0 : parent.height - height
         }
 
         Rectangle {
+            id: sizeBubble
             visible: barBlock.resizing
             anchors.centerIn: parent
             width: sizeLabel.implicitWidth + 24
             height: 32
             radius: 16
             color: Colors.inverseSurface
+            transform: barBlock.vertical ? [sizeFlip] : []
+
+            Matrix4x4 { id: sizeFlip; matrix: barBlock.flipAbout(sizeBubble.width, sizeBubble.height) }
 
             CustomText {
                 id: sizeLabel
@@ -1002,15 +1097,22 @@ Item {
                     readonly property string tintRole: BarLayout.itemStyle(slot.itemId, "tint", "none")
                     readonly property bool tinted: slot.tintRole !== "none"
                     readonly property real chipRadius: BarLayout.itemStyle(slot.itemId, "radius", -1)
-                    readonly property real contentWidth: slot.ghost ? 28 : (slot.loaded ? loader.item.implicitWidth : 0)
+                    readonly property real rawW: slot.loaded ? loader.item.implicitWidth : 0
+                    readonly property real rawH: slot.loaded ? loader.item.implicitHeight : 0
+                    readonly property bool turns: slot.loaded && loader.item.rotatesWithBar === true
+                    readonly property bool upright: barBlock.vertical && slot.loaded && !slot.turns
+                        && (loader.item.verticalReady === true || slot.rawW <= barBlock.barH - 4)
+                    readonly property bool sideways: barBlock.vertical && slot.loaded && !slot.turns && !slot.upright
+                    readonly property real contentWidth: slot.ghost ? 28 : (slot.upright ? slot.rawH : slot.rawW)
+                    readonly property real contentStart: slot.margin[0] + (slot.innerWidth - slot.contentWidth) / 2
                     readonly property real chipWidth: BarLayout.chipW(slot.itemId, slot.contentWidth,
                                                                      slot.contentHeight, barBlock.barH)
                     readonly property real chipHeight: BarLayout.chipH(slot.itemId, slot.contentHeight,
                                                                        barBlock.barH, slot.contentWidth)
-                    readonly property real contentHeight: slot.loaded ? loader.item.implicitHeight : 0
+                    readonly property real contentHeight: slot.upright ? slot.rawW : slot.rawH
                     readonly property real innerWidth: Math.max(slot.contentWidth, slot.chipWidth)
                     readonly property real revealT: GlobalStates.barRevealAt(
-                        barBlock.absX + slot.x + slot.width / 2, layout.width)
+                        barBlock.absX + slot.x + slot.width / 2, barBlock.frameW)
                     readonly property bool selected: barBlock.editing && !!barBlock.editor
                         && barBlock.editor.selectedItem === slot.itemId
                     readonly property bool isOpener: (barBlock.clickedKind !== "" && barBlock.openerId === slot.itemId)
@@ -1065,9 +1167,13 @@ Item {
 
                     Loader {
                         id: loader
-                        x: slot.margin[0] + (slot.innerWidth - slot.contentWidth) / 2
-                        anchors.verticalCenter: parent.verticalCenter
+                        x: slot.contentStart + (slot.contentWidth - slot.rawW) / 2
+                        y: (barBlock.barH - slot.rawH) / 2
+                        transform: slot.upright ? [uprightM] : slot.sideways ? [sidewaysM] : []
                         source: Qt.resolvedUrl(BarLayout.fileFor(slot.itemId))
+
+                        Matrix4x4 { id: uprightM; matrix: barBlock.flipAbout(slot.rawW, slot.rawH) }
+                        Matrix4x4 { id: sidewaysM; matrix: barBlock.mirrorAbout(slot.rawW, slot.rawH) }
                         visible: slot.itemShown
                         opacity: slot.isOpener ? 0 : 1
                         Behavior on opacity {
@@ -1081,10 +1187,14 @@ Item {
                     }
 
                     MaterialIconSymbol {
+                        id: ghostIcon
                         visible: slot.ghost && slot.revealT > 0.001
                         opacity: 0.6 * slot.revealT
                         x: slot.margin[0] + (28 - width) / 2
                         anchors.verticalCenter: parent.verticalCenter
+                        transform: barBlock.vertical ? [ghostFlip] : []
+
+                        Matrix4x4 { id: ghostFlip; matrix: barBlock.flipAbout(ghostIcon.width, ghostIcon.height) }
                         content: slot.entry ? slot.entry.icon : ""
                         iconSize: 18
                         customColor: Colors.outline
@@ -1094,17 +1204,16 @@ Item {
                         id: closeBadge
                         x: slot.margin[0] + (slot.innerWidth - width) / 2
                         anchors.verticalCenter: parent.verticalCenter
-                        width: 28
-                        height: 28
-                        radius: 14
+                        width: slot.isOpener ? 28 : 12
+                        height: width
+                        radius: width / 2
                         color: closeArea.containsMouse ? Colors.primary : Colors.primaryContainer
                         opacity: slot.isOpener ? 1 : 0
-                        scale: slot.isOpener ? 1 : 0.4
                         visible: closeBadge.opacity > 0.01
                         Behavior on opacity {
                             EffectsAnim { speed: "fast" }
                         }
-                        Behavior on scale {
+                        Behavior on width {
                             SpatialAnim { speed: "fast" }
                         }
                         Behavior on color {
@@ -1114,7 +1223,8 @@ Item {
                         MaterialIconSymbol {
                             anchors.centerIn: parent
                             content: "close"
-                            iconSize: 16
+                            iconSize: slot.isOpener ? 16 : 7
+                            Behavior on iconSize { SpatialAnim { speed: "fast" } }
                             customColor: closeArea.containsMouse ? Colors.primaryText : Colors.primaryContainerText
                         }
 
@@ -1170,8 +1280,12 @@ Item {
         }
 
         CustomText {
+            id: dropHint
             anchors.centerIn: parent
             visible: barBlock.emptyInEdit
+            transform: barBlock.vertical ? [dropFlip] : []
+
+            Matrix4x4 { id: dropFlip; matrix: barBlock.mirrorAbout(dropHint.width, dropHint.height) }
             content: "Drop here"
             size: 11
             weight: 600
@@ -1186,13 +1300,79 @@ Item {
         property real homeX: 0
         readonly property real clipX: tabHost.x
         readonly property real clipY: tabHost.y + panelClip.y
-        readonly property real slideY: barBlock.bottomEdge ? Math.max(0, panelClip.height - slot.height)
-                                                           : Math.min(0, panelClip.height - slot.height)
+        readonly property real fw: barBlock.vertical ? slot.height : slot.width
+        readonly property real fh: barBlock.vertical ? slot.width : slot.height
+        readonly property real slideY: barBlock.far ? Math.max(0, panelClip.height - slot.fh)
+                                                    : Math.min(0, panelClip.height - slot.fh)
+        readonly property real pinY: barBlock.far ? panelClip.height - slot.fh : 0
+        property real reveal: 1
+        property real drift: 0
+
+        function enter() {
+            if (!slot.shown)
+                return
+            if (slot.status !== Loader.Ready) {
+                revealAnim.stop()
+                slot.reveal = 0
+                slot.drift = 14
+                return
+            }
+            slot.reveal = 0
+            slot.drift = 14
+            revealAnim.restart()
+        }
+
+        onLoaded: slot.enter()
+
+        ParallelAnimation {
+            id: revealAnim
+            SequentialAnimation {
+                PauseAnimation { duration: 40 }
+                NumberAnimation {
+                    target: slot; property: "reveal"; to: 1
+                    duration: 480
+                    easing.type: Easing.BezierSpline
+                    easing.bezierCurve: [0.05, 0.7, 0.1, 1.0, 1, 1]
+                }
+            }
+            SequentialAnimation {
+                PauseAnimation { duration: 30 }
+                NumberAnimation {
+                    target: slot; property: "drift"; to: 0
+                    duration: 520
+                    easing.type: Easing.BezierSpline
+                    easing.bezierCurve: [0.05, 0.7, 0.1, 1.0, 1, 1]
+                }
+            }
+        }
+
+        layer.enabled: slot.reveal < 1 && slot.visible
+        layer.smooth: true
+        layer.effect: GE.OpacityMask { maskSource: wipe }
+
+        Item {
+            id: wipe
+            visible: false
+            width: slot.width
+            height: slot.height
+
+            Rectangle {
+                readonly property real nearY: (slot.reveal - 1) * wipe.height
+                width: wipe.width
+                height: wipe.height
+                y: barBlock.far ? -nearY : nearY
+                color: "white"
+            }
+        }
+        transform: barBlock.vertical ? [slotFlip] : []
+
+        Matrix4x4 { id: slotFlip; matrix: Qt.matrix4x4(0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1) }
 
         onShownChanged: {
             if (slot.shown) {
                 slotCache.stop()
-                slot.homeX = Qt.binding(() => barBlock.tabTargetX + (barBlock.tabTargetW - slot.width) / 2)
+                slot.homeX = Qt.binding(() => barBlock.tabTargetX + (barBlock.tabTargetW - slot.fw) / 2)
+                slot.enter()
             } else {
                 slotCache.restart()
                 slot.homeX = slot.homeX
@@ -1211,7 +1391,7 @@ Item {
         }
 
         x: Math.round(slot.homeX) - slot.clipX
-        y: Math.round(slot.clipY + slot.slideY) - slot.clipY
+        y: Math.round(slot.clipY + (slot.shown ? slot.pinY + (barBlock.far ? slot.drift : -slot.drift) : slot.slideY)) - slot.clipY
         active: slot.kind !== ""
         asynchronous: true
         opacity: slot.shown ? 1 : 0
@@ -1222,31 +1402,40 @@ Item {
         Timer {
             id: slotCache
             interval: 30000
-            onTriggered: if (!slot.shown) slot.kind = ""
+            onTriggered: if (!slot.shown && slot.kind !== barBlock.residentKind) slot.kind = ""
         }
 
         Behavior on opacity {
-            EffectsAnim { speed: slot.shown ? "slow" : "default" }
+            enabled: slot.opacity > 0.5
+            EffectsAnim { speed: "default" }
         }
 
         sourceComponent: {
             switch (slot.kind) {
             case "calendar":  return calendarComp
             case "music":     return musicComp
-            case "musicArt":  return musicArtComp
+            case "musicWave": return musicWaveComp
+            case "musicIsland": return musicIslandComp
+            case "musicFill": return musicFillComp
+            case "musicType": return musicTypeComp
+            case "musicSources": return musicSourcesComp
             case "tray":      return trayComp
             case "trayMenu":  return trayMenuComp
             case "sound":     return soundComp
+            case "soundscape": return soundscapeComp
+            case "scenes":    return scenesComp
             case "network":   return networkComp
             case "bluetooth": return bluetoothComp
             case "brightness": return brightnessComp
             case "powerMode": return powerModeComp
             case "power":     return powerComp
+            case "notifications": return notificationsComp
+            case "battery":   return batteryComp
             case "dockPreview": return dockPreviewComp
             case "dockMenu":  return dockMenuComp
             case "weather":   return weatherComp
             case "dashboard": return dashboardComp
-            case "clipboard": return clipComp
+            case "clipboard": return (SettingsConfig.general.clipboardStyle ?? "list") === "fan" ? clipFanComp : clipComp
             case "wallpaper": return wallComp
             case "filedrop":  return fileDropComp
             case "osd":       return osdComp
@@ -1256,9 +1445,26 @@ Item {
         }
     }
 
-    Component { id: calendarComp;  Calander {} }
+    Component {
+        id: calendarComp
+        Item {
+            id: calHost
+            anchors.fill: parent
+            readonly property string calStyle: BarLayout.opt("clock", "panel") ?? "rail"
+            Loader {
+                anchors.fill: parent
+                sourceComponent: calHost.calStyle === "rail" ? calRailComp : calAltComp
+            }
+            Component { id: calRailComp; Calander {} }
+            Component { id: calAltComp; CalendarPanelAlt { style: calHost.calStyle } }
+        }
+    }
     Component { id: musicComp;     BarMusicPanel {} }
-    Component { id: musicArtComp;  BarMusicPanelArt {} }
+    Component { id: musicWaveComp; BarMusicPanelWave {} }
+    Component { id: musicIslandComp; BarMusicPanelIsland {} }
+    Component { id: musicFillComp; BarMusicPanelFill {} }
+    Component { id: musicTypeComp; BarMusicPanelType {} }
+    Component { id: musicSourcesComp; BarMusicPanelSources {} }
     Component {
         id: trayComp
         Item {
@@ -1307,8 +1513,27 @@ Item {
     Component { id: powerModeComp; ModesPanel { onBackClicked: barBlock.closePanel() } }
     Component { id: powerComp;     BarPowerPanel {} }
     Component {
+        id: notificationsComp
+        BarNotificationsPanel {
+            maxHeight: Math.max(320, barBlock.openHeight - barBlock.barH - 40)
+        }
+    }
+    Component { id: batteryComp;   BarBatteryPanel {} }
+    Component {
         id: soundComp
         BarSoundPanel {
+            maxHeight: Math.max(240, barBlock.openHeight - barBlock.barH - 40)
+        }
+    }
+    Component {
+        id: scenesComp
+        BarScenesPanel {
+            maxHeight: Math.max(240, barBlock.openHeight - barBlock.barH - 40)
+        }
+    }
+    Component {
+        id: soundscapeComp
+        BarSoundscapePanel {
             maxHeight: Math.max(240, barBlock.openHeight - barBlock.barH - 40)
         }
     }
@@ -1339,6 +1564,14 @@ Item {
         }
     }
     Component {
+        id: clipFanComp
+        ClipboardFan {
+            bottomLeftRadius: barBlock.isPill ? 20 : 0
+            bottomRightRadius: barBlock.isPill ? 20 : 0
+            onClosed: GlobalStates.clipboardOpen = false
+        }
+    }
+    Component {
         id: fileDropComp
         FileDropContent {
             bottomLeftRadius: barBlock.isPill ? 20 : 0
@@ -1353,7 +1586,7 @@ Item {
             bottomRightRadius: barBlock.isPill ? Appearance.radius.extraLarge : 0
         }
     }
-    Component { id: osdComp; OsdContent {} }
+    Component { id: osdComp; OsdContent { vertical: barBlock.vertical } }
     Component {
         id: launcherComp
         AppLauncherContent {
@@ -1426,8 +1659,8 @@ Item {
             editArea.pressW = s ? s.width : 28
             editArea.pressApp = ""
             editArea.pressAppPinned = false
-            if (s && s.itemId === "dockApps" && s.loaderItem) {
-                const lx = mouse.x - (barBlock.pad + s.x + s.margin[0])
+            if (s && BarLayout.baseId(s.itemId) === "dockApps" && s.loaderItem) {
+                const lx = mouse.x - (barBlock.pad + s.x + s.contentStart)
                 const r = s.loaderItem.appRects.find(a => lx >= a.x && lx <= a.x + a.w)
                 if (r) {
                     editArea.pressApp = r.appId
@@ -1472,18 +1705,21 @@ Item {
     }
 
     Rectangle {
+        id: gripPill
         z: 60
         readonly property bool shown: barBlock.handlesIn && !barBlock.tabOpen
             && GlobalStates.panelPreview === "" && !GlobalStates.launcherPreview
         visible: barBlock.revealT > 0.001 && opacity > 0.01
         opacity: shown ? 1 : 0
-        scale: shown ? 1 : 0.4
         Behavior on opacity { EffectsAnim { speed: "fast" } }
-        Behavior on scale { SpatialAnim { speed: "fast" } }
-        y: barBlock.bottomEdge ? -34 : barBlock.barH + 6
+        readonly property real across: barBlock.vertical ? width : height
+        y: (barBlock.far ? -6 - across : barBlock.barH + 6) + (across - height) / 2
         anchors.horizontalCenter: parent.horizontalCenter
         width: handleRow.implicitWidth + 8
         height: 28
+        transform: barBlock.vertical ? [gripFlip] : []
+
+        Matrix4x4 { id: gripFlip; matrix: barBlock.flipAbout(gripPill.width, gripPill.height) }
         radius: 14
         color: Colors.surfaceContainerHigh
         border.width: 1

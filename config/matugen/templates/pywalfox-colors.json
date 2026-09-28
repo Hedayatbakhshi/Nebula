@@ -1,0 +1,22 @@
+{
+    "wallpaper": "{{image}}",
+    "alpha": "100",
+    "colors": {
+      "color0": "{{colors.pywal_color0.default.hex}}",
+      "color1": "{{colors.term_red.default.hex}}",
+      "color2": "{{colors.term_green.default.hex}}",
+      "color3": "{{colors.primary.default.hex}}",
+      "color4": "{{colors.term_blue.default.hex}}",
+      "color5": "{{colors.tertiary.default.hex}}",
+      "color6": "{{colors.term_cyan.default.hex}}",
+      "color7": "{{colors.pywal_color7.default.hex}}",
+      "color8": "{{colors.term_bright_black.default.hex}}",
+      "color9": "{{colors.term_bright_red.default.hex}}",
+      "color10": "{{colors.primary.default.hex}}",
+      "color11": "{{colors.term_bright_yellow.default.hex}}",
+      "color12": "{{colors.term_bright_blue.default.hex}}",
+      "color13": "{{colors.tertiary.default.hex}}",
+      "color14": "{{colors.term_bright_cyan.default.hex}}",
+      "color15": "{{colors.on_surface.default.hex}}"
+    }
+}

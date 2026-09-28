@@ -1,5 +1,6 @@
 import QtQuick
 import Quickshell
+import Quickshell.Io
 import Quickshell.Services.Greetd
 
 Scope {
@@ -9,7 +10,7 @@ Scope {
 
     // Shared state for all greeter surfaces
     property string currentText: ""
-    property string currentUser: "steel"  // Default user, change as needed
+    property string currentUser: ""
     property bool unlockInProgress: false
     property bool showFailure: false
     property int failedAttempts: 0
@@ -17,6 +18,23 @@ Scope {
 
     // Clear the failure text once the user starts typing
     onCurrentTextChanged: showFailure = false
+
+    FileView {
+        path: "/etc/passwd"
+        blockLoading: false
+        onLoaded: {
+            if (root.currentUser !== "")
+                return
+            for (const line of text().split("\n")) {
+                const f = line.split(":")
+                const uid = parseInt(f[2])
+                if (f.length >= 7 && uid >= 1000 && uid < 60000 && !/(nologin|false)$/.test(f[6])) {
+                    root.currentUser = f[0]
+                    return
+                }
+            }
+        }
+    }
 
     function tryUnlock() {
         if (currentUser === "" || currentText === "") return

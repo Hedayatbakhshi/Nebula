@@ -1,0 +1,193 @@
+#include "shapepainter.h"
+
+#include <QPainter>
+#include <QPainterPath>
+
+#include <algorithm>
+#include <cmath>
+
+ShapePainter::ShapePainter(QQuickItem *parent)
+    : QQuickPaintedItem(parent)
+{
+    setAntialiasing(true);
+}
+
+template <typename T>
+void ShapePainter::setStyle(T &field, const T &value)
+{
+    if (field == value)
+        return;
+    field = value;
+    emit styleChanged();
+    refresh();
+}
+
+void ShapePainter::setColor(const QColor &v) { setStyle(m_color, v); }
+void ShapePainter::setBorderWidth(qreal v) { setStyle(m_borderWidth, v); }
+void ShapePainter::setBorderColor(const QColor &v) { setStyle(m_borderColor, v); }
+void ShapePainter::setDebug(bool v) { setStyle(m_debug, v); }
+void ShapePainter::setStretchToFill(bool v) { setStyle(m_stretch, v); }
+void ShapePainter::setPolygonIsNormalized(bool v) { setStyle(m_normalized, v); }
+void ShapePainter::setStrokeProgress(qreal v) { setStyle(m_strokeProgress, v); }
+void ShapePainter::setStrokeWidth(qreal v) { setStyle(m_strokeWidth, v); }
+void ShapePainter::setStrokeColor(const QColor &v) { setStyle(m_strokeColor, v); }
+void ShapePainter::setStrokeTrackColor(const QColor &v) { setStyle(m_strokeTrackColor, v); }
+
+void ShapePainter::setFromShape(const QString &v)
+{
+    if (m_from == v)
+        return;
+    m_from = v;
+    rebuildMorph();
+}
+
+void ShapePainter::setToShape(const QString &v)
+{
+    if (m_to == v)
+        return;
+    m_to = v;
+    rebuildMorph();
+}
+
+void ShapePainter::setProgress(qreal v)
+{
+    if (m_progress == v)
+        return;
+    m_progress = v;
+    emit progressChanged();
+    refresh();
+}
+
+void ShapePainter::rebuildMorph()
+{
+    m_morph = mshape::morph(m_from, m_to);
+    m_boundsW = 0;
+    m_boundsH = 0;
+    if (const mshape::Polygon *p = mshape::shape(m_to)) {
+        double b[4];
+        p->calculateBounds(b);
+        m_boundsW = b[2] - b[0];
+        m_boundsH = b[3] - b[1];
+    }
+    emit shapeChanged();
+    refresh();
+}
+
+void ShapePainter::refresh()
+{
+    m_cubics = m_morph ? m_morph->asCubics(m_progress) : std::vector<mshape::Cubic> {};
+    m_ring = m_strokeProgress >= 0 ? ring() : std::vector<QPointF> {};
+    update();
+}
+
+void ShapePainter::geometryChange(const QRectF &newGeometry, const QRectF &oldGeometry)
+{
+    QQuickPaintedItem::geometryChange(newGeometry, oldGeometry);
+    if (newGeometry.size() != oldGeometry.size())
+        refresh();
+}
+
+std::vector<QPointF> ShapePainter::ring() const
+{
+    if (m_cubics.empty())
+        return {};
+    return mshape::ringPoints(m_cubics, std::min(width(), height()), m_strokeWidth);
+}
+
+qreal ShapePainter::progressAt(qreal px, qreal py) const
+{
+    return mshape::ringProgressAt(ring(), px, py);
+}
+
+QVariant ShapePainter::pointAtProgress(qreal p) const
+{
+    QPointF out;
+    if (!mshape::ringPointAt(ring(), p, out))
+        return {};
+    return QVariantMap {{QStringLiteral("x"), out.x()}, {QStringLiteral("y"), out.y()}};
+}
+
+bool ShapePainter::nearRing(qreal px, qreal py, qreal tolerance) const
+{
+    return mshape::ringNear(ring(), px, py, tolerance);
+}
+
+void ShapePainter::paint(QPainter *painter)
+{
+    if (m_cubics.empty())
+        return;
+    painter->setRenderHint(QPainter::Antialiasing, true);
+
+    if (m_strokeProgress >= 0) {
+        const std::vector<QPointF> &pts = m_ring;
+        if (pts.size() < 3)
+            return;
+        QPen pen(m_strokeTrackColor, m_strokeWidth, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
+        painter->setBrush(Qt::NoBrush);
+        painter->setPen(pen);
+        painter->drawPolyline(pts.data(), int(pts.size()));
+
+        const double progress = std::max(0.0, std::min(1.0, double(m_strokeProgress)));
+        if (progress <= 0)
+            return;
+        double total = 0;
+        std::vector<double> lengths;
+        lengths.reserve(pts.size());
+        for (size_t i = 1; i < pts.size(); i++) {
+            const double l = std::hypot(pts[i].x() - pts[i - 1].x(), pts[i].y() - pts[i - 1].y());
+            lengths.push_back(l);
+            total += l;
+        }
+        double remaining = total * progress;
+        QPainterPath path(pts[0]);
+        for (size_t i = 1; i < pts.size() && remaining > 0; i++) {
+            const double l = lengths[i - 1];
+            if (l <= remaining) {
+                path.lineTo(pts[i]);
+                remaining -= l;
+            } else {
+                const double f = remaining / l;
+                path.lineTo(pts[i - 1] + (pts[i] - pts[i - 1]) * f);
+                remaining = 0;
+            }
+        }
+        pen.setColor(m_strokeColor);
+        painter->setPen(pen);
+        painter->drawPath(path);
+        return;
+    }
+
+    const qreal size = std::min(width(), height());
+    painter->save();
+    if (m_normalized) {
+        if (m_stretch)
+            painter->scale(width(), height());
+        else
+            painter->scale(size, size);
+    }
+
+    QPainterPath path;
+    path.setFillRule(Qt::WindingFill);
+    path.moveTo(m_cubics.front().a0x(), m_cubics.front().a0y());
+    for (const mshape::Cubic &c : m_cubics)
+        path.cubicTo(c.c0x(), c.c0y(), c.c1x(), c.c1y(), c.a1x(), c.a1y());
+    path.closeSubpath();
+    painter->fillPath(path, m_color);
+
+    if (m_borderWidth > 0) {
+        QPen pen(m_borderColor, m_borderWidth, Qt::SolidLine, Qt::FlatCap, Qt::MiterJoin);
+        pen.setMiterLimit(10);
+        painter->strokePath(path, pen);
+    }
+
+    if (m_debug) {
+        painter->setPen(Qt::NoPen);
+        painter->setBrush(Qt::red);
+        for (size_t i = 0; i < m_cubics.size(); ++i) {
+            if (i == 0)
+                painter->drawEllipse(QPointF(m_cubics[i].a0x(), m_cubics[i].a0y()), 2, 2);
+            painter->drawEllipse(QPointF(m_cubics[i].a1x(), m_cubics[i].a1y()), 2, 2);
+        }
+    }
+    painter->restore();
+}

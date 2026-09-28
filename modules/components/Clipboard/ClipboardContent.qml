@@ -53,6 +53,10 @@ Rectangle {
         list.positionViewAtIndex(container.activeIndex, ListView.Contain)
     }
 
+    function focusSearch() {
+        if (!GlobalStates.barEditMode) searchInput.forceActiveFocus()
+    }
+
     function copyActive() {
         const e = container.activeEntry
         if (e === "")
@@ -109,7 +113,7 @@ Rectangle {
 
     Component.onCompleted: {
         ServiceCliphist.updateSearch("")
-        searchInput.forceActiveFocus()
+        container.focusSearch()
         container.loadPreview()
     }
 
@@ -165,7 +169,7 @@ Rectangle {
                                 anchors.fill: parent
                                 verticalAlignment: TextInput.AlignVCenter
                                 clip: true
-                                focus: true
+                                focus: !GlobalStates.barEditMode
                                 selectByMouse: true
                                 font.pixelSize: 14
                                 font.weight: 600
@@ -237,7 +241,7 @@ Rectangle {
                     onSegmentClicked: function(value) {
                         container.filter = value
                         container.activeIndex = 0
-                        searchInput.forceActiveFocus()
+                        container.focusSearch()
                     }
                 }
 
@@ -418,7 +422,7 @@ Rectangle {
                             cursorShape: Qt.PointingHandCursor
                             onClicked: {
                                 container.activeIndex = row.index
-                                searchInput.forceActiveFocus()
+                                container.focusSearch()
                             }
                             onDoubleClicked: {
                                 container.activeIndex = row.index
@@ -550,7 +554,7 @@ Rectangle {
                                 color: Colors.surfaceText
                                 selectionColor: Qt.alpha(Colors.primary, 0.35)
                                 font.family: container.looksLikeCode
-                                    ? (SettingsConfig.ai.codeFont ?? "monospace")
+                                    ? ((SettingsConfig.ai ?? {}).codeFont ?? "monospace")
                                     : (SettingsConfig.general.defaultFont ?? "Rubik")
                                 font.pixelSize: container.looksLikeCode ? 14 : 16
                             }

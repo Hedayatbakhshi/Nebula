@@ -35,6 +35,9 @@ Singleton {
         readonly property var closeCurve: [0.3, 0.0, 0.8, 0.15, 1, 1]
     }
 
+    readonly property var emphasizedCurve: [0.05, 0, 0.133333, 0.06, 0.166666, 0.4,
+                                            0.208333, 0.82, 0.25, 1, 1, 1]
+
     reveal: QtObject {
         readonly property int duration: 760
         readonly property int outDuration: 340

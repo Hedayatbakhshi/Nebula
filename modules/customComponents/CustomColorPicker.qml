@@ -245,8 +245,6 @@ PopupWindow {
                         border.color: sel ? Colors.inverseSurface : (hov ? Qt.rgba(1,1,1,0.4) : "transparent")
                         border.width: sel ? 3 : 2
 
-                        scale: hov ? 1.1 : 1.0
-                        Behavior on scale { NumberAnimation { duration: 100 } }
 
                         Rectangle {
                             anchors.bottom: parent.top

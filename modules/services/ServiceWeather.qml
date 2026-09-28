@@ -9,13 +9,14 @@ Singleton {
     id: root
 
     property string location: SettingsConfig.weather.location
+    onLocationChanged: Qt.callLater(root.fetchWeather)
     property bool useMetric: SettingsConfig.weather.useMetric ?? true
     property int refreshInterval: (SettingsConfig.weather.refreshInterval ?? 15) * 60000
     property bool isLoading: false
     property bool hasError: false
     property var lastUpdated: null
 
-    readonly property string script: Quickshell.env("HOME") + "/.config/quickshell/scripts/weather.py"
+    readonly property string cli: Quickshell.shellDir + "/bin/nebula"
     readonly property string cachePath: Quickshell.env("HOME") + "/.cache/quickshell/weather.json"
 
     // Weather data properties
@@ -150,11 +151,17 @@ Singleton {
         fetchWeather()
     }
 
+    property bool _refetch: false
+
     function fetchWeather() {
         retryTimer.stop()
+        if (weatherProcess.running) {
+            root._refetch = true
+            return
+        }
         root.isLoading = true
         root.hasError = false
-        weatherProcess.command = ["python3", root.script, root.location]
+        weatherProcess.command = [root.cli, "weather", root.location]
         weatherProcess.running = true
     }
 
@@ -196,6 +203,12 @@ Singleton {
     Process {
         id: weatherProcess
         command: []
+        onExited: {
+            if (!root._refetch)
+                return
+            root._refetch = false
+            Qt.callLater(root.fetchWeather)
+        }
 
         stdout: StdioCollector {
             onStreamFinished: {

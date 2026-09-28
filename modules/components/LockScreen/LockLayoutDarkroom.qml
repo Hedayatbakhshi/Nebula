@@ -43,20 +43,24 @@ Item {
 
     LockStatusModel { id: status }
 
-    component Print: Rectangle {
+    component Print: Item {
         property real pad: 34 * root.u
         property real capH: 150 * root.u
-        color: root.paper
-        antialiasing: true
 
-        layer.enabled: !root.preview
-        layer.effect: MultiEffect {
-            shadowEnabled: true
-            shadowColor: Qt.rgba(0, 0, 0, 0.6)
-            shadowBlur: 1.0
-            shadowVerticalOffset: 22 * root.u
-            shadowScale: 1.02
-            autoPaddingEnabled: true
+        Rectangle {
+            anchors.fill: parent
+            color: root.paper
+            antialiasing: true
+
+            layer.enabled: !root.preview
+            layer.effect: MultiEffect {
+                shadowEnabled: true
+                shadowColor: Qt.rgba(0, 0, 0, 0.6)
+                shadowBlur: 1.0
+                shadowVerticalOffset: 22 * root.u
+                shadowScale: 1.02
+                autoPaddingEnabled: true
+            }
         }
     }
 
@@ -87,7 +91,7 @@ Item {
 
                 Image {
                     anchors.fill: parent
-                    source: WallpaperTheme.wallpaper
+                    source: WallpaperTheme.wallpaperScreen
                     fillMode: Image.PreserveAspectCrop
                     sourceSize.width: root.preview ? 480 : 1400
                     asynchronous: true

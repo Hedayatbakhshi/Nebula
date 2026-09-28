@@ -15,5 +15,5 @@ hl.env("XDG_SESSION_DESKTOP", "Hyprland")
 -- Quickshell WfRecorder plugin path
 hl.env("QML_IMPORT_PATH", os.getenv("HOME") .. "/.local/lib/qt6/qml")
 
--- Virtual env for gen_colors.py (Material You color engine)
+-- Virtual env for the nebula command (Material You color engine)
 hl.env("NEBULA_VENV", os.getenv("HOME") .. "/.local/state/quickshell/.venv")

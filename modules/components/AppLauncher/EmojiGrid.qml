@@ -46,10 +46,6 @@ GridView {
                 : cellArea.containsMouse ? Qt.alpha(Colors.primary, 0.1) : "transparent"
             Behavior on color { ColorAnimation { duration: 100 } }
 
-            scale: cell.isActive ? 1.06 : 1
-            Behavior on scale {
-                NumberAnimation { duration: 140; easing.type: Easing.OutBack }
-            }
 
             // Deliberately not CustomText — that forces the themed UI font
             // (no emoji coverage) and NativeRendering, which drops the colour
@@ -58,7 +54,9 @@ GridView {
                 anchors.centerIn: parent
                 text: cell.modelData.glyph ?? ""
                 font.family: "Noto Color Emoji"
-                font.pixelSize: Math.round(view.cellWidth * 0.5)
+                property real grow: cell.isActive ? 0.56 : 0.5
+                Behavior on grow { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
+                font.pixelSize: Math.round(view.cellWidth * grow)
             }
         }
 

@@ -197,3 +197,50 @@ function reorder(list, id, delta) {
     out.splice(to, 0, id)
     return out
 }
+
+const SIDES = ["top", "bottom", "left", "right"]
+
+function normSide(side, fallback) {
+    return SIDES.indexOf(side) >= 0 ? side : fallback
+}
+
+function oppositeSide(side) {
+    switch (side) {
+    case "top":    return "bottom"
+    case "bottom": return "top"
+    case "left":   return "right"
+    }
+    return "left"
+}
+
+function sidesOf(barCfg) {
+    const c = barCfg ?? {}
+    const bar = normSide(c.side, "top")
+    let dock = normSide((c.dock ?? {}).side, "bottom")
+    if (dock === bar)
+        dock = oppositeSide(bar)
+    return { bar: bar, dock: dock }
+}
+
+function withSide(barCfg, which, side) {
+    const c = barCfg ?? {}
+    const cur = sidesOf(c)
+    const s = normSide(side, which === "dock" ? cur.dock : cur.bar)
+    let bar = which === "dock" ? cur.bar : s
+    let dock = which === "dock" ? s : cur.dock
+    if (bar === dock) {
+        if (which === "dock")
+            bar = oppositeSide(s)
+        else
+            dock = oppositeSide(s)
+    }
+    return { side: bar, dock: Object.assign({}, c.dock ?? {}, { side: dock }) }
+}
+
+function isVerticalSide(side) {
+    return side === "left" || side === "right"
+}
+
+function isFarSide(side) {
+    return side === "bottom" || side === "right"
+}

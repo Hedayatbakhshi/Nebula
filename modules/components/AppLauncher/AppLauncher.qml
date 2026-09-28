@@ -34,12 +34,45 @@ Scope{
 
             readonly property bool centered: ServiceLauncher.position === "center"
             property bool shown: false
+            property real openT: 0
+
+            onShownChanged: {
+                if (panelWindow.shown) {
+                    closeAnim.stop()
+                    openAnim.restart()
+                } else {
+                    openAnim.stop()
+                    closeAnim.restart()
+                }
+            }
+
+            NumberAnimation {
+                id: openAnim
+                target: panelWindow
+                property: "openT"
+                to: 1
+                duration: M3Motion.spatialDuration("default")
+                easing.type: Easing.BezierSpline
+                easing.bezierCurve: [0.2, 0.0, 0.0, 1.0, 1, 1]
+            }
+
+            NumberAnimation {
+                id: closeAnim
+                target: panelWindow
+                property: "openT"
+                to: 0
+                duration: Math.min(300, Appearance.duration.large - 60)
+                easing.type: Easing.BezierSpline
+                easing.bezierCurve: [0.3, 0.0, 0.8, 0.15, 1, 1]
+            }
 
             implicitWidth: ServiceLauncher.panelWidth
             anchors.left: true
             anchors.right: panelWindow.centered
             anchors.top: true
             anchors.bottom: true
+            margins.left: panelWindow.centered ? 0
+                : (ServiceGaps.barSide === "left" ? ServiceGaps.barReserve : 0) + (ServiceGaps.dockSide === "left" ? ServiceGaps.dockReserve : 0)
             WlrLayershell.namespace: "quickshell:appLauncher"
             WlrLayershell.layer: WlrLayer.Top
             exclusionMode: ExclusionMode.Normal
@@ -173,42 +206,51 @@ Scope{
                     : Math.max(16, Math.min(panelWindow.width - container.width - 16,
                         panelWindow.insetL + (panelWindow.width - panelWindow.insetL - panelWindow.insetR - container.width) / 2))
                 y: (panelWindow.height - container.height) / 2
-                opacity: !panelWindow.centered || panelWindow.shown ? 1 : 0
-                scale: !panelWindow.centered || panelWindow.shown ? 1 : 0.94
-                Behavior on opacity {
-                    EffectsAnim { speed: "default" }
-                }
-                Behavior on scale {
-                    SpatialAnim { speed: "default" }
-                }
-
-                Rectangle {
-                    anchors.fill: parent
-                    visible: panelWindow.centered
-                    radius: ServiceLauncher.radius
-                    color: Settings.layoutColor
-                }
 
                 Item {
-                    id: child
-                    width: panelWindow.centered || panelWindow.shown ? ServiceLauncher.panelWidth : 0
-                    height: Math.min(ServiceLauncher.panelHeight, panelWindow.height - 32)
-                    clip: true
+                    id: card
+                    readonly property real t: panelWindow.centered && !panelWindow.resizing ? panelWindow.openT : 1
+                    readonly property real pillW: Math.min(container.width, Math.max(240, container.width * 0.6))
+                    readonly property real pillH: 56
+                    anchors.centerIn: parent
+                    anchors.verticalCenterOffset: panelWindow.centered ? (1 - card.t) * 36 : 0
+                    width: card.pillW + (container.width - card.pillW) * card.t
+                    height: card.pillH + (container.height - card.pillH) * card.t
+                    opacity: panelWindow.centered ? Math.min(1, card.t * 5) : 1
+                    clip: panelWindow.centered && card.t < 1
 
-                    Behavior on width {
-                        enabled: !panelWindow.centered && !panelWindow.resizing
-                        NumberAnimation {
-                            duration: Appearance.duration.large
-                            easing.type: Easing.OutQuad
-                        }
+                    Rectangle {
+                        anchors.fill: parent
+                        visible: panelWindow.centered
+                        radius: Math.min(card.height / 2, card.pillH / 2 + (ServiceLauncher.radius - card.pillH / 2) * card.t)
+                        color: Settings.layoutColor
                     }
 
-                    AppLauncherContent{
-                        anchors.fill: parent
-                        preview: root.preview
-                        enabled: !root.preview
-                        onClosed:{
-                            GlobalStates.appLauncherOpen = false
+                    Item {
+                        id: child
+                        anchors.centerIn: parent
+                        width: panelWindow.centered || panelWindow.shown ? ServiceLauncher.panelWidth : 0
+                        height: Math.min(ServiceLauncher.panelHeight, panelWindow.height - 32)
+                        clip: true
+
+                        Behavior on width {
+                            enabled: !panelWindow.centered && !panelWindow.resizing
+                            NumberAnimation {
+                                duration: Appearance.duration.large
+                                easing.type: Easing.OutQuad
+                            }
+                        }
+
+                        AppLauncherContent{
+                            anchors.fill: parent
+                            preview: root.preview
+                            enabled: !root.preview
+                            entranceDelay: panelWindow.centered ? 170 : 300
+                            entranceScale: panelWindow.centered ? 1 : 0.92
+                            entranceRise: panelWindow.centered ? 14 : 0
+                            onClosed:{
+                                GlobalStates.appLauncherOpen = false
+                            }
                         }
                     }
                 }

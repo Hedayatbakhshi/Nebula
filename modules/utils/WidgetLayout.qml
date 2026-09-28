@@ -34,13 +34,13 @@ Singleton {
     function nearestFree(self, x, y, w, h) {
         if (root.isFree(self, x, y, w, h)) return Qt.point(x, y)
         const S = WidgetSizes
-        const maxC = S.gridCols - S.cellsCovering(w)
+        const maxC = S.gridCols * 2 - S.halvesCovering(w)
         const maxR = S.gridRows * 2 - S.halvesCovering(h)
         let best = Qt.point(x, y)
         let bestD = Infinity
         for (let c = 0; c <= maxC; c++) {
             for (let r = 0; r <= maxR; r++) {
-                const cx = S.originX + c * S.pitch
+                const cx = S.originX + c * S.colStep
                 const cy = S.originY + r * S.rowStep
                 const d = (cx - x) * (cx - x) + (cy - y) * (cy - y)
                 if (d < bestD && root.isFree(self, cx, cy, w, h)) {
@@ -50,6 +50,32 @@ Singleton {
             }
         }
         return best
+    }
+
+    function firstFree(w, h) {
+        const S = WidgetSizes
+        const maxC = Math.max(0, S.gridCols - S.cellsCovering(w))
+        const maxR = Math.max(0, S.gridRows * 2 - S.halvesCovering(h))
+        for (let r = 0; r <= maxR; r++) {
+            for (let c = 0; c <= maxC; c++) {
+                const x = S.originX + c * S.pitch
+                const y = S.originY + r * S.rowStep
+                if (root.isFree(null, x, y, w, h))
+                    return Qt.point(x, y)
+            }
+        }
+        return Qt.point(S.originX, S.originY)
+    }
+
+    function spotAt(col, halfRow, w, h) {
+        const S = WidgetSizes
+        const c = Math.max(0, Math.min(col, S.gridCols - S.cellsCovering(w)))
+        const r = Math.max(0, Math.min(halfRow, S.gridRows * 2 - S.halvesCovering(h)))
+        const x = S.originX + c * S.pitch
+        const y = S.originY + r * S.rowStep
+        if (root.isFree(null, x, y, w, h))
+            return Qt.point(x, y)
+        return root.nearestFree(null, x, y, w, h)
     }
 
     function fitSpan(self, x, y, c, r, minC, minR) {

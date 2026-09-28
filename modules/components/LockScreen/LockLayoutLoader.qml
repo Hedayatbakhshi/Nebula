@@ -21,6 +21,7 @@ Loader {
         case "darkroom": return cDarkroom
         case "deck":     return cDeck
         case "tessera":  return cTessera
+        case "tear":     return cTear
         default:         return cVeil
         }
     }
@@ -31,4 +32,5 @@ Loader {
     Component { id: cDarkroom; LockLayoutDarkroom { context: root.context; preview: root.preview; exiting: root.exiting; greeter: root.greeter; cfg: root.cfg } }
     Component { id: cDeck;     LockLayoutDeck     { context: root.context; preview: root.preview; exiting: root.exiting; greeter: root.greeter; cfg: root.cfg } }
     Component { id: cTessera;  LockLayoutTessera  { context: root.context; preview: root.preview; exiting: root.exiting; greeter: root.greeter; cfg: root.cfg } }
+    Component { id: cTear;     LockLayoutTear     { context: root.context; preview: root.preview; exiting: root.exiting; greeter: root.greeter; cfg: root.cfg } }
 }

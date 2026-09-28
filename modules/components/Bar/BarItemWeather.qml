@@ -16,26 +16,32 @@ Item {
     readonly property real iconPx: BarLayout.iconPxFor(root.itemId, root.box, 16)
     readonly property real plate: BarLayout.platePxFor(root.box, root.iconPx, 16, 26)
     readonly property bool clickable: SettingsConfig.general.barWeatherPanel ?? true
+    readonly property bool vertical: !!root.host && root.host.vertical === true
+    readonly property bool verticalReady: true
 
     implicitWidth: zone.width
-    implicitHeight: root.plate
+    implicitHeight: zone.height
 
     Rectangle {
         id: zone
         anchors.verticalCenter: parent.verticalCenter
-        width: weatherRow.implicitWidth + BarLayout.scaleFor(root.iconPx, 16, 18, 8)
-        height: root.plate
-        radius: root.plate / 2
+        width: root.vertical ? Math.max(root.plate, weatherRow.implicitWidth + 8)
+            : weatherRow.implicitWidth + BarLayout.scaleFor(root.iconPx, 16, 18, 8)
+        height: root.vertical ? weatherRow.implicitHeight + 10 : root.plate
+        radius: Math.min(width, height) / 2
         color: weatherHov.containsMouse ? Colors.primaryContainer : "transparent"
         Behavior on color { ColorAnimation { duration: 150 } }
 
-        RowLayout {
+        GridLayout {
             id: weatherRow
             anchors.centerIn: parent
-            spacing: BarLayout.scaleFor(root.iconPx, 16, 7, 4)
+            columns: root.vertical ? 1 : -1
+            rowSpacing: 2
+            columnSpacing: BarLayout.scaleFor(root.iconPx, 16, 7, 4)
 
             Image {
                 visible: BarLayout.opt(root.itemId, "showIcon") !== false
+                Layout.alignment: Qt.AlignHCenter
                 Layout.preferredWidth: root.iconPx
                 Layout.preferredHeight: root.iconPx
                 sourceSize.width: root.iconPx
@@ -44,8 +50,9 @@ Item {
             }
 
             CustomText {
+                Layout.alignment: Qt.AlignHCenter
                 content: ServiceWeather.temperature
-                size: BarLayout.scaleFor(root.iconPx, 16, 13, 8); weight: 700
+                size: BarLayout.scaleFor(root.iconPx, 16, root.vertical ? 11 : 13, 8); weight: 700
                 customColor: weatherHov.containsMouse ? Colors.primaryContainerText : Colors.surfaceText
                 Behavior on customColor { ColorAnimation { duration: 150 } }
             }

@@ -11,7 +11,9 @@ import qs.modules.customComponents
 // Minimal bar for secondary monitors: workspaces | clock | status icons
 Item {
     id: root
-    anchors.top:   parent.top
+    readonly property bool atBottom: ServiceGaps.barSide === "bottom"
+    anchors.top:    root.atBottom ? undefined : parent.top
+    anchors.bottom: root.atBottom ? parent.bottom : undefined
     anchors.left:  parent.left
     anchors.right: parent.right
     height: Appearance.size.barHeight

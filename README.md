@@ -1,224 +1,97 @@
 <div align="center">
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/logo/nebula-dark.svg">
+  <img src="assets/logo/nebula-light.svg" alt="Nebula logo" width="96">
+</picture>
+
 # Nebula
 
-*A dreamy desktop shell for Hyprland, built with Quickshell*
+A Material You desktop shell for Hyprland, built with [Quickshell](https://quickshell.outfoxxed.me).
 
-<br/>
+[![Stars](https://img.shields.io/github/stars/iamSt3el/Nebula?style=flat-square&color=9ed49d&labelColor=1a1c19)](https://github.com/iamSt3el/Nebula/stargazers)
+[![License](https://img.shields.io/badge/license-GPL%20v3-9ed49d?style=flat-square&labelColor=1a1c19)](LICENSE)
+[![Tour](https://img.shields.io/badge/watch-the%20tour-9ed49d?style=flat-square&logo=youtube&logoColor=white&labelColor=1a1c19)](https://youtu.be/bYuwrP-WTCs)
 
-[![Stars](https://img.shields.io/github/stars/iamSt3el/Nebula?style=for-the-badge&logo=starship&color=8B5CF6&labelColor=1a1a2e)](https://github.com/iamSt3el/Nebula/stargazers)
-[![License](https://img.shields.io/badge/license-GPL%20v3-6D28D9?style=for-the-badge&labelColor=1a1a2e)](LICENSE)
-[![Quickshell](https://img.shields.io/badge/built%20with-Quickshell-a78bfa?style=for-the-badge&labelColor=1a1a2e)](https://quickshell.outfoxxed.me)
+[Install](#install) · [Command line](#command-line) · [Theming apps](#theming-other-apps)
 
-[![Watch the tour](https://img.shields.io/badge/▶%20Watch%20the%20tour-YouTube-FF0000?style=for-the-badge&logo=youtube&logoColor=white&labelColor=1a1a2e)](https://youtu.be/bYuwrP-WTCs)
+<br>
 
-<br/>
-
-<img src="assets/showcase/dashboard.png" alt="Nebula dashboard" width="100%"/>
-
-<sub><b>Dashboard</b> — sliders, quick toggles, power profiles, grouped notification shade</sub>
-
-<br/><br/>
-
-<img src="assets/showcase/widgets.png" alt="Nebula widget screen" width="100%"/>
-
-<sub><b>Widget screen</b> — everything themed from the wallpaper</sub>
+<img src="assets/showcase/dashboard.png" alt="Nebula on Hyprland: the bar, desktop widgets and the dashboard" width="100%">
 
 </div>
 
----
+## What's inside
 
-## Features
-
-**Shell** — bar (pill or full-width, plus a slim secondary bar for other monitors),
-dashboard, Android-style grouped notification shade, workspace overview, dock with
-hover previews, brightness/volume OSD, lock screen, session menu, and an optional
-[greetd](https://sr.ht/~kennylevinsen/greetd/) login greeter (`greeter.qml`).
-
-**Launcher** — one window, five modes by prefix:
-
-| Prefix | Mode | Example |
-|--------|------|---------|
-| *(none)* | Apps — fuzzy search, pinning, categories | `firefox` |
-| `=` | Calculator + units (libqalculate) | `100 usd to inr` |
-| `>` | Shell command | `>systemctl suspend` |
-| `:` | Emoji picker | `:fire` |
-| `w` | Window switcher | `w term` |
-
-**Widgets** — a full-screen canvas you arrange yourself: analog and digital clocks,
-date cards, weather, system and network monitors, battery, temperature, media
-players, CAVA spectrum, sticky notes, tasks, pomodoro, RSS, moon phase, sun arc.
-
-**Tools**
-
-- **Material You theming** — colours extracted from the wallpaper by
-  `scripts/gen_colors.py` (Python `materialyoucolor`, cached); other apps can pick
-  up the same palette, see [theming other apps](#theming-other-apps)
-- **Nebula Drop** — phone ↔ PC file transfer over Wi-Fi: the shell serves a
-  token-scoped page and shows a QR code, no app on the phone
-- **Clipboard manager** (cliphist, with image previews) · **Screenshots**
-  (grimblast + swappy) · **Screen recording** (native wf-recorder plugin, live pill)
-- **Wallpaper selector** — local folders or [Wallhaven](https://wallhaven.cc) search, animated transitions via awww
-- **Storage** — a treemap of your disk, scanned live
-- **Calendar holidays** — auto-detected from your timezone, no account needed
-- **Game mode**, cheat sheet, music visualizer
-- **Settings panel** — Theme, Appearance, Sound, Media, Networking, Bluetooth,
-  Notifications, Weather, Widgets, Sleep, Storage, About
-
----
+- **Colours from your wallpaper.** A Material You palette for the shell, and for your other apps if you want it.
+- **A bar and dock you edit in place.** Any screen edge, drag items around, undo.
+- **Dashboard and desktop widgets** laid out on grids you build yourself.
+- **Launcher** for apps, maths (`=`), shell commands (`>`), emoji (`:`) and open windows (`w`).
+- **Lock screen** with seven animated layouts, and an optional greetd greeter.
+- **Everyday tools:** notifications, clipboard history, screenshots and recording, a wallpaper browser with Wallhaven search, and Nebula Drop for moving files between your phone and PC over Wi-Fi.
 
 ## Install
+
+Arch Linux only.
 
 ```bash
 bash <(curl -fsSL https://raw.githubusercontent.com/iamSt3el/Nebula/master/install.sh)
 ```
 
-Arch only (uses `pacman`). The script installs `yay` if needed, pulls every pacman
-and AUR package, clones Nebula to `~/.config/quickshell`, creates the Python venv at
-`~/.local/state/quickshell/.venv`, fetches the Rubik font, builds the emoji index and
-the WfRecorder plugin, enables the pipewire / NetworkManager / bluetooth / upower
-services, and exports `NEBULA_VENV` + `QML_IMPORT_PATH` in your shell profile.
+The installer pulls the packages, builds the plugins, sets up Python and links the
+`nebula` command. It never edits your Hyprland config, so start Nebula from your
+autostart yourself:
 
-Flags: `-f` skips confirmations, `-s` skips `pacman -Syu`.
+```lua
+hl.exec_cmd("~/.local/bin/nebula start")
+```
+
+It also starts the wallpaper daemon and the clipboard watcher if they aren't running.
 
 > [!IMPORTANT]
-> **The installer never touches your Hyprland config.** Autostart and keybinds are
-> yours to wire up.
+> Nebula needs **Hyprland 0.56 or newer with a Lua config** (`~/.config/hypr/hyprland.lua`).
+> The classic `hyprland.conf` format is not supported: the shell sends Hyprland its
+> commands in Lua, which a `.conf` setup rejects.
 
-### Hyprland setup
+Then run `nebula setup` to pick a wallpaper, your colours and which apps follow them.
+Shortcuts are global binds named `quickshell:<name>`; a ready-made set lives in
+[`config/hypr/`](config/hypr/).
 
-Nebula is only the shell. It does not ship, generate, or edit your Hyprland config —
-add the autostart and environment lines yourself:
+## Command line
 
-```ini
-exec-once = awww-daemon
-exec-once = wl-paste --watch cliphist store
-exec-once = QSG_RENDER_LOOP=threaded quickshell
-
-env = QML_IMPORT_PATH,$HOME/.local/lib/qt6/qml
-env = NEBULA_VENV,$HOME/.local/state/quickshell/.venv
-```
-
-On Hyprland >= 0.55 with a Lua config, the same thing:
-
-```lua
-hl.exec_cmd("awww-daemon")
-hl.exec_cmd("wl-paste --watch cliphist store")
-hl.exec_cmd("QSG_RENDER_LOOP=threaded quickshell")
-
-hl.env("QML_IMPORT_PATH", os.getenv("HOME") .. "/.local/lib/qt6/qml")
-hl.env("NEBULA_VENV",     os.getenv("HOME") .. "/.local/state/quickshell/.venv")
-```
-
-### Keybindings
-
-Nebula registers these global shortcuts. Bind whatever keys you like to them —
-`quickshell:<name>` — from your own config:
-
-| Shortcut | Opens |
-|----------|-------|
-| `appLauncher` | App launcher |
-| `overview` | Workspace overview |
-| `clipboard` | Clipboard history |
-| `wallpaperLauncher` | Wallpaper selector |
-| `toolsWidget` | Tools / widget screen |
-| `filedrop` | Nebula Drop |
-| `settingOpen` | Settings |
-| `cheatsheet` | Keybinding cheat sheet |
-| `welcome` | First-run setup screen |
-| `lock` · `shutdown` | Lock screen, session menu |
-| `brightnessIncrease` · `brightnessDecrease` | Brightness OSD |
-
-```lua
-hl.bind("SUPER + CTRL + RETURN", hl.dsp.global("quickshell:appLauncher"))
-hl.bind("SUPER + L",             hl.dsp.global("quickshell:lock"), { locked = true })
-```
-
-`{ locked = true }` lets a bind fire on the lock screen. `hyprland.conf` syntax is
-`bind = SUPER, V, global, quickshell:clipboard`; a full set is listed in
-[`config/hypr/nebula.conf`](config/hypr/nebula.conf). The dashboard, notification
-shade, and weather panel open from the bar, not by shortcut.
-
----
-
-## Dependencies
-
-Handled by the installer; the full lists live at the top of
-[`install.sh`](install.sh). In short: `quickshell-git`, `hyprland`, Qt 6
-(base / declarative / wayland / svg / multimedia), pipewire + wireplumber,
-networkmanager, bluez, upower, `awww-git`, `grimblast-git`, `swappy`,
-`wf-recorder`, `wl-clipboard`, `cliphist`, `cava`, `brightnessctl`, `libqalculate`,
-`matugen-bin`, `ttf-material-symbols-variable-git`, and a toolchain
-(`gcc` `cmake` `extra-cmake-modules`) for the recorder plugin. `ddcutil`
-(external-monitor brightness) and `hyprlock` / `hypridle` are optional. Nebula Drop
-also needs `qrencode`, which the installer does not yet pull in — `pacman -S qrencode`.
-
-Python lives outside the repo, found via `NEBULA_VENV`:
+The shell does its background work through one command, and you can use it too:
 
 ```bash
-uv venv --prompt nebula ~/.local/state/quickshell/.venv -p 3.12
-uv pip install materialyoucolor requests Pillow \
-  --python ~/.local/state/quickshell/.venv/bin/python
+nebula start                          # or stop, restart
+nebula setup                          # wallpaper, colours and apps, step by step
+nebula wallpaper set ~/wallpaper/forest.png
+nebula scheme set --mode light        # or --variant vibrant
+nebula apps                           # which apps follow the palette
+nebula doctor                         # anything missing?
 ```
 
-From a clone, by hand: `bash plugins/WfRecorder/build.sh`, export those two
-variables, then `QSG_RENDER_LOOP=threaded quickshell`.
-
----
+`nebula help` lists everything else.
 
 ## Theming other apps
 
-The shell always writes its own palette to `~/.cache/quickshell/colors.json`. It can
-also render that palette into other apps' config files — but **Nebula ships none of
-those configs and will not create them.** Each target is opt-in and silently skipped
-unless *both* sides already exist:
-
-1. a matugen-style template at `~/.config/matugen/templates/<name>`, and
-2. the output file's parent directory
-
-The templates `scripts/gen_colors.py` looks for, and where each lands:
-
-| Template | Written to |
-|----------|------------|
-| `btop.theme` | `~/.config/btop/themes/matugen.theme` |
-| `kitty-colors.conf` | `~/.config/kitty/colors.conf` |
-| `gtk-colors.css` · `gtk4-colors.css` | `~/.config/gtk-3.0/gtk.css` · `gtk-4.0/gtk.css` |
-| `qt-colors.conf` | `~/.config/qt5ct` · `qt6ct/colors/matugen.conf` |
-| `colors.css` | `~/.config/waybar/colors.css` · `nwg-dock-hyprland/colors.css` |
-| `hyprland-colors.conf` | `~/.config/hypr/colors.conf` (then `hyprctl reload`) |
-| `tmux-colors.conf` · `starship.toml` · `pywalfox-colors.json` | `~/.config/tmux/colors.conf` · `~/.config/starship.toml` · `~/.cache/wal/colors.json` |
-
-Only the Hyprland one ships, in [`config/matugen/templates/`](config/matugen/templates/)
-(next to the shell's own two); write the rest yourself in matugen syntax, and include
-the generated file from the app's own config (`include colors.conf` in `kitty.conf`, `@import "colors.css"` in
-waybar, `source = colors.conf` in `hyprland.conf`, and so on). Anything else — nvim,
-your own tools — can just read `colors.json` directly.
-
----
-
-## Configuration
-
-Everything lives in the built-in **Settings panel**, stored at
-`~/.cache/quickshell/settings.json`. Wallhaven search needs an API key, set there.
-
----
+The palette is always written to `~/.cache/quickshell/colors.json`. Nebula can also
+write it into kitty, tmux, Starship, btop, Hyprland, GTK, Qt, Firefox and Zen
+(through Pywalfox), Obsidian, Waybar and nwg-dock, using matugen-style templates in
+`~/.config/matugen/templates/`. Pick the apps in `nebula setup` or with
+`nebula apps enable|disable <id>`. If a file is one you wrote yourself, Nebula keeps
+it as `<file>.bak` before replacing it the first time.
 
 ## Credits
 
-[end_4](https://github.com/end-4) — inspiration, Quickshell patterns, and
+[end_4](https://github.com/end-4) for inspiration, Quickshell patterns and
 [rounded-polygon-qmljs](https://github.com/end-4/rounded-polygon-qmljs) ·
-[soramane](https://github.com/soramanew) — design inspiration ·
-[outfoxxed](https://outfoxxed.me/) — creator of [Quickshell](https://quickshell.outfoxxed.me)
+[soramane](https://github.com/soramanew) for design inspiration ·
+[outfoxxed](https://outfoxxed.me/) for [Quickshell](https://quickshell.outfoxxed.me)
 
 ## License
 
-[GNU GPL v3.0](LICENSE) · Copyright © 2026 iamSt3el
+[GNU GPL v3.0](LICENSE) · © 2026 iamSt3el
 
-`modules/MatrialShapes/` is rounded-polygon-qmljs by end_4, included under its
-original [Apache License 2.0](modules/MatrialShapes/LICENSE).
-
----
-
-<div align="center">
-  <sub>made with ♥ and too many late nights</sub>
-</div>
+The material shape geometry in `plugins/Nebula/shapes.cpp` is a C++ port of
+rounded-polygon-qmljs by end_4, used under its original
+[Apache License 2.0](modules/MatrialShapes/LICENSE).

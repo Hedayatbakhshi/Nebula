@@ -16,7 +16,9 @@ Rectangle {
     Layout.fillWidth: true
     Layout.preferredHeight: tile.compact ? 54 : 62
     radius: 26
-    color: Colors.surfaceContainerHigh
+    property color baseColor: Colors.surfaceContainerHigh
+    property color chipColor: Colors.surfaceContainerHighest
+    color: tile.baseColor
     Behavior on opacity { EffectsAnim { speed: "fast" } }
 
     RowLayout {
@@ -29,7 +31,7 @@ Rectangle {
             Layout.preferredHeight: tile.compact ? 36 : 42
             Layout.preferredWidth:  tile.compact ? 36 : 42
             radius: 14
-            color: tile.on ? Colors.primary : Colors.surfaceContainerHighest
+            color: tile.on ? Colors.primary : tile.chipColor
             Behavior on color { EffectsColorAnim { speed: "fast" } }
 
             MaterialIconSymbol {

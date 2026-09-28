@@ -90,10 +90,8 @@ WidgetHost {
     }
 
     // ── Card ──────────────────────────────────────────────────────────
-    Rectangle {
+    WidgetCard {
         anchors.fill: parent
-        radius: WidgetSizes.radius
-        color: WidgetSizes.cardColor
 
         // ── Header ────────────────────────────────────────────────────
         RowLayout {

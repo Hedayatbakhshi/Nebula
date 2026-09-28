@@ -1,4 +1,7 @@
 //@ pragma UseQApplication
+//@ pragma Env QSG_ATLAS_WIDTH=512
+//@ pragma Env QSG_ATLAS_HEIGHT=512
+//@ pragma Env QSG_DISTANCEFIELD_ANTIALIASING=gray
 import Quickshell
 import QtQuick
 import Quickshell.Wayland
@@ -17,7 +20,12 @@ import qs.modules.components.Screenshot
 import qs.modules.components.GameMode
 import qs.modules.components.CheatSheet
 import qs.modules.components.Overview
-import qs.modules.components.Welcome
+import qs.modules.components.PieMenu
+import qs.modules.components.EdgeLight
+import qs.modules.components.Ripple
+import qs.modules.components.EdgeNotes
+import qs.modules.components.Tuck
+import qs.modules.components.Spotlight
 import qs.modules.customComponents
 import qs.modules.services
 import qs.modules.settings
@@ -32,6 +40,7 @@ ShellRoot{
         delegate: Item{
             required property var modelData
             Layout{
+                id: screenLayout
                 screen: modelData
                 visible: !ServiceGameMode.hideBar
                 isPrimary: {
@@ -43,10 +52,25 @@ ShellRoot{
                     return modelData.name === pm
                 }
             }
+            PanelWindow {
+                screen: modelData
+                visible: !screenLayout.isPrimary && !ServiceGameMode.hideBar
+                    && (ServiceGaps.barSide === "left" || ServiceGaps.barSide === "right")
+                anchors.top: true
+                anchors.left: true
+                anchors.right: true
+                implicitHeight: Appearance.size.barHeight
+                exclusionMode: ExclusionMode.Normal
+                exclusiveZone: Appearance.size.barHeight
+                color: "transparent"
+                mask: Region {}
+                WlrLayershell.namespace: "quickshell:barReserve"
+            }
         }
     }
 
     AppLauncher{}
+    ClipboardPocket{}
     SettingsPanel{}
     ToolsWidget{}
 
@@ -101,7 +125,20 @@ ShellRoot{
     // Workspace manager with live previews — hyprctl dispatch global quickshell:overview
     Overview {}
 
-    WelcomePanel {}
+    PieMenu {}
+
+    EdgeLight {}
+
+    DesktopRipple {}
+
+    EdgeNotes {}
+
+    TuckTabs {}
+
+    Spotlight {}
+
+    property bool screenTimeOn: ServiceScreenTime.enabled
+    property bool scenesReady: ServiceScenes.loaded
 
     // Lock screen - responds to `loginctl lock-session`
     LockScreen {}

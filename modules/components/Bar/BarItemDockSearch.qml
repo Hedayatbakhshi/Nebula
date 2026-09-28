@@ -15,8 +15,10 @@ Item {
     readonly property real pillH: root.icon + 12
     readonly property real pillW: BarLayout.opt(root.itemId, "width") ?? 200
     readonly property bool editing: !!root.host && !!root.host.editing
+    readonly property bool vertical: !!root.host && root.host.vertical === true
+    readonly property bool verticalReady: true
 
-    implicitWidth: root.pillW
+    implicitWidth: root.vertical ? root.icon + 22 : root.pillW
     implicitHeight: root.icon + 22
 
     function handOff(text) {
@@ -43,7 +45,7 @@ Item {
     Rectangle {
         id: pill
         anchors.centerIn: parent
-        width: root.pillW
+        width: root.vertical ? root.pillH : root.pillW
         height: root.pillH
         radius: root.pillH / 2
         color: field.activeFocus ? Colors.surfaceContainerHighest
@@ -53,7 +55,7 @@ Item {
 
         MaterialIconSymbol {
             id: glass
-            anchors { left: parent.left; leftMargin: 14; verticalCenter: parent.verticalCenter }
+            anchors { left: parent.left; leftMargin: root.vertical ? (parent.width - width) / 2 : 14; verticalCenter: parent.verticalCenter }
             content: "search"
             iconSize: 18
             customColor: field.activeFocus ? Colors.primary : Colors.outline
@@ -74,6 +76,7 @@ Item {
             selectionColor: Colors.primary
             selectedTextColor: Colors.primaryText
             clip: true
+            visible: !root.vertical
             enabled: !root.editing
 
             onTextChanged: if (text !== "") root.handOff(text)
@@ -94,9 +97,16 @@ Item {
             id: pillMa
             anchors.fill: parent
             hoverEnabled: true
-            cursorShape: root.editing ? Qt.ArrowCursor : Qt.IBeamCursor
+            cursorShape: root.editing ? Qt.ArrowCursor : root.vertical ? Qt.PointingHandCursor : Qt.IBeamCursor
             acceptedButtons: Qt.LeftButton
-            onClicked: root.claim()
+            onClicked: {
+                if (root.vertical) {
+                    if (!root.editing)
+                        GlobalStates.appLauncherOpen = true
+                    return
+                }
+                root.claim()
+            }
         }
     }
 }

@@ -98,7 +98,7 @@ Item {
 
             LockShapeImage {
                 anchors.fill: parent
-                source: root._music ? (ServiceMusic.activeTrack?.artUrl ?? "") : WallpaperTheme.wallpaper
+                source: root._music ? (ServiceMusic.activeTrack?.artUrl ?? "") : WallpaperTheme.wallpaperScreen
                 trackKey: root._music ? (ServiceMusic.activeTrack?.title ?? "") + "|" + (ServiceMusic.activeTrack?.artist ?? "") : ""
                 shapeName: "cookie12"
                 sourceSize: 1024
@@ -178,6 +178,7 @@ Item {
                 width: Math.min(implicitWidth, 580 * root.u)
                 content: root._music ? (ServiceMusic.activeTrack?.artist ?? "") : LockSession.user
                 size: Math.round(36 * root.u)
+                renderType: Text.QtRendering
                 weight: 400
                 customColor: Colors.surfaceVariantText
             }

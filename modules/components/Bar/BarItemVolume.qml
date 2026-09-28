@@ -21,25 +21,47 @@ Item {
     readonly property real labelPx: BarLayout.scaleFor(root.iconPx, 18, 13, 8)
     readonly property real gapPx: BarLayout.scaleFor(root.iconPx, 18, 6, 3)
     readonly property real padPx: BarLayout.scaleFor(root.iconPx, 18, 18, 8)
+    readonly property bool fill: BarLayout.opt(root.itemId, "style") === "fill"
+    readonly property bool vertical: !!root.host && root.host.vertical === true
+    readonly property bool verticalReady: true
 
     implicitWidth: volPill.width
-    implicitHeight: root.plate
+    implicitHeight: volPill.height
 
     Rectangle {
         id: volPill
         anchors.verticalCenter: parent.verticalCenter
-        width: volRow.implicitWidth + root.padPx
-        height: root.plate
-        radius: root.plate / 2
-        color: root.plateless ? "transparent" : root.plateColor
+        width: root.fill ? fillChip.implicitWidth : root.vertical ? Math.max(root.plate, volRow.implicitWidth + 8)
+            : volRow.implicitWidth + root.padPx
+        height: root.fill ? fillChip.implicitHeight : root.vertical ? volRow.implicitHeight + 10 : root.plate
+        radius: Math.min(width, height) / 2
+        color: root.plateless || root.fill ? "transparent" : root.plateColor
         Behavior on color { ColorAnimation { duration: 150 } }
 
-        RowLayout {
+        BarFillChip {
+            id: fillChip
+            anchors.fill: parent
+            visible: root.fill
+            value: ServicePipewire.muted ? 0 : ServicePipewire.volume
+            icon: ServicePipewire.muted ? "volume_off" : "volume_up"
+            label: ServicePipewire.muted ? (root.vertical ? "" : "Muted") : Math.round(ServicePipewire.volume * 100) + ""
+            vertical: root.vertical
+            widthTemplate: "Muted"
+            iconPx: root.iconPx - 2
+            chipHeight: root.plate
+            hovered: volHov.containsMouse
+        }
+
+        GridLayout {
             id: volRow
+            visible: !root.fill
             anchors.centerIn: parent
-            spacing: root.gapPx
+            columns: root.vertical ? 1 : -1
+            rowSpacing: 1
+            columnSpacing: root.gapPx
 
             MaterialIconSymbol {
+                Layout.alignment: Qt.AlignHCenter
                 content: ServicePipewire.muted ? "volume_off"
                        : ServicePipewire.volume > 0.6 ? "volume_up"
                        : ServicePipewire.volume > 0.2 ? "volume_down"
@@ -50,10 +72,11 @@ Item {
             }
 
             CustomText {
-                visible: BarLayout.opt(root.itemId, "showPercent") !== false
+                visible: BarLayout.opt(root.itemId, "showPercent") !== false && !(root.vertical && ServicePipewire.muted)
+                Layout.alignment: Qt.AlignHCenter
                 content: ServicePipewire.muted ? "Muted"
-                       : Math.round(ServicePipewire.volume * 100) + "%"
-                size: root.labelPx; weight: 700
+                       : Math.round(ServicePipewire.volume * 100) + (root.vertical ? "" : "%")
+                size: root.vertical ? root.labelPx - 2 : root.labelPx; weight: 700
                 customColor: volHov.containsMouse ? Colors.primaryContainerText : Colors.surfaceText
                 Behavior on customColor { ColorAnimation { duration: 150 } }
             }

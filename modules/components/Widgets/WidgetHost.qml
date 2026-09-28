@@ -40,6 +40,7 @@ Item {
     // Heavy widgets can also read this to throttle animation.
     property bool preview: false
 
+
     property bool resizable: false
     property Component optionsComponent: null
     readonly property size defaultSpan: Qt.size(WidgetSizes.cellsFor(tile.width),
@@ -52,10 +53,8 @@ Item {
     property real _dragRows: 0
 
     readonly property bool _loadsSpan: _persists && resizable
-    readonly property int _savedCols: _loadsSpan
-        ? (SettingsConfig.widgets[configKey + "W"] ?? defaultSpan.width) : defaultSpan.width
-    readonly property real _savedRows: _loadsSpan
-        ? (SettingsConfig.widgets[configKey + "H"] ?? defaultSpan.height) : defaultSpan.height
+    readonly property int _savedCols: _loadsSpan ? (SettingsConfig.widgets[configKey + "W"] ?? defaultSpan.width) : defaultSpan.width
+    readonly property real _savedRows: _loadsSpan ? (SettingsConfig.widgets[configKey + "H"] ?? defaultSpan.height) : defaultSpan.height
 
     readonly property int cols: Math.max(minSpan.width,
                                          Math.min(maxSpan.width, resizing ? _dragCols : _savedCols))
@@ -69,16 +68,6 @@ Item {
     property real backdropRadius: WidgetSizes.radius
     property Item backdropMask: null
 
-    property real glassEdge: 26
-    property real glassRefraction: 22
-    property real glassAberration: 3.5
-    property real glassBlur: 7
-    property real glassSpecular: 0.35
-    property real glassBevel: 0.65
-    property real glassSaturation: 1.12
-    property real glassRimLight: 0.22
-    property real glassInnerShadow: 0.30
-
     Loader {
         anchors.fill: parent
         z: -3
@@ -87,37 +76,7 @@ Item {
                 && GlobalStates.widgetBackdropSharp !== null
         visible: active
 
-        sourceComponent: WidgetSizes.liquidGlass
-            ? liquidBackdrop
-            : (root.backdropMask ? maskedBackdrop : clippedBackdrop)
-    }
-
-    Component {
-        id: liquidBackdrop
-
-        ShaderEffect {
-            property variant source: GlobalStates.widgetBackdropSharp
-            property variant shapeMask: root.backdropMask ?? GlobalStates.widgetBackdropSharp
-            property real useMask: root.backdropMask ? 1.0 : 0.0
-            property real cornerRadius: root.backdropRadius
-            property real edgeWidth: root.glassEdge * WidgetSizes.glassStrength
-            property real refraction: root.glassRefraction * WidgetSizes.glassStrength
-            property real aberration: root.glassAberration * WidgetSizes.glassStrength
-            property real blurAmount: root.glassBlur
-            property real specular: root.glassSpecular
-            property real glassAlpha: 1.0
-            property real bevel: root.glassBevel
-            property real saturation: root.glassSaturation
-            property real rimLight: root.glassRimLight
-            property real innerShadow: root.glassInnerShadow
-            property vector2d rectOrigin: Qt.vector2d(root.x, root.y)
-            property vector2d rectSize: Qt.vector2d(root.width, root.height)
-            property vector2d screenSize: GlobalStates.widgetScreenSize
-            property color tintColor: Qt.alpha(Colors.surface, WidgetSizes.cardOpacity)
-            property vector4d srcCrop: Qt.vector4d(1, 1, 0, 0)
-
-            fragmentShader: Qt.resolvedUrl("../../../shaders/qsb/liquidglass.frag.qsb")
-        }
+        sourceComponent: root.backdropMask ? maskedBackdrop : clippedBackdrop
     }
 
     Component {
@@ -181,6 +140,8 @@ Item {
     // ── Position ──────────────────────────────────────────────────────
     readonly property bool _persists: !preview && configKey !== ""
     property bool dragging: false
+    readonly property bool locked: _persists && (SettingsConfig.widgets[configKey + "Locked"] ?? false)
+    readonly property bool selected: _persists && GlobalStates.widgetSettingsKey === configKey
 
     readonly property real homeX: WidgetSizes.snapX(SettingsConfig.widgets[root.configKey + "X"] ?? root.defaultPos.x, root.width)
     readonly property real homeY: WidgetSizes.snapY(SettingsConfig.widgets[root.configKey + "Y"] ?? root.defaultPos.y, root.height)
@@ -268,13 +229,52 @@ Item {
         z: 99
         visible: root.revealT > 0.001
         readonly property bool active: root.dragging || root.resizing
-        // traced in primary, settling to the resting 55% once the edge has passed
         readonly property real settle: Math.max(0, Math.min(1, (root.revealT - 0.45) / 0.55))
         opacity: root.revealT
-        color: active ? Qt.alpha(Colors.primary, 0.10) : "transparent"
+        color: active ? Qt.alpha(Colors.primary, 0.08) : "transparent"
         radius: WidgetSizes.radius
-        border.width: active ? 2 : 1
-        border.color: Qt.alpha(Colors.primary, active ? 0.95 : 0.55 + 0.4 * (1 - settle))
+        border.width: active || root.selected ? 2.5 : 1
+        border.color: active || root.selected ? Colors.primary
+            : Qt.alpha(Colors.surfaceText, 0.16 + 0.5 * (1 - settle))
+    }
+
+    Repeater {
+        model: !(root.selected && root.lifted && !root.dragging) ? []
+            : root.resizable && !root.locked ? [Qt.point(0, 0), Qt.point(1, 0), Qt.point(0, 1)]
+            : [Qt.point(0, 0), Qt.point(1, 0), Qt.point(0, 1), Qt.point(1, 1)]
+
+        Rectangle {
+            required property point modelData
+            z: 101
+            x: modelData.x * root.width - width / 2
+            y: modelData.y * root.height - height / 2
+            width: 14
+            height: 14
+            radius: 7
+            color: Colors.primary
+            border.width: 3
+            border.color: Colors.surface
+        }
+    }
+
+    Rectangle {
+        z: 101
+        visible: root.locked && root.revealT > 0.001
+        opacity: root.revealT
+        anchors.left: parent.left
+        anchors.top: parent.top
+        anchors.margins: 10
+        width: 26
+        height: 26
+        radius: 13
+        color: Qt.alpha(Colors.surface, 0.85)
+
+        MaterialIconSymbol {
+            anchors.centerIn: parent
+            content: "lock"
+            iconSize: 14
+            customColor: Colors.primary
+        }
     }
 
     MouseArea {
@@ -282,16 +282,34 @@ Item {
         z: 100
         enabled: root.lifted
         visible: root.lifted
-        cursorShape: Qt.SizeAllCursor
+        cursorShape: root.locked ? Qt.PointingHandCursor : Qt.SizeAllCursor
         preventStealing: true
 
-        drag.target: root.lifted ? root : undefined
-        drag.threshold: 0
+        property point grab
+        property real grabX: 0
+        property real grabY: 0
 
-        onPressed: {
+        onPressed: mouse => {
+            if (root.locked) return
+            grab = mapToItem(null, mouse.x, mouse.y)
+            grabX = root.x
+            grabY = root.y
             root.dragging = true
             GlobalStates.widgetSettingsKey = ""
+            GlobalStates.widgetQuickAdd = Qt.point(-1, -1)
         }
+
+        // The stage is scaled down in studio mode, so a scene-space delta has to be
+        // divided by that scale to become desktop pixels.
+        onPositionChanged: mouse => {
+            if (!root.dragging) return
+            const p = mapToItem(null, mouse.x, mouse.y)
+            const s = Math.max(0.01, GlobalStates.widgetStageScale)
+            root.x = grabX + (p.x - grab.x) / s
+            root.y = grabY + (p.y - grab.y) / s
+        }
+
+        onClicked: GlobalStates.widgetSettingsKey = root.configKey
 
         // Save before clearing `dragging`: the moment dragging goes false the
         // Binding above re-engages, and it must read the new position, not the
@@ -300,56 +318,7 @@ Item {
             if (!root.dragging) return
             root.savePosition()
             root.dragging = false
-        }
-    }
-
-    Item {
-        id: settingsKnob
-        z: 101
-        // pops in behind the traced outline, and stays visible through the exit sweep;
-        // `enabled` tracks the mode itself so a fading knob never takes a click
-        visible: root.revealT > 0.001 && root._persists
-        enabled: root.lifted && root._persists
-        opacity: root.knobsIn ? 1 : 0
-        scale: root.knobsIn ? 1 : 0.4
-        Behavior on opacity { EffectsAnim { speed: "fast" } }
-        Behavior on scale { SpatialAnim { speed: "fast" } }
-        anchors.right: parent.right
-        anchors.top: parent.top
-        anchors.rightMargin: -12
-        anchors.topMargin: -12
-        width: 36
-        height: 36
-
-        readonly property bool open: GlobalStates.widgetSettingsKey === root.configKey
-
-        Rectangle {
-            anchors.centerIn: parent
-            width: 26
-            height: 26
-            radius: 13
-            color: settingsKnob.open ? Colors.primary : Colors.surfaceContainerHighest
-            border.width: settingsKnob.open ? 0 : 1
-            border.color: Qt.alpha(Colors.primary, 0.55)
-            scale: settingsArea.pressed ? 1.15 : (settingsArea.containsMouse ? 1.08 : 1)
-            Behavior on scale { SpatialAnim { speed: "fast" } }
-            Behavior on color { EffectsColorAnim {} }
-
-            MaterialIconSymbol {
-                anchors.centerIn: parent
-                content: "settings"
-                iconSize: 14
-                customColor: settingsKnob.open ? Colors.primaryText : Colors.primary
-            }
-        }
-
-        MouseArea {
-            id: settingsArea
-            anchors.fill: parent
-            hoverEnabled: true
-            cursorShape: Qt.PointingHandCursor
-            preventStealing: true
-            onClicked: GlobalStates.widgetSettingsKey = settingsKnob.open ? "" : root.configKey
+            GlobalStates.widgetSettingsKey = root.configKey
         }
     }
 
@@ -358,12 +327,10 @@ Item {
         z: 101
         // pops in behind the traced outline, and stays visible through the exit sweep;
         // `enabled` tracks the mode itself so a fading knob never takes a click
-        visible: root.revealT > 0.001 && root.resizable
-        enabled: root.lifted && root.resizable
+        visible: root.revealT > 0.001 && root.resizable && root.selected && !root.locked && !root.dragging
+        enabled: root.lifted && root.resizable && !root.locked
         opacity: root.knobsIn ? 1 : 0
-        scale: root.knobsIn ? 1 : 0.4
         Behavior on opacity { EffectsAnim { speed: "fast" } }
-        Behavior on scale { SpatialAnim { speed: "fast" } }
         anchors.right: parent.right
         anchors.bottom: parent.bottom
         anchors.rightMargin: -12
@@ -373,17 +340,17 @@ Item {
 
         Rectangle {
             anchors.centerIn: parent
-            width: 26
-            height: 26
-            radius: 13
+            width: !root.knobsIn ? 10 : resizeArea.pressed ? 30 : resizeArea.containsMouse ? 28 : 26
+            height: width
+            radius: width / 2
             color: Colors.primary
-            scale: resizeArea.pressed ? 1.15 : (resizeArea.containsMouse ? 1.08 : 1)
-            Behavior on scale { SpatialAnim { speed: "fast" } }
+            Behavior on width { SpatialAnim { speed: "fast" } }
 
             MaterialIconSymbol {
                 anchors.centerIn: parent
                 content: "open_in_full"
-                iconSize: 14
+                iconSize: !root.knobsIn ? 6 : resizeArea.pressed ? 16 : resizeArea.containsMouse ? 15 : 14
+                Behavior on iconSize { SpatialAnim { speed: "fast" } }
                 rotation: 90
                 customColor: Colors.primaryText
             }
@@ -412,12 +379,13 @@ Item {
             onPositionChanged: mouse => {
                 if (!root.resizing) return
                 const p = mapToItem(null, mouse.x, mouse.y)
+                const s = Math.max(0.01, GlobalStates.widgetStageScale)
                 const roomC = WidgetSizes.gridCols - WidgetSizes.colAt(root.x)
                 const roomR = WidgetSizes.gridRows - WidgetSizes.rowAt(root.y)
                 const c = Math.max(root.minSpan.width, Math.min(root.maxSpan.width, roomC,
-                                   WidgetSizes.cellsFor(startW + p.x - start.x)))
+                                   WidgetSizes.cellsFor(startW + (p.x - start.x) / s)))
                 const r = Math.max(root.minSpan.height, Math.min(root.maxSpan.height, roomR,
-                                   WidgetSizes.rowsFor(startH + p.y - start.y)))
+                                   WidgetSizes.rowsFor(startH + (p.y - start.y) / s)))
                 const fit = WidgetLayout.fitSpan(root, root.x, root.y, c, r,
                                                  root.minSpan.width, root.minSpan.height)
                 root._dragCols = fit ? fit.c : c

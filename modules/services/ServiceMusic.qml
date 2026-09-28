@@ -18,7 +18,146 @@ Singleton{
     property var activeTrack
     property string _lastArtUrl: ""
 
-    readonly property string _musicColorsScript: Quickshell.env("HOME") + "/.config/quickshell/scripts/music_colors.sh"
+    property var _hdCache: ({})
+    readonly property int _hdMinSide: 300
+    readonly property string _rawArt: root.activePlayer?.trackArtUrl ?? ""
+
+    function _hdKey(title, artist) {
+        return String(title).toLowerCase() + "|" + String(artist).toLowerCase()
+    }
+
+    function _hdFor(title, artist) {
+        const hit = root._hdCache[root._hdKey(title, artist)]
+        return typeof hit === "string" ? hit : ""
+    }
+
+    function _cleanTitle(t) {
+        return String(t)
+            .replace(/\s*[\(\[][^\)\]]*(remaster|version|official|video|audio|lyric|live|edit|mono|stereo|feat)[^\)\]]*[\)\]]/gi, "")
+            .replace(/\s+-\s+.*(remaster|version|edit|live|mono|stereo).*$/i, "")
+            .trim()
+    }
+
+    function _considerHd() {
+        const p = root.activePlayer
+        if (!p || !p.trackTitle || p.trackTitle === "")
+            return
+        const key = root._hdKey(p.trackTitle, p.trackArtist ?? "")
+        if (root._hdCache[key] !== undefined || artLookup.running || artFetch.running || ytLookup.running)
+            return
+        if (root._rawArt !== "") {
+            if (artProbe.status === Image.Loading || artProbe.status === Image.Null)
+                return
+            if (artProbe.status === Image.Ready && Math.min(artProbe.implicitWidth, artProbe.implicitHeight) >= root._hdMinSide)
+                return
+        }
+        artLookup.forKey = key
+        artLookup.forArtist = String(p.trackArtist ?? "").toLowerCase()
+        artLookup.forAlbum = String(p.trackAlbum ?? "").toLowerCase()
+        artLookup.forQuery = ((p.trackArtist ?? "") + " " + p.trackTitle).trim()
+        artLookup.command = ["curl", "-sf", "-m", "8", "-G", "https://itunes.apple.com/search",
+                             "--data-urlencode", "term=" + ((p.trackArtist ?? "") + " " + root._cleanTitle(p.trackTitle)).trim(),
+                             "--data-urlencode", "entity=song", "--data-urlencode", "limit=8"]
+        artLookup.running = true
+    }
+
+    function _applyHd(key, url) {
+        const cache = Object.assign({}, root._hdCache)
+        cache[key] = url
+        root._hdCache = cache
+        const p = root.activePlayer
+        if (url !== "" && p && root._hdKey(p.trackTitle ?? "", p.trackArtist ?? "") === key && root.activeTrack)
+            root.activeTrack = Object.assign({}, root.activeTrack, { artUrl: url })
+    }
+
+    Image {
+        id: artProbe
+        visible: false
+        asynchronous: true
+        source: root._rawArt
+        onStatusChanged: root._considerHd()
+    }
+
+    Timer {
+        id: hdKick
+        interval: 400
+        onTriggered: root._considerHd()
+    }
+
+    on_RawArtChanged: hdKick.restart()
+
+    Process {
+        id: artLookup
+        property string forKey: ""
+        property string forArtist: ""
+        property string forAlbum: ""
+        property string forQuery: ""
+        stdout: StdioCollector { id: artOut }
+        onExited: {
+            let url = ""
+            try {
+                const results = JSON.parse(artOut.text).results ?? []
+                const a = artLookup.forArtist
+                const byArtist = results.filter(r => {
+                    const n = String(r.artistName ?? "").toLowerCase()
+                    return a === "" || n.includes(a) || a.includes(n)
+                })
+                const pick = byArtist.find(r => String(r.collectionName ?? "").toLowerCase() === artLookup.forAlbum) ?? byArtist[0]
+                if (pick && pick.artworkUrl100)
+                    url = String(pick.artworkUrl100).replace(/\/\d+x\d+bb\./, "/600x600bb.")
+            } catch (e) {
+                url = ""
+            }
+            if (url === "") {
+                ytLookup.forKey = artLookup.forKey
+                ytLookup.command = ["sh", "-c", "command -v yt-dlp >/dev/null && timeout 25 yt-dlp --no-warnings --skip-download --no-playlist --print thumbnail \"ytsearch1:$1\"",
+                                    "sh", artLookup.forQuery]
+                ytLookup.running = true
+                return
+            }
+            root._fetchArt(artLookup.forKey, url, "")
+        }
+    }
+
+    function _fetchArt(key, url, fallback) {
+        const file = root._artDir + "/" + Qt.md5(key) + ".jpg"
+        artFetch.forKey = key
+        artFetch.file = file
+        artFetch.command = ["sh", "-c", "mkdir -p \"$1\"; [ -s \"$2\" ] || { { curl -sf -m 10 -o \"$2.part\" \"$3\" || { [ -n \"$4\" ] && curl -sf -m 10 -o \"$2.part\" \"$4\"; }; } && mv \"$2.part\" \"$2\"; }; [ -s \"$2\" ]",
+                            "sh", root._artDir, file, url, fallback]
+        artFetch.running = true
+    }
+
+    Process {
+        id: ytLookup
+        property string forKey: ""
+        stdout: StdioCollector { id: ytOut }
+        onExited: {
+            const line = ytOut.text.trim().split("\n").pop() ?? ""
+            const m = line.match(/\/vi(?:_webp)?\/([A-Za-z0-9_-]{11})\//)
+            if (!m) {
+                root._applyHd(ytLookup.forKey, "")
+                hdKick.restart()
+                return
+            }
+            root._fetchArt(ytLookup.forKey, "https://i.ytimg.com/vi/" + m[1] + "/maxresdefault.jpg",
+                           "https://i.ytimg.com/vi/" + m[1] + "/hqdefault.jpg")
+        }
+    }
+
+    readonly property string _artDir: Quickshell.env("HOME") + "/.cache/quickshell/art"
+
+    Process {
+        id: artFetch
+        property string forKey: ""
+        property string file: ""
+        onExited: code => {
+            root._applyHd(artFetch.forKey, code === 0 ? "file://" + artFetch.file : "")
+            hdKick.restart()
+        }
+    }
+
+    readonly property string _cli: Quickshell.shellDir + "/bin/nebula"
 
     Process {
         id: musicColorGen
@@ -32,7 +171,8 @@ Singleton{
         if (!artUrl || artUrl === _lastArtUrl) return
         _lastArtUrl = artUrl
         musicColorGen.command = [
-            _musicColorsScript,
+            _cli,
+            "music-colors",
             artUrl,
             SettingsConfig.theme.matugenScheme,
             SettingsConfig.theme.matugenTheme.toLowerCase()
@@ -120,7 +260,7 @@ Singleton{
         }
 
         function onTrackArtUrlChanged() {
-            if (root.activePlayer.uniqueId == root.activeTrack.uniqueId && root.activePlayer.trackArtUrl != root.activeTrack.artUrl) {
+            if (root.activePlayer.uniqueId == root.activeTrack.uniqueId && root.activePlayer.trackArtUrl != root.activeTrack.rawArtUrl) {
                 const r = root.__reverse
                 root.updateTrack()
                 root.__reverse = r
@@ -138,11 +278,13 @@ Singleton{
     onActivePlayerChanged: this.updateTrack()
 
     function updateTrack() {
+        hdKick.restart()
         this.trackLength = 0
         this.refreshLength()
         this.activeTrack = {
             uniqueId: this.activePlayer?.uniqueId ?? 0,
-            artUrl: this.activePlayer?.trackArtUrl ?? "",
+            artUrl: root._hdFor(this.activePlayer?.trackTitle ?? "", this.activePlayer?.trackArtist ?? "") || (this.activePlayer?.trackArtUrl ?? ""),
+            rawArtUrl: this.activePlayer?.trackArtUrl ?? "",
             title: this.activePlayer?.trackTitle || "Unknown Title",
             artist: this.activePlayer?.trackArtist || "Unknown Artist",
             album: this.activePlayer?.trackAlbum || "Unknown Album",

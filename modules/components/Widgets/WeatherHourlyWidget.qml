@@ -90,15 +90,13 @@ WidgetHost {
         return IconUtil.getSystemIcon(ServiceWeather.getWeatherIcon(h.weatherCode, false).svg)
     }
 
-    Rectangle {
+    WidgetCard {
         anchors.fill: parent
-        radius: WidgetSizes.radius
-        color: WidgetSizes.cardColor
 
         ColumnLayout {
             anchors.fill: parent
-            anchors.leftMargin: 20
-            anchors.rightMargin: 14
+            anchors.leftMargin: parent.pad
+            anchors.rightMargin: parent.pad
             anchors.topMargin: 12
             anchors.bottomMargin: 12
             spacing: 6

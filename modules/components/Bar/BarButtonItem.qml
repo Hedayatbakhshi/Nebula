@@ -7,7 +7,8 @@ Rectangle {
 
     property Item host: null
     property string itemId: ""
-    readonly property bool shown: true
+    property bool shown: true
+    property bool alert: false
 
     property string icon: ""
     property bool active: false
@@ -18,6 +19,7 @@ Rectangle {
 
     readonly property bool showLabel: BarLayout.opt(root.itemId, "showLabel") === true
     readonly property color ink: hov.containsMouse ? Colors.primaryContainerText
+                               : root.alert ? Colors.error
                                : root.active ? Colors.primary : Colors.surfaceText
     readonly property bool iconSizable: true
     readonly property real hostIcon: root.host && root.host.iconSize ? root.host.iconSize : 0
@@ -28,6 +30,7 @@ Rectangle {
     readonly property real plate: BarLayout.platePxFor(root.box, root.iconPx,
                                                        root.defaultIcon, root.defaultPlate)
     readonly property color plateColor: hov.containsMouse ? Colors.primaryContainer
+         : root.alert ? Qt.alpha(Colors.error, 0.16)
          : root.active ? Qt.alpha(Colors.primary, 0.18) : "transparent"
     readonly property bool plateless: BarLayout.chipHovers(root.itemId, root.implicitWidth,
                                                            root.implicitHeight)

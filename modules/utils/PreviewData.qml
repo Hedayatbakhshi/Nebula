@@ -41,6 +41,9 @@ Singleton {
     readonly property real netTotalTxBytes: 0.9 * 1024 * 1024 * 1024
 
     readonly property string uptime: "3h 12m"
+    readonly property real memCacheFrac: 0.19
+    readonly property real memBuffersFrac: 0.04
+    readonly property var cpuCores: [0.67, 0.86, 0.55, 0.42, 0.25, 0.31, 0.94, 0.08]
 
     function retain() {}
     function release() {}

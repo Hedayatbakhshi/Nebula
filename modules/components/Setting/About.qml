@@ -7,6 +7,8 @@ import qs.modules.settings
 import qs.modules.services
 import qs.modules.customComponents
 import QtQuick.Controls
+import "../../MatrialShapes/" as MaterialShapes
+import "../../MatrialShapes/material-shapes.js" as MaterialShapeFn
 
 Item {
     id: root
@@ -20,6 +22,9 @@ Item {
     readonly property string prettyDir: root.home !== "" && root.shellDir.startsWith(root.home)
         ? "~" + root.shellDir.slice(root.home.length) : root.shellDir
 
+    readonly property string revision: root.info.revision ?? ""
+    readonly property bool dirty: root.revision.endsWith("*")
+
     readonly property var links: [
         { icon: "code",       label: "GitHub",       url: "https://github.com/iamSt3el/Nebula" },
         { icon: "bug_report", label: "Report issue", url: "https://github.com/iamSt3el/Nebula/issues/new" },
@@ -30,22 +35,16 @@ Item {
         return (v === undefined || v === null || v === "") ? "—" : v
     }
 
-    readonly property var envRows: [
-        { label: "Quickshell", value: root.shown(root.info.quickshell), copyable: false },
-        { label: "Compositor", value: root.shown(root.info.compositor), copyable: false },
-        { label: "Kernel",     value: root.shown(root.info.kernel),     copyable: false },
-        { label: "Distro",     value: root.shown(root.info.distro),     copyable: false }
-    ]
-
-    readonly property var configRows: [
-        { label: "Location", value: root.shown(root.prettyDir),         copyable: true },
-        { label: "Revision", value: root.shown(root.info.revision),     copyable: true },
-        { label: "Uptime",   value: root.shown(ServiceSystemInfo.uptime), copyable: false }
+    readonly property var envTiles: [
+        { icon: "deployed_code", label: "Quickshell", value: root.shown(root.info.quickshell) },
+        { icon: "grid_view",     label: "Compositor", value: root.shown(root.info.compositor) },
+        { icon: "memory",        label: "Kernel",     value: root.shown(root.info.kernel) },
+        { icon: "computer",      label: "Distro",     value: root.shown(root.info.distro) }
     ]
 
     Process {
         id: infoProcess
-        command: ["bash", Quickshell.env("HOME") + "/.config/quickshell/scripts/about_info.sh", root.shellDir]
+        command: [Quickshell.shellDir + "/bin/nebula", "about", root.shellDir]
 
         stdout: StdioCollector {
             onStreamFinished: {
@@ -79,86 +78,133 @@ Item {
             Rectangle {
                 Layout.fillWidth: true
                 Layout.margins: 5
-                implicitHeight: 84
-                radius: 20
-                color: Colors.surfaceContainerHigh
+                implicitHeight: 190
+                radius: 28
+                color: Colors.primaryContainer
 
                 RowLayout {
                     anchors.fill: parent
-                    anchors.leftMargin: 16
-                    anchors.rightMargin: 16
-                    spacing: 14
+                    anchors.leftMargin: 28
+                    anchors.rightMargin: 28
+                    spacing: 24
 
-                    Rectangle {
-                        Layout.preferredWidth: 52
-                        Layout.preferredHeight: 52
+                    Item {
+                        Layout.preferredWidth: 120
+                        Layout.preferredHeight: 120
                         Layout.alignment: Qt.AlignVCenter
-                        radius: 16
-                        color: Colors.primaryContainer
 
-                        Image {
+                        MaterialShapes.ShapeCanvas {
+                            anchors.fill: parent
+                            roundedPolygon: MaterialShapeFn.getCookie9Sided()
+                            color: Colors.primaryContainerText
+                        }
+
+                        NebulaLogo {
                             anchors.centerIn: parent
-                            width: 32; height: 32
-                            sourceSize.width: 32
-                            sourceSize.height: 32
-                            source: IconUtil.getSystemIconPng("nebula")
-                            fillMode: Image.PreserveAspectFit
+                            width: 62
+                            height: 62
+                            color: Colors.primaryContainer
                         }
                     }
 
                     ColumnLayout {
                         Layout.fillWidth: true
                         Layout.alignment: Qt.AlignVCenter
-                        spacing: 3
+                        spacing: 6
 
-                        RowLayout {
-                            spacing: 8
-                            CustomText {
-                                content: "Nebula"; size: 20; weight: 700
-                                customColor: Colors.primary
-                            }
-                            Rectangle {
-                                Layout.alignment: Qt.AlignVCenter
-                                implicitWidth: _ver.implicitWidth + 18
-                                implicitHeight: 21
-                                radius: 11
-                                color: Colors.primaryContainer
-                                CustomText {
-                                    id: _ver
-                                    anchors.centerIn: parent
-                                    content: "v0.2.0-beta"; size: 10; weight: 600
-                                    customColor: Colors.primary
-                                }
-                            }
-                            Item { Layout.fillWidth: true }
+                        CustomText {
+                            content: "Nebula"
+                            size: 44
+                            weight: 800
+                            customColor: Colors.primaryContainerText
                         }
 
                         CustomText {
                             Layout.fillWidth: true
                             content: "A modern desktop shell for Wayland"
-                            size: 12; customColor: Colors.outline
+                            size: 14
+                            customColor: Qt.alpha(Colors.primaryContainerText, 0.85)
                             elide: Text.ElideRight
+                        }
+
+                        RowLayout {
+                            Layout.topMargin: 8
+                            spacing: 8
+
+                            Rectangle {
+                                implicitWidth: versionText.implicitWidth + 24
+                                implicitHeight: 30
+                                radius: 15
+                                color: Colors.primaryContainerText
+
+                                CustomText {
+                                    id: versionText
+                                    anchors.centerIn: parent
+                                    content: "v1.0.0"
+                                    size: 12
+                                    weight: 700
+                                    customColor: Colors.primaryContainer
+                                }
+                            }
+
+                            Rectangle {
+                                visible: root.revision !== ""
+                                implicitWidth: revisionRow.implicitWidth + 24
+                                implicitHeight: 30
+                                radius: 15
+                                color: "transparent"
+                                border.width: 1
+                                border.color: Colors.primaryContainerText
+
+                                RowLayout {
+                                    id: revisionRow
+                                    anchors.centerIn: parent
+                                    spacing: 6
+
+                                    MaterialIconSymbol {
+                                        content: "commit"
+                                        iconSize: 15
+                                        customColor: Colors.primaryContainerText
+                                    }
+
+                                    CustomText {
+                                        content: root.revision.replace("*", "") + (root.dirty ? " · local changes" : "")
+                                        size: 12
+                                        weight: 600
+                                        customColor: Colors.primaryContainerText
+                                    }
+                                }
+                            }
                         }
                     }
                 }
             }
 
             CustomText {
-                Layout.topMargin: 24
+                Layout.topMargin: 18
                 Layout.leftMargin: 5
-                content: "Environment"
+                content: "Running on"
                 size: 13
                 customColor: Colors.primary
             }
 
-            Repeater {
-                model: root.envRows
-                delegate: InfoRow {
-                    required property var modelData
-                    required property int index
-                    row: modelData
-                    first: index === 0
-                    last: index === root.envRows.length - 1
+            GridLayout {
+                Layout.fillWidth: true
+                Layout.leftMargin: 5
+                Layout.rightMargin: 5
+                Layout.topMargin: 3
+                columns: 2
+                rowSpacing: 3
+                columnSpacing: 3
+
+                Repeater {
+                    model: root.envTiles
+                    delegate: EnvTile {
+                        required property var modelData
+                        required property int index
+                        tile: modelData
+                        cell: index
+                    }
                 }
             }
 
@@ -170,14 +216,71 @@ Item {
                 customColor: Colors.primary
             }
 
-            Repeater {
-                model: root.configRows
-                delegate: InfoRow {
-                    required property var modelData
-                    required property int index
-                    row: modelData
-                    first: index === 0
-                    last: index === root.configRows.length - 1
+            CustomCard {
+                id: configCard
+                Layout.leftMargin: 5
+                Layout.rightMargin: 5
+                Layout.topMargin: 3
+                autoRadius: false
+                topRadius: 20
+                bottomRadius: 20
+
+                property bool copied: false
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 12
+
+                    MaterialIconSymbol {
+                        content: "folder"
+                        iconSize: 20
+                        customColor: Colors.outline
+                    }
+
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        spacing: 1
+
+                        CustomText {
+                            content: "Location" + (ServiceSystemInfo.uptime ? " · up " + ServiceSystemInfo.uptime : "")
+                            size: 11
+                            customColor: Colors.outline
+                        }
+
+                        CustomText {
+                            Layout.fillWidth: true
+                            content: root.shown(root.prettyDir)
+                            size: 14
+                            weight: 600
+                            elide: Text.ElideMiddle
+                        }
+                    }
+
+                    M3IconButton {
+                        icon: configCard.copied ? "check" : "content_copy"
+                        iconSize: 18
+                        implicitWidth: 36
+                        implicitHeight: 36
+                        onClicked: {
+                            Quickshell.clipboardText = root.shellDir
+                            configCard.copied = true
+                            copyReset.restart()
+                        }
+                    }
+
+                    M3IconButton {
+                        icon: "folder_open"
+                        iconSize: 18
+                        implicitWidth: 36
+                        implicitHeight: 36
+                        onClicked: Quickshell.execDetached(["xdg-open", root.shellDir])
+                    }
+                }
+
+                Timer {
+                    id: copyReset
+                    interval: 1400
+                    onTriggered: configCard.copied = false
                 }
             }
 
@@ -202,35 +305,23 @@ Item {
                         onClicked: Quickshell.execDetached(["xdg-open", modelData.url])
                     }
                 }
-            }
-
-            RowLayout {
-                Layout.fillWidth: true
-                Layout.leftMargin: 5
-                Layout.rightMargin: 5
-                Layout.bottomMargin: 5
-                spacing: 8
 
                 M3Button {
-                    Layout.fillWidth: true
-                    Layout.preferredWidth: 1
                     size: "xsmall"
                     variant: "outlined"
                     icon: "restart_alt"
-                    label: "Run setup again"
+                    label: "Setup"
                     onClicked: {
                         GlobalStates.settingsOpen = false
-                        GlobalStates.welcomeOpen = true
+                        Quickshell.execDetached([Quickshell.shellDir + "/bin/nebula", "setup"])
                     }
                 }
 
                 M3Button {
-                    Layout.fillWidth: true
-                    Layout.preferredWidth: 1
                     size: "xsmall"
                     variant: "outlined"
                     icon: "refresh"
-                    label: "Restart shell"
+                    label: "Restart"
                     onClicked: Quickshell.reload(true)
                 }
             }
@@ -241,70 +332,59 @@ Item {
         flickable: pageFlick
     }
 
-    component InfoRow: CustomCard {
-        id: card
+    component EnvTile: Rectangle {
+        id: tileRect
 
-        property var row: ({})
-        property bool first: false
-        property bool last: false
-        property bool copied: false
+        property var tile: ({})
+        property int cell: 0
 
-        Layout.leftMargin: 5
-        Layout.rightMargin: 5
-        autoRadius: false
-        topRadius: card.first ? 20 : 5
-        bottomRadius: card.last ? 20 : 5
-        implicitHeight: 48
+        Layout.fillWidth: true
+        Layout.preferredWidth: 1
+        implicitHeight: 68
+        color: Colors.surfaceContainerHigh
+        topLeftRadius: tileRect.cell === 0 ? 20 : 5
+        topRightRadius: tileRect.cell === 1 ? 20 : 5
+        bottomLeftRadius: tileRect.cell === 2 ? 20 : 5
+        bottomRightRadius: tileRect.cell === 3 ? 20 : 5
 
         RowLayout {
-            Layout.fillWidth: true
-            spacing: 10
+            anchors.fill: parent
+            anchors.leftMargin: 16
+            anchors.rightMargin: 16
+            spacing: 12
 
-            CustomText {
-                content: card.row.label ?? ""
-                size: 12
-                customColor: Colors.outline
-            }
-
-            CustomText {
-                Layout.fillWidth: true
-                content: card.row.value ?? ""
-                size: 13
-                weight: 600
-                customColor: Colors.surfaceText
-                horizontalAlignment: Text.AlignRight
-                elide: Text.ElideMiddle
-            }
-
-            Item {
-                visible: card.row.copyable === true
-                Layout.preferredWidth: 18
-                Layout.preferredHeight: 18
+            Rectangle {
+                Layout.preferredWidth: 40
+                Layout.preferredHeight: 40
+                radius: 20
+                color: Colors.secondaryContainer
 
                 MaterialIconSymbol {
                     anchors.centerIn: parent
-                    content: card.copied ? "check" : "content_copy"
-                    iconSize: 16
-                    customColor: card.copied ? Colors.primary : Colors.outline
-                }
-
-                MouseArea {
-                    anchors.fill: parent
-                    anchors.margins: -7
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: {
-                        Quickshell.clipboardText = card.row.value ?? ""
-                        card.copied = true
-                        copyReset.restart()
-                    }
+                    content: tileRect.tile.icon ?? ""
+                    iconSize: 20
+                    customColor: Colors.secondaryContainerText
                 }
             }
-        }
 
-        Timer {
-            id: copyReset
-            interval: 1400
-            onTriggered: card.copied = false
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: 2
+
+                CustomText {
+                    content: tileRect.tile.label ?? ""
+                    size: 11
+                    customColor: Colors.outline
+                }
+
+                CustomText {
+                    Layout.fillWidth: true
+                    content: tileRect.tile.value ?? ""
+                    size: 15
+                    weight: 600
+                    elide: Text.ElideRight
+                }
+            }
         }
     }
 }

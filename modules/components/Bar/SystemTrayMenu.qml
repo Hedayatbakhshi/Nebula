@@ -100,7 +100,6 @@ PopupWindow{
                 spacing: 4
 
                 opacity: show ? 1 : 0
-                scale: show ? 1 : 0.8
 
                 Component.onCompleted: show = true
                 StackView.onActivating: show = true
@@ -115,13 +114,6 @@ PopupWindow{
 
 
                 Behavior on opacity{
-                    NumberAnimation{
-                        duration: 200
-                        easing.type: Easing.OutQuad
-                    }
-                }
-
-                Behavior on scale{
                     NumberAnimation{
                         duration: 200
                         easing.type: Easing.OutQuad

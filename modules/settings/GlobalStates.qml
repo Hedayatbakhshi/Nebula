@@ -15,6 +15,34 @@ Singleton{
     property real previewInsetLeft: 0
     property real previewInsetRight: 0
     property bool clipboardOpen: false
+    property var dockIconItems: ({})
+    property int dockIconsVersion: 0
+    property string notifLiftApp: ""
+    property bool dockPeek: false
+    property var notifBadges: ({})
+
+    function registerDockIcon(appId, item) {
+        const k = (appId ?? "").toLowerCase()
+        if (k === "") return
+        const list = root.dockIconItems[k] ?? []
+        if (list.indexOf(item) < 0) list.push(item)
+        root.dockIconItems[k] = list
+        root.dockIconsVersion++
+    }
+
+    function unregisterDockIcon(appId, item) {
+        const k = (appId ?? "").toLowerCase()
+        const list = (root.dockIconItems[k] ?? []).filter(i => i !== item)
+        if (list.length > 0) root.dockIconItems[k] = list
+        else delete root.dockIconItems[k]
+        root.dockIconsVersion++
+    }
+
+    function dockIconIn(key, near) {
+        const list = root.dockIconItems[key] ?? []
+        const win = near ? near.Window.window : null
+        return list.find(i => i && i.visible && (!win || i.Window.window === win)) ?? null
+    }
     property bool settingsOpen: false
     property int  settingsPage: 9
     property bool widgetEditMode: false
@@ -59,10 +87,26 @@ Singleton{
     }
     property bool dockPresent: true
     property string widgetSettingsKey: ""
+    property int widgetSection: 0
+    property string widgetStudioTab: "layout"
+    property real widgetStageScale: 1
+    property point widgetStageOrigin: Qt.point(0, 0)
+    property point widgetQuickAdd: Qt.point(-1, -1)
+    property bool widgetOpenAdd: false
+
+    onWidgetEditModeChanged: {
+        if (root.widgetEditMode)
+            return
+        root.widgetQuickAdd = Qt.point(-1, -1)
+        root.widgetOpenAdd = false
+        root.widgetSettingsKey = ""
+        root.widgetStudioTab = "layout"
+    }
     // True only while a desktop widget's text field holds focus. Drives the
     // widget layer's keyboard mode so it never holds the keyboard at rest.
     property bool widgetTextFocus: false
     property bool osdOpen: false
+    property bool liveIsland: false
     property bool wallpaperOpen: false
     property bool lockSelectorOpen: false
     property bool toolsWidgetOpen: false
@@ -70,13 +114,14 @@ Singleton{
     property bool fileDialogOpen: false
     property bool areaSelectOpen: false
     property bool liveTextOpen: false
+    property bool sessionLocked: false
     property bool cheatSheetOpen: false
     property bool overviewOpen: false
     property bool fileDropOpen: false
     property bool powerPanelOpen: false
+    property bool scenesPanelOpen: false
     property bool dockSearchActive: false
     property string launcherSeed: ""
-    property bool welcomeOpen: false
     property int notificationCenterCount: 0
     property var widgetBackdrop: null
     property var widgetBackdropSharp: null
@@ -85,5 +130,12 @@ Singleton{
     property real desktopCursorY: 0
     property bool desktopCursorActive: false
     readonly property bool notificationCenterOpen: root.notificationCenterCount > 0
+    signal dashboardRequested()
+    signal pieRequested()
+    signal desktopClicked(string screenName, real x, real y)
+    signal desktopDragged(string screenName, real x, real y)
+    function openDashboard() {
+        root.dashboardRequested()
+    }
     property string areaSelectMode: ""   // "screenshot" or "recording"
 }

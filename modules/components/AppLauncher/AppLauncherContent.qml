@@ -17,6 +17,9 @@ Item {
     signal closed
 
     property bool preview: false
+    property int entranceDelay: 300
+    property real entranceScale: 0.92
+    property real entranceRise: 0
 
     onVisibleChanged: if (visible && col.visible && !appLauncher.preview) appLauncher.focusSearch()
 
@@ -161,7 +164,7 @@ Item {
     onClosed: {
         col.visible = false
         col.opacity = 0
-        col.scale   = 0.92
+        col.scale   = appLauncher.entranceScale
         if (appLauncher.searchField) appLauncher.searchField.text = ""
         appLauncher.query = ""
         ServiceApps.reset()
@@ -227,6 +230,10 @@ Item {
             return
         }
         if (!view) return
+        if (view.navigate && view.navigate(event.key)) {
+            event.accepted = true
+            return
+        }
         const cols = view.columns ?? 1
         const grid = cols > 1
         const last = (view.navCount ?? view.count) - 1
@@ -263,7 +270,7 @@ Item {
                 showTimer.stop()
                 col.visible = false
                 col.opacity = 0
-                col.scale   = 0.92
+                col.scale   = appLauncher.entranceScale
             }
         }
     }
@@ -274,11 +281,12 @@ Item {
         anchors.margins: 10
         visible: false
         opacity: 0
-        scale: 0.92
+        scale: appLauncher.entranceScale
+        transform: Translate { id: colRise; y: 0 }
 
         Timer {
             id: showTimer
-            interval: 300
+            interval: appLauncher.entranceDelay
             onTriggered: {
                 col.visible = true
                 entranceAnim.start()
@@ -297,8 +305,15 @@ Item {
             }
             NumberAnimation {
                 target: col; property: "scale"
-                from: 0.92; to: 1
+                from: appLauncher.entranceScale; to: 1
                 duration: 320; easing.type: Easing.OutBack; easing.overshoot: 1.5
+            }
+            NumberAnimation {
+                target: colRise; property: "y"
+                from: appLauncher.entranceRise; to: 0
+                duration: M3Motion.spatialDuration("default")
+                easing.type: Easing.BezierSpline
+                easing.bezierCurve: [0.2, 0.0, 0.0, 1.0, 1, 1]
             }
         }
 
@@ -312,6 +327,7 @@ Item {
                 case "bento":      return bentoComp
                 case "folders":    return foldersComp
                 case "expressive": return expressiveComp
+                case "hearth":     return hearthComp
                 }
                 return listComp
             }
@@ -329,6 +345,7 @@ Item {
     Component { id: foldersComp;    LauncherStyleFolders    { launcher: appLauncher } }
     Component { id: listComp;       LauncherStyleList       { launcher: appLauncher } }
     Component { id: expressiveComp; LauncherStyleExpressive { launcher: appLauncher } }
+    Component { id: hearthComp;     LauncherStyleHearth     { launcher: appLauncher } }
 
     // ── Context menu click-away ────────────────────────────────────────────
     MouseArea {

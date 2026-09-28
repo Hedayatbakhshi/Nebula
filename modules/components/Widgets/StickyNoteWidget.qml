@@ -42,17 +42,15 @@ WidgetHost {
         }
     }
 
-    Rectangle {
+    WidgetCard {
         anchors.fill: parent
-        radius: WidgetSizes.radius
-        color: WidgetSizes.cardColor
 
         RowLayout {
             id: header
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.top: parent.top
-            anchors.margins: 16
+            anchors.margins: parent.pad
             spacing: 6
 
             MaterialIconSymbol { content: "sticky_note_2"; iconSize: 15; customColor: Colors.primary }

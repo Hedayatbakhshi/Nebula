@@ -30,7 +30,23 @@ Rectangle {
         visible: active
         anchors.fill: parent
 
-        sourceComponent: ColumnLayout {
+        sourceComponent: ServiceWallpaper.panelStyle === "hearth" ? hearthComp
+            : ServiceWallpaper.panelStyle === "seat" ? seatComp : classicComp
+    }
+
+    Component {
+        id: hearthComp
+        WallpaperHearth {}
+    }
+
+    Component {
+        id: seatComp
+        WallpaperSeat {}
+    }
+
+    Component {
+        id: classicComp
+        ColumnLayout {
             id: col
             anchors.fill: parent
             anchors.margins: 10
@@ -42,7 +58,7 @@ Rectangle {
             property real barH: ServiceWallpaper.onlineMode ? 82 : 50
             Behavior on barH { NumberAnimation { duration: Appearance.duration.normal; easing.type: Easing.OutQuad } }
 
-            Component.onCompleted: searchInput.forceActiveFocus()
+            Component.onCompleted: if (!GlobalStates.barEditMode) searchInput.forceActiveFocus()
 
             ListModel { id: onlineRowModel }
 
@@ -754,8 +770,6 @@ Rectangle {
                                             Item {
                                                 id: maskContainer
                                                 anchors.fill: parent
-                                                scale: tileHover.hovered ? 0.97 : 1.0
-                                                Behavior on scale { NumberAnimation { duration: 200; easing.type: Easing.OutQuad } }
 
                                                 layer.enabled: true
                                                 layer.effect: OpacityMask {

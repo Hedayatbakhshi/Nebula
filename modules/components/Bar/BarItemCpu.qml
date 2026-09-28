@@ -5,9 +5,9 @@ BarStatItem {
     widthTemplate: "100%"
     icon: "memory"
     shortLabel: "CPU"
-    detail: Math.round(ServiceSystemInfo.cpuTemp) + "°C"
-    detailTemplate: "100°C"
     value: ServiceSystemInfo.cpuUsage
+    secondary: ServiceSystemInfo.cpuTemp / 100
+    cores: ServiceSystemInfo.cpuCores
     label: Math.round(ServiceSystemInfo.cpuUsage * 100) + "%"
     tip: "CPU " + Math.round(ServiceSystemInfo.cpuUsage * 100) + "%"
 }

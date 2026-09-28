@@ -1,0 +1,5 @@
+[config]
+
+[templates.quickshell_music]
+input_path  = '~/.config/matugen/templates/quickshell-music-colors.json'
+output_path = '~/.cache/quickshell/music_colors.json'

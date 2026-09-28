@@ -6,6 +6,10 @@ import qs.modules.services
 Rectangle {
     id: root
     property string entry: ""
+    readonly property string path: clipImage.imagePath
+    readonly property bool ready: clipImage.status === Image.Ready
+    readonly property rect painted: Qt.rect(clipImage.x, clipImage.y, clipImage.width, clipImage.height)
+    readonly property var dims: clipImage.dims
 
     color: "transparent"
 

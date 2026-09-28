@@ -84,6 +84,97 @@ Item {
 
                 CustomCard {
                     autoRadius: false; topRadius: 20; bottomRadius: 5
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        spacing: 10
+                        ColumnLayout {
+                            spacing: 2
+                            CustomText { content: "Popup Style"; size: 14 }
+                            CustomText { content: "Where new notifications appear and how they arrive"; size: 12; customColor: Colors.outline }
+                        }
+                        M3ButtonGroup {
+                            model: [
+                                { value: "corner", label: "Corner",      icon: "bottom_right_click" },
+                                { value: "bar",    label: "Bar tab",     icon: "top_panel_open" },
+                                { value: "dock",   label: "Dock toast",  icon: "bottom_panel_open" },
+                                { value: "icon",   label: "Icon bubble", icon: "chat_bubble" }
+                            ]
+                            activeCheck: function(value) { return (SettingsConfig.general?.notifPopupStyle ?? "corner") === value }
+                            onSegmentClicked: function(value) {
+                                SettingsConfig.general = Object.assign({}, SettingsConfig.general, { notifPopupStyle: value })
+                            }
+                        }
+                    }
+                }
+
+                CustomCard {
+                    autoRadius: false; topRadius: 5; bottomRadius: 5
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        spacing: 10
+                        ColumnLayout {
+                            spacing: 2
+                            CustomText { content: "Edge Light"; size: 14 }
+                            CustomText { content: "Light sweeps around the screen edge in the app's colour. Important = urgent notifications and the apps listed below"; size: 12; customColor: Colors.outline; wrapMode: Text.WordWrap; Layout.fillWidth: true }
+                        }
+                        M3ButtonGroup {
+                            model: [
+                                { value: "off",       label: "Off",       icon: "block" },
+                                { value: "important", label: "Important", icon: "priority_high" },
+                                { value: "all",       label: "All",       icon: "light_mode" }
+                            ]
+                            activeCheck: function(value) { return (SettingsConfig.notifications?.edgeLight ?? "important") === value }
+                            onSegmentClicked: function(value) {
+                                SettingsConfig.notifications = Object.assign({}, SettingsConfig.notifications, { edgeLight: value })
+                            }
+                        }
+                        Rectangle {
+                            Layout.fillWidth: true
+                            implicitHeight: 34
+                            radius: 10
+                            color: Colors.surfaceContainerHighest
+                            visible: (SettingsConfig.notifications?.edgeLight ?? "important") === "important"
+
+                            RowLayout {
+                                anchors.fill: parent
+                                anchors.leftMargin: 10; anchors.rightMargin: 10
+                                spacing: 6
+
+                                MaterialIconSymbol { content: "apps"; iconSize: 16; customColor: Colors.outline }
+
+                                Item {
+                                    Layout.fillWidth: true
+                                    Layout.fillHeight: true
+
+                                    TextInput {
+                                        id: edgeApps
+                                        anchors.fill: parent
+                                        text: Array.from(SettingsConfig.notifications?.edgeLightApps ?? []).join(", ")
+                                        color: Colors.inverseSurface
+                                        font.pixelSize: 13
+                                        clip: true
+                                        verticalAlignment: TextInput.AlignVCenter
+                                        onEditingFinished: {
+                                            const list = text.split(",").map(x => x.trim()).filter(x => x.length > 0)
+                                            SettingsConfig.notifications = Object.assign({}, SettingsConfig.notifications, { edgeLightApps: list })
+                                        }
+                                    }
+
+                                    CustomText {
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        visible: edgeApps.text.length === 0 && !edgeApps.activeFocus
+                                        content: "Apps that count as important, e.g. discord, telegram"
+                                        size: 12
+                                        customColor: Colors.outline
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                CustomCard {
+                    autoRadius: false; topRadius: 5; bottomRadius: 5
                     RowLayout {
                         Layout.fillWidth: true
                         ColumnLayout {

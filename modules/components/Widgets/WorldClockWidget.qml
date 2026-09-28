@@ -145,14 +145,12 @@ WidgetHost {
         return { h: shifted.getUTCHours(), m: shifted.getUTCMinutes() }
     }
 
-    Rectangle {
+    WidgetCard {
         anchors.fill: parent
-        radius: WidgetSizes.radius
-        color: WidgetSizes.cardColor
 
         RowLayout {
             anchors.fill: parent
-            anchors.margins: 14
+            anchors.margins: parent.pad
             spacing: 0
 
             Repeater {

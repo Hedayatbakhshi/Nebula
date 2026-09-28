@@ -16,9 +16,24 @@ Singleton{
     property real scoreThreshold: 0.2
     property var allApplications: DesktopEntries.applications
     property real totalApps: allApplications.values.length
-    readonly property list<DesktopEntry> list: Array.from(DesktopEntries.applications.values)
-    .sort((a, b) => a.name.localeCompare(b.name))   
-    readonly property list<DesktopEntry> pinnedApps: list.filter(app => SettingsConfig.general.pinnedApps.includes(app.id))
+    property list<DesktopEntry> list: []
+    function rebuildList(): void {
+        root.list = Array.from(DesktopEntries.applications.values).sort((a, b) => a.name.localeCompare(b.name))
+    }
+    Component.onCompleted: root.rebuildList()
+    Connections {
+        target: DesktopEntries.applications
+        function onValuesChanged() { listRebuild.restart() }
+    }
+    Timer {
+        id: listRebuild
+        interval: 150
+        onTriggered: root.rebuildList()
+    }
+    readonly property list<DesktopEntry> pinnedApps: {
+        const pins = new Set(SettingsConfig.general.pinnedApps)
+        return list.filter(app => pins.has(app.id))
+    }
 
     readonly property var dockModel: {
         const map = new Map()

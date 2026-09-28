@@ -16,10 +16,14 @@ Scope {
     Connections {
         target: ServicePipewire.sink?.audio ?? null
         function onVolumeChanged() {
+            if (GlobalStates.liveIsland)
+                return
             GlobalStates.osdOpen = true
             osdTimer.restart()
         }
         function onMutedChanged() {
+            if (GlobalStates.liveIsland)
+                return
             GlobalStates.osdOpen = true
             osdTimer.restart()
         }

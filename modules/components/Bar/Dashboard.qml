@@ -8,30 +8,19 @@ import qs.modules.customComponents
 import qs.modules.services
 import qs.modules.settings
 import qs.modules.components.Bar.DashboardSections
+import "DashGrid.js" as DashGrid
 import "../../MatrialShapes/" as MaterialShapes
 import "../../MatrialShapes/material-shapes.js" as MatrialShapeFn
-import "DashOps.js" as DashOps
 
 Item{
     id: root
     anchors.fill: parent
 
-    implicitHeight: cols.implicitHeight + root.pad * 2
+    implicitHeight: root.shownRows * (DashLayout.rowHeight + DashLayout.gap) - DashLayout.gap + root.pad * 2
     readonly property real pad: root.compact ? 7 : 10
-    readonly property int autoColumns: root.width >= 900 ? 3 : root.width >= 520 ? 2 : 1
-    readonly property int fitColumns: Math.max(1, Math.floor(root.width / 260))
-    readonly property int columnCount: DashLayout.columnsSetting > 0
-        ? Math.min(DashLayout.columnsSetting, root.fitColumns) : root.autoColumns
-    readonly property bool hasNotifications: DashLayout.visibleIds.indexOf("notifications") >= 0
-    readonly property bool split: root.columnCount > 1 && root.hasNotifications
     readonly property bool short: root.height > 0 && root.height < 380
-    readonly property bool dense: DashLayout.density === "compact" ? true
-        : DashLayout.density === "comfortable" ? root.compact
-        : (root.compact || root.short)
-    readonly property int stackColumns: Math.min(2, root.split ? root.columnCount - 1 : root.columnCount)
+    readonly property bool dense: root.compact || root.short
 
-    onSplitChanged: root.syncSections()
-    onStackColumnsChanged: root.syncSections()
     property string panelMode: ""   // "" | "wifi" | "bluetooth" | "modes"
     property bool   compact:   false
 
@@ -134,7 +123,7 @@ Item{
 
         x: root.pos ? root.pos.x : 0
         y: root.pos ? root.pos.y : 0
-        width:  root.srcSize ? root.srcSize.width  : (root.controlsItem?.width ?? 300)
+        width:  root.srcSize ? root.srcSize.width  : root.overlayW
         height: root.srcSize ? root.srcSize.height : 60
         radius: root.srcRadius
         opacity: {
@@ -157,8 +146,8 @@ Item{
                     target: container
                     x: root.parentPos ? root.parentPos.x : 0
                     y: root.parentPos ? root.parentPos.y : 0
-                    width: (root.controlsItem?.width ?? 300)
-                    height: (root.controlsItem?.height ?? 60) + 400
+                    width: root.overlayW
+                    height: root.overlayH
                     radius: 20
                 }
             },
@@ -169,7 +158,7 @@ Item{
                     target: container
                     x: root.parentPos ? root.parentPos.x : 0
                     y: root.parentPos ? root.parentPos.y : 0
-                    width: (root.controlsItem?.width ?? 300)
+                    width: root.overlayW
                     height: 310
                     radius: 20
                 }
@@ -181,8 +170,8 @@ Item{
                     target: container
                     x: root.parentPos ? root.parentPos.x : 0
                     y: root.parentPos ? root.parentPos.y : 0
-                    width: (root.controlsItem?.width ?? 300)
-                    height: (root.controlsItem?.height ?? 60) + 400
+                    width: root.overlayW
+                    height: root.overlayH
                     radius: 20
                 }
             }
@@ -266,283 +255,448 @@ Item{
         return sel.indexOf("dash:") === 0 ? sel.slice(5) : ""
     }
 
-    property string dragKey: ""
-    property int dragFrom: -1
-    property int dragTo: -1
-    property real dragH: 0
-    readonly property bool dragActive: root.dragKey !== ""
-
-    function labelFor(key) {
-        const e = DashLayout.entry(key)
-        return e ? e.label : key
+    readonly property real cellW: Math.max(24, (grid.width - DashLayout.gap * (DashLayout.columns - 1)) / DashLayout.columns)
+    readonly property bool fitRows: DashLayout.fitRows && BarLayout.panelH("dashboard") >= 0 && root.height > 0
+    readonly property real rowH: root.fitRows
+        ? Math.max(28, ((root.height - root.pad * 2 + DashLayout.gap) / Math.max(1, DashLayout.rowsUsed)) - DashLayout.gap)
+        : DashLayout.rowHeight
+    readonly property real pitchY: root.rowH + DashLayout.gap
+    readonly property var shownItems: root.preview ?? DashLayout.items
+    readonly property int shownRows: Math.max(1, DashGrid.rowsUsed(root.shownItems) + (root.editing ? 2 : 0))
+    readonly property real gridH: root.shownRows * root.pitchY - DashLayout.gap
+    readonly property bool anyFills: false
+    readonly property var occupied: {
+        const o = {}
+        for (const it of root.shownItems)
+            for (let yy = it.y; yy < it.y + it.h; yy++)
+                for (let xx = it.x; xx < it.x + it.w; xx++)
+                    o[xx + "," + yy] = true
+        return o
     }
 
-    function fillsFor(key) {
-        return DashLayout.opt(key, "fill") === true
+    property string dragId: ""
+    property string dragMode: ""
+    property string dragKind: ""
+    property var preview: null
+    property bool overBin: false
+    readonly property var ghost: {
+        if (!root.preview || root.overBin)
+            return null
+        return root.preview.find(i => i.id === (root.dragMode === "new" ? "__new" : root.dragId)) ?? null
     }
 
-    readonly property bool anyFills: DashLayout.visibleIds.some(k => root.fillsFor(k))
-
-    function selectSection(key) {
-        if (BarLayout.editor)
-            BarLayout.editor.selectedItem = "dash:" + key
-    }
-
-    function hideSection(key) {
-        if (BarLayout.editor && BarLayout.editor.selectedItem === "dash:" + key)
-            BarLayout.editor.selectedItem = "dashboard"
-        DashLayout.hideSection(key)
-    }
-
-    function beginDrag(key, index, h) {
-        root.dragKey = key
-        root.dragFrom = index
-        root.dragTo = index
-        root.dragH = h
-        root.applyShifts()
-    }
-
-    function updateDrag(dy) {
-        const self = rep.itemAt(root.dragFrom)
-        if (!self)
-            return
-        self.dragY = dy
-        const rects = []
-        for (let i = 0; i < rep.count; i++) {
-            const s = rep.itemAt(i)
-            rects.push(s ? { y: s.y, h: s.height } : null)
+    function specOf(id) {
+        if (root.preview) {
+            const p = root.preview.find(i => i.id === id)
+            if (p)
+                return p
+            if (root.overBin && id === root.dragId)
+                return null
         }
-        const k = DashOps.dropIndex(rects, root.dragFrom, self.y + self.height / 2 + dy)
-        if (k !== root.dragTo) {
-            root.dragTo = k
-            root.applyShifts()
-        }
+        return DashLayout.items.find(i => i.id === id) ?? null
     }
 
-    function applyShifts() {
-        const step = root.dragH + col.spacing
-        for (let i = 0; i < rep.count; i++) {
-            const s = rep.itemAt(i)
-            if (!s || i === root.dragFrom)
-                continue
-            s.shift = DashOps.shiftFor(i, root.dragFrom, root.dragTo, step)
-        }
+    onEditingChanged: {
+        if (root.editing)
+            DashLayout.activeDash = root
+        else if (DashLayout.activeDash === root)
+            DashLayout.activeDash = null
+        root.cancelDrag()
     }
+    Component.onDestruction: if (DashLayout.activeDash === root) DashLayout.activeDash = null
 
-    function clearDrag() {
-        for (let i = 0; i < rep.count; i++) {
-            const s = rep.itemAt(i)
-            if (s) {
-                s.shift = 0
-                s.dragY = 0
-            }
-        }
-        root.dragKey = ""
-        root.dragFrom = -1
-        root.dragTo = -1
-    }
-
-    function endDrag() {
-        const key = root.dragKey
-        const to = root.dragTo
-        const ids = []
-        let landedY = 0
-        for (let i = 0; i < rep.count; i++) {
-            const s = rep.itemAt(i)
-            if (!s)
-                continue
-            ids.push(s.sectionKey)
-            if (s.sectionKey === key)
-                landedY = s.y + s.dragY
-        }
-        const before = DashOps.beforeId(ids, key, to)
-
-        root.dragKey = ""
-        root.dragFrom = -1
-        root.dragTo = -1
-
-        Qt.callLater(() => {
-            DashLayout.moveBefore(key, before)
-            for (let i = 0; i < rep.count; i++) {
-                const s = rep.itemAt(i)
-                if (!s)
-                    continue
-                s.shift = 0
-                if (s.sectionKey !== key)
-                    s.dragY = 0
-            }
-            Qt.callLater(() => {
-                for (let i = 0; i < rep.count; i++) {
-                    const s = rep.itemAt(i)
-                    if (s && s.sectionKey === key)
-                        s.settleFrom(landedY)
-                }
-            })
-        })
-    }
-
-    function cancelDrag() {
-        root.clearDrag()
-    }
-
-    // The wifi/bluetooth overlay sizes itself from the controls section, so the
-    // driver has to hand back a reference the Loader would otherwise hide.
-    property Item controlsItem: null
-
-    Component { id: cProfile
-        DashProfile { compact: root.dense; onToggleDashboard: root.toggleDashboard() } }
-
-    Component { id: cControls
-        DashControls {
-            compact: root.dense
-            coordSpace: root
-            panelMode: root.panelMode
-            onToggleDashboard: root.toggleDashboard()
-            Component.onCompleted: root.controlsItem = this
-            Component.onDestruction: if (root.controlsItem === this) root.controlsItem = null
-            onOpenPanel: function(mode, pPos, p, sz, r) {
-                root.parentPos = pPos
-                root.pos = p
-                root.srcSize = sz
-                root.srcRadius = r
-                root.panelMode = mode
-            }
-        } }
-
-    Component { id: cQuickActions;  DashQuickActions  { compact: root.dense } }
-    Component { id: cMedia;         DashMedia         { compact: root.dense } }
-    Component { id: cStats;         DashStats         { compact: root.dense } }
-    Component { id: cNotifications; DashNotifications { compact: root.dense } }
-    Component { id: cCalendar;      DashCalendar      { compact: root.dense } }
-
-    function componentFor(key) {
-        switch (key) {
-            case "profile":       return cProfile
-            case "controls":      return cControls
-            case "quickActions":  return cQuickActions
-            case "media":         return cMedia
-            case "stats":         return cStats
-            case "notifications": return cNotifications
-            case "calendar":      return cCalendar
+    function cellItem(id) {
+        for (let i = 0; i < cellRepeater.count; i++) {
+            const c = cellRepeater.itemAt(i)
+            if (c && c.itemId === id)
+                return c
         }
         return null
     }
 
-    ListModel { id: sectionModel }
-    ListModel { id: sectionModelB }
-
-    readonly property var stackedIds: root.split
-        ? DashLayout.visibleIds.filter(k => k !== "notifications")
-        : DashLayout.visibleIds
-
-    function syncSections() {
-        const ids = root.stackedIds
-        const cut = root.stackColumns >= 2 ? Math.ceil(ids.length / 2) : ids.length
-        BarLayout.syncModel(sectionModel,  ids.slice(0, cut), "key", null)
-        BarLayout.syncModel(sectionModelB, ids.slice(cut),    "key", null)
+    function selectItem(id) {
+        if (BarLayout.editor)
+            BarLayout.editor.selectedItem = "dash:" + id
     }
 
-    Component.onCompleted: root.syncSections()
+    function removeItem(id) {
+        if (BarLayout.editor && BarLayout.editor.selectedItem === "dash:" + id)
+            BarLayout.editor.selectedItem = "dashboard"
+        DashLayout.dropItem(id)
+    }
+
+    function beginDrag(id, mode) {
+        root.dragId = id
+        root.dragMode = mode
+        root.dragKind = ""
+        root.overBin = false
+        root.preview = DashLayout.items.map(i => Object.assign({}, i))
+    }
+
+    function trackMove(id, x, y) {
+        const it = DashLayout.items.find(i => i.id === id)
+        if (it && !root.overBin)
+            root.preview = DashLayout.previewPush(id, x, y, it.w, it.h)
+    }
+
+    function trackResize(id, w, h) {
+        const it = DashLayout.items.find(i => i.id === id)
+        if (it)
+            root.preview = DashLayout.previewPush(id, it.x, it.y, w, h)
+    }
+
+    function updateBin(item, px, py) {
+        const p = item.mapToItem(bin, px, py)
+        const over = bin.visible && p.x >= -12 && p.y >= -12 && p.x <= bin.width + 12 && p.y <= bin.height + 12
+        if (over === root.overBin)
+            return
+        root.overBin = over
+        if (over)
+            root.preview = DashGrid.settle(DashLayout.items.filter(i => i.id !== root.dragId))
+    }
+
+    function beginExternal(kind) {
+        root.dragId = "__new"
+        root.dragMode = "new"
+        root.dragKind = kind
+        root.overBin = false
+        root.preview = null
+    }
+
+    function trackExternal(item, px, py) {
+        if (root.dragMode !== "new")
+            return
+        const e = DashLayout.kindEntry(root.dragKind)
+        const w = Math.min(DashLayout.columns, e ? (e.defW ?? 2) : 2)
+        const h = e ? (e.defH ?? 2) : 2
+        const p = item.mapToItem(grid, px, py)
+        const inside = p.x >= -20 && p.y >= -20 && p.x <= grid.width + 20 && p.y <= Math.max(grid.height, dashScroll.height) + 20
+        if (!inside) {
+            root.preview = null
+            return
+        }
+        const cx = Math.round(p.x / (root.cellW + DashLayout.gap) - w / 2)
+        const cy = Math.max(0, Math.round(p.y / root.pitchY - h / 2))
+        root.preview = DashLayout.previewPush("__new", cx, cy, w, h, root.dragKind)
+    }
+
+    function endExternal(commit) {
+        const g = root.ghost
+        const kind = root.dragKind
+        root.cancelDrag()
+        if (!commit || !g)
+            return ""
+        const id = DashLayout.dropNew(kind, g.x, g.y)
+        if (id !== "")
+            root.selectItem(id)
+        return id
+    }
+
+    function endDrag(commit) {
+        const id = root.dragId
+        const mode = root.dragMode
+        const list = root.preview
+        const bin = root.overBin
+        root.cancelDrag()
+        if (!commit)
+            return
+        if (bin) {
+            root.removeItem(id)
+            return
+        }
+        if (list)
+            DashLayout.commitPreview(list, id, mode === "resize" ? "resized" : "moved")
+    }
+
+    function cancelDrag() {
+        root.dragId = ""
+        root.dragMode = ""
+        root.dragKind = ""
+        root.overBin = false
+        root.preview = null
+    }
+
+
+    Component { id: cProfile
+        DashProfile { compact: root.dense; onToggleDashboard: root.toggleDashboard() } }
+
+    Component { id: cNotifications; DashNotifications { compact: root.dense } }
+    Component { id: cTiles
+        DashTiles {
+            coordSpace: root
+            panelMode: root.panelMode
+            onOpenPanel: function(mode, pPos, p, sz, r) { root.openOverlay(mode, pPos, p, sz, r, 340, 460) }
+        } }
+    Component { id: cBubbles;       DashBubbles       {} }
+    Component { id: cSlider;        DashSlider        {} }
+    Component { id: cPower
+        DashPower {
+            coordSpace: root
+            panelMode: root.panelMode
+            onOpenPanel: function(mode, pPos, p, sz, r) { root.openOverlay(mode, pPos, p, sz, r, 340, 420) }
+        } }
+    Component { id: cToggle
+        DashToggle {
+            coordSpace: root
+            panelMode: root.panelMode
+            onOpenPanel: function(mode, pPos, p, sz, r) { root.openOverlay(mode, pPos, p, sz, r, 340, 460) }
+        } }
+    Component { id: cTimeline;      DashTimeline      {} }
+    Component { id: cNextUp;        DashNextUp        {} }
+    Component { id: cProcesses;     DashProcesses     {} }
+    Component { id: cStorage;       DashStorage       {} }
+    Component { id: cClock;         DashClock         {} }
+    Component { id: cMonth;         DashMonth         {} }
+    Component { id: cPlayer;        DashPlayer        {} }
+    Component { id: cWeather;       DashWeather       {} }
+    Component { id: cInbox;         DashInbox         {} }
+    Component { id: cLevels;        DashLevels        {} }
+    Component { id: cGauges;        DashGauges        {} }
+    Component { id: cStat;          DashStat          {} }
+    Component { id: cNetwork;       DashNetwork       {} }
+    Component { id: cBattery;       DashBattery       {} }
+    Component { id: cDevices;       DashDevices       {} }
+    Component { id: cClaude;        DashClaude        {} }
+
+    property real overlayW: 300
+    property real overlayH: 460
+
+    function openOverlay(mode, pPos, p, sz, r, w, h) {
+        const ow = Math.min(Math.max(300, w), root.width - root.pad * 2)
+        const oh = Math.min(h, root.height - root.pad * 2)
+        root.overlayW = ow
+        root.overlayH = oh
+        root.parentPos = Qt.point(Math.max(root.pad, Math.min(root.width - root.pad - ow, pPos.x)),
+                                  Math.max(root.pad, Math.min(root.height - root.pad - oh, pPos.y)))
+        root.pos = p
+        root.srcSize = sz
+        root.srcRadius = r
+        root.panelMode = mode
+    }
+
+    function componentFor(kind) {
+        switch (kind) {
+            case "profile":       return cProfile
+            case "notifications": return cNotifications
+            case "tiles":         return cTiles
+            case "bubbles":       return cBubbles
+            case "slider":        return cSlider
+            case "power":         return cPower
+            case "toggle":        return cToggle
+            case "timeline":      return cTimeline
+            case "nextUp":        return cNextUp
+            case "processes":     return cProcesses
+            case "storage":       return cStorage
+            case "clock":         return cClock
+            case "month":         return cMonth
+            case "player":        return cPlayer
+            case "weather":       return cWeather
+            case "inbox":         return cInbox
+            case "levels":        return cLevels
+            case "gauges":        return cGauges
+            case "stat":          return cStat
+            case "network":       return cNetwork
+            case "battery":       return cBattery
+            case "devices":       return cDevices
+            case "claude":        return cClaude
+        }
+        return null
+    }
+
+    ListModel { id: cellModel }
+
+    function syncCells() {
+        BarLayout.syncModel(cellModel, DashLayout.itemIds, "key", null)
+    }
+
+    Component.onCompleted: {
+        root.syncCells()
+        if (root.editing)
+            DashLayout.activeDash = root
+    }
 
     Connections {
         target: DashLayout
-        function onVisibleIdsChanged() { root.syncSections() }
+        function onItemIdsChanged() { root.syncCells() }
     }
 
     Flickable {
         id: dashScroll
         anchors.fill: parent
         contentWidth: width
-        contentHeight: Math.max(dashScroll.height, cols.implicitHeight + root.pad * 2)
-        interactive: dashScroll.contentHeight > dashScroll.height + 1 && !root.dragActive
+        contentHeight: Math.max(dashScroll.height, root.gridH + root.pad * 2)
+        interactive: dashScroll.contentHeight > dashScroll.height + 1 && root.dragId === ""
         boundsBehavior: Flickable.StopAtBounds
         clip: interactive
 
-        RowLayout {
-            id: cols
+        Item {
+            id: grid
             x: root.pad
             y: root.pad
             width: dashScroll.width - root.pad * 2
-            height: dashScroll.contentHeight - root.pad * 2
-            spacing: root.pad
+            height: root.gridH
 
-            ColumnLayout{
-                id: col
-                Layout.fillWidth: true
-                Layout.fillHeight: true
-                Layout.preferredWidth: 1
-                spacing:         root.compact ? 7 : 10
-
-                Repeater {
-                    id: rep
-                    model: sectionModel
-
-                    delegate: DashSlot {
-                        required property string key
-                        required property int index
-
-                        sectionKey: key
-                        listIndex: index
-                        dash: root
-                        content: root.componentFor(key)
-                    }
-                }
-
-                Item {
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
-                    visible: root.split || !root.anyFills
+            Repeater {
+                model: root.editing ? DashLayout.columns * root.shownRows : 0
+                delegate: Rectangle {
+                    required property int index
+                    visible: !root.occupied[(index % DashLayout.columns) + "," + Math.floor(index / DashLayout.columns)]
+                    x: (index % DashLayout.columns) * (root.cellW + DashLayout.gap)
+                    y: Math.floor(index / DashLayout.columns) * root.pitchY
+                    width: root.cellW
+                    height: root.rowH
+                    radius: 14
+                    color: Qt.alpha(Colors.primary, 0.035)
+                    border.width: 1
+                    border.color: Qt.alpha(Colors.outline, 0.12)
                 }
             }
 
-            ColumnLayout {
-                id: colB
-                Layout.fillWidth: true
-                Layout.fillHeight: true
-                Layout.preferredWidth: 1
-                visible: root.stackColumns >= 2 && sectionModelB.count > 0
-                spacing: col.spacing
+            Rectangle {
+                visible: root.ghost !== null && root.dragMode !== ""
+                x: root.ghost ? root.ghost.x * (root.cellW + DashLayout.gap) : 0
+                y: root.ghost ? root.ghost.y * root.pitchY : 0
+                width: root.ghost ? root.ghost.w * (root.cellW + DashLayout.gap) - DashLayout.gap : 0
+                height: root.ghost ? root.ghost.h * root.pitchY - DashLayout.gap : 0
+                radius: 20
+                color: root.dragMode === "new" ? Colors.primaryContainer : Qt.alpha(Colors.primary, 0.14)
+                border.width: 2
+                border.color: Colors.primary
 
-                Repeater {
-                    model: sectionModelB
-
-                    delegate: DashSlot {
-                        required property string key
-
-                        sectionKey: key
-                        listIndex: -1
-                        movable: false
-                        dash: root
-                        content: root.componentFor(key)
+                Column {
+                    anchors.centerIn: parent
+                    visible: root.dragMode === "new"
+                    spacing: 4
+                    MaterialIconSymbol {
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        content: DashLayout.kindEntry(root.dragKind)?.icon ?? "widgets"
+                        iconSize: 26
+                        customColor: Colors.primaryContainerText
+                    }
+                    CustomText {
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        content: DashLayout.kindEntry(root.dragKind)?.label ?? ""
+                        size: 12
+                        weight: 700
+                        customColor: Colors.primaryContainerText
                     }
                 }
-
-                Item {
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
-                }
+                Behavior on x { SpatialAnim { speed: "fast" } }
+                Behavior on y { SpatialAnim { speed: "fast" } }
+                Behavior on width { SpatialAnim { speed: "fast" } }
+                Behavior on height { SpatialAnim { speed: "fast" } }
             }
 
-            ColumnLayout {
-                Layout.fillWidth: true
-                Layout.fillHeight: true
-                Layout.preferredWidth: 1
-                visible: root.split
-                spacing: col.spacing
-
-                Loader {
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
-                    active: root.split
-                    sourceComponent: DashSlot {
-                        sectionKey: "notifications"
-                        listIndex: -1
-                        movable: false
-                        dash: root
-                        content: cNotifications
-                    }
+            Repeater {
+                id: cellRepeater
+                model: cellModel
+                delegate: DashCell {
+                    required property string key
+                    itemId: key
+                    dash: root
+                    content: root.componentFor(DashLayout.kindOf(key))
                 }
             }
+        }
+    }
+
+    Rectangle {
+        id: bin
+        z: 20
+        visible: root.editing && root.dragMode === "move"
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.top: parent.top
+        anchors.topMargin: 12
+        width: Math.min(300, root.width - 40) + (root.overBin ? 18 : 0)
+        height: root.overBin ? 56 : 52
+        radius: height / 2
+        color: root.overBin ? Colors.errorContainer : Colors.surfaceContainerHighest
+        border.width: 2
+        border.color: root.overBin ? Colors.error : Qt.alpha(Colors.outline, 0.4)
+        Behavior on width { SpatialAnim { speed: "fast" } }
+        Behavior on height { SpatialAnim { speed: "fast" } }
+        Behavior on color { EffectsColorAnim { speed: "fast" } }
+
+        Row {
+            anchors.centerIn: parent
+            spacing: 8
+            MaterialIconSymbol {
+                anchors.verticalCenter: parent.verticalCenter
+                content: "delete"
+                iconSize: 20
+                customColor: root.overBin ? Colors.errorContainerText : Colors.surfaceVariantText
+            }
+            CustomText {
+                anchors.verticalCenter: parent.verticalCenter
+                content: root.overBin ? "Release to remove" : "Drop here to remove"
+                size: 13
+                weight: 600
+                customColor: root.overBin ? Colors.errorContainerText : Colors.surfaceVariantText
+            }
+        }
+    }
+
+    Rectangle {
+        id: undoPill
+        z: 20
+        readonly property bool wanted: root.editing && root.dragId === "" && DashLayout.undoItems !== null && undoTimer.running
+        visible: opacity > 0.01
+        opacity: undoPill.wanted ? 1 : 0
+        Behavior on opacity { EffectsAnim { speed: "fast" } }
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.bottom: parent.bottom
+        anchors.bottomMargin: 14
+        width: undoRow.implicitWidth + 16
+        height: 44
+        radius: 22
+        color: Colors.inverseSurface
+
+        Row {
+            id: undoRow
+            anchors.centerIn: parent
+            spacing: 6
+            CustomText {
+                anchors.verticalCenter: parent.verticalCenter
+                leftPadding: 8
+                content: DashLayout.undoLabel
+                size: 13
+                customColor: Colors.inverseSurfaceText
+            }
+            Rectangle {
+                anchors.verticalCenter: parent.verticalCenter
+                width: undoText.implicitWidth + 24
+                height: 32
+                radius: 16
+                color: undoArea.containsMouse ? Qt.alpha(Colors.inversePrimary, 0.18) : "transparent"
+                CustomText {
+                    id: undoText
+                    anchors.centerIn: parent
+                    content: "Undo"
+                    size: 13
+                    weight: 700
+                    customColor: Colors.inversePrimary
+                }
+                MouseArea {
+                    id: undoArea
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: DashLayout.undo()
+                }
+            }
+        }
+    }
+
+    Timer {
+        id: undoTimer
+        interval: 8000
+    }
+
+    Connections {
+        target: DashLayout
+        function onUndoLabelChanged() {
+            if (DashLayout.undoLabel !== "")
+                undoTimer.restart()
         }
     }
 }

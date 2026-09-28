@@ -35,14 +35,12 @@ WidgetHost {
         return (ServiceWeather.useMetric ? (day.mintempC ?? "--") : (day.mintempF ?? "--")) + "°"
     }
 
-    Rectangle {
+    WidgetCard {
         anchors.fill: parent
-        radius: 28
-        color: WidgetSizes.cardColor
 
         ColumnLayout {
             anchors.fill: parent
-            anchors.margins: 18
+            anchors.margins: parent.pad
             spacing: 12
 
             // Current weather header

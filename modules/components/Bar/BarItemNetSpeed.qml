@@ -12,8 +12,12 @@ BarStatItem {
     icon: "swap_vert"
     shortLabel: "NET"
     value: 0
-    graphValue: root.direction === "up" ? ServiceSystemInfo.netUploadBps : ServiceSystemInfo.netDownloadBps
+    graphValue: root.style === "mirror" ? ServiceSystemInfo.netDownloadBps
+        : root.direction === "up" ? ServiceSystemInfo.netUploadBps : ServiceSystemInfo.netDownloadBps
+    altValue: ServiceSystemInfo.netUploadBps
     graphMax: 0
     label: root.direction === "down" ? root.down : root.direction === "up" ? root.up : root.down + "  " + root.up
     tip: root.down + "   " + root.up
+    compactLabel: ServiceSystemInfo.formatNetSpeed(root.direction === "up" ? ServiceSystemInfo.netUploadBps : ServiceSystemInfo.netDownloadBps)
+        .replace(" KB/s", "K").replace(" MB/s", "M").replace(" GB/s", "G").replace(" B/s", "")
 }

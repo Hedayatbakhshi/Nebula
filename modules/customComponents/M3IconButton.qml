@@ -42,20 +42,13 @@ Rectangle {
     MaterialIconSymbol {
         anchors.centerIn: parent
         content: root.icon
-        iconSize: root.iconSize
+        iconSize: ripple.pressed ? root.iconSize * 0.9 : root.iconSize
+        Behavior on iconSize { SpatialAnim { speed: "fast" } }
         fill: root.iconFill
         color: ripple.containsMouse ? root.iconHoverColor : root.iconColor
         Behavior on color { ColorAnimation { duration: M3Motion.effects.fastDuration } }
         Behavior on fill  { NumberAnimation { duration: M3Motion.effects.defaultDuration } }
 
-        scale: ripple.pressed ? 0.92 : 1.0
-        Behavior on scale {
-            NumberAnimation {
-                duration: M3Motion.spatial.fastDuration
-                easing.type: Easing.BezierSpline
-                easing.bezierCurve: M3Motion.spatial.fastCurve
-            }
-        }
     }
 
     RippleEffect {

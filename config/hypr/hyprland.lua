@@ -1,9 +1,9 @@
--- Hyprland Lua Configuration (requires Hyprland >= 0.55)
+-- Hyprland Lua Configuration (Nebula requires Hyprland >= 0.56 with this Lua config)
 -- Entry point — loads all modules in order
 -- ~/.config/hypr/hyprland.lua
 
 require("lua.environment") -- env vars must come first
-require("lua.colors")      -- pywal colors (used by settings)
+require("lua.colors")      -- written by nebula from your wallpaper (used by settings)
 require("lua.monitor")     -- monitor + workspace assignments
 require("lua.autostart")   -- exec-once startup programs
 require("lua.settings")    -- general, decoration, input, misc, layouts

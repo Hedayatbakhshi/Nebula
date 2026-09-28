@@ -375,80 +375,25 @@ Item {
                     }
                 }
 
-                CustomCard {
+                SidesEditor {
                     visible: barModeCard.currentBarMode === "pill"
-                    autoRadius: false; topRadius: 5; bottomRadius: 5
-                    RowLayout {
-                        Layout.fillWidth: true
-                        spacing: 16
-                        ColumnLayout {
-                            spacing: 2
-                            CustomText { content: "Top Margin"; size: 14 }
-                            CustomText { content: "Gap between pill and top screen edge"; size: 12; customColor: Colors.outline }
-                        }
-                        Item { Layout.fillWidth: true }
-                        M3Slider {
-                            Layout.preferredWidth: 160
-                            stepCount: 31
-                            currentStep: SettingsConfig.general.pillMargin ?? 6
-                            onStepChanged: step => {
-                                if (step !== (SettingsConfig.general.pillMargin ?? 6))
-                                    SettingsConfig.general = Object.assign({}, SettingsConfig.general, { pillMargin: step })
-                            }
-                        }
-                    }
-                }
-
-                CustomCard {
-                    visible: barModeCard.currentBarMode === "pill"
-                    autoRadius: false; topRadius: 5; bottomRadius: 20
-                    RowLayout {
-                        Layout.fillWidth: true
-                        spacing: 24
-
-                        RowLayout {
-                            Layout.fillWidth: true
-                            spacing: 16
-                            ColumnLayout {
-                                Layout.preferredWidth: 170
-                                Layout.maximumWidth: 170
-                                spacing: 2
-                                CustomText { content: "Left Margin"; size: 14 }
-                                CustomText { Layout.fillWidth: true; wrapMode: Text.WordWrap; content: "Gap between pill and left screen edge"; size: 12; customColor: Colors.outline }
-                            }
-                            Item { Layout.fillWidth: true }
-                            M3Slider {
-                                Layout.preferredWidth: 160
-                                stepCount: 11
-                                currentStep: SettingsConfig.general.pillLeftMargin ?? 6
-                                onStepChanged: step => {
-                                    if (step !== (SettingsConfig.general.pillLeftMargin ?? 6))
-                                        SettingsConfig.general = Object.assign({}, SettingsConfig.general, { pillLeftMargin: step })
-                                }
-                            }
-                        }
-
-                        RowLayout {
-                            Layout.fillWidth: true
-                            spacing: 16
-                            ColumnLayout {
-                                Layout.preferredWidth: 170
-                                Layout.maximumWidth: 170
-                                spacing: 2
-                                CustomText { content: "Right Margin"; size: 14 }
-                                CustomText { Layout.fillWidth: true; wrapMode: Text.WordWrap; content: "Gap between pill and right screen edge"; size: 12; customColor: Colors.outline }
-                            }
-                            Item { Layout.fillWidth: true }
-                            M3Slider {
-                                Layout.preferredWidth: 160
-                                stepCount: 11
-                                currentStep: SettingsConfig.general.pillRightMargin ?? 6
-                                onStepChanged: step => {
-                                    if (step !== (SettingsConfig.general.pillRightMargin ?? 6))
-                                        SettingsConfig.general = Object.assign({}, SettingsConfig.general, { pillRightMargin: step })
-                                }
-                            }
-                        }
+                    mode: "pill"
+                    sides: ["top", "left", "right"]
+                    maxFor: ({ top: 30, left: 10, right: 10 })
+                    topRadius: 5
+                    bottomRadius: 20
+                    linkLabel: "Same margin on every side"
+                    values: ({
+                        top: SettingsConfig.general.pillMargin ?? 6,
+                        left: SettingsConfig.general.pillLeftMargin ?? 6,
+                        right: SettingsConfig.general.pillRightMargin ?? 6
+                    })
+                    onChanged: patch => {
+                        const g = {}
+                        if (patch.top !== undefined) g.pillMargin = patch.top
+                        if (patch.left !== undefined) g.pillLeftMargin = patch.left
+                        if (patch.right !== undefined) g.pillRightMargin = patch.right
+                        SettingsConfig.general = Object.assign({}, SettingsConfig.general, g)
                     }
                 }
             }
@@ -456,113 +401,23 @@ Item {
             // ── Window Gaps ──────────────────────────────────────────────
             CustomText { Layout.topMargin: 16; content: "Window Gaps"; size: 13; customColor: Colors.primary }
 
-            ColumnLayout {
-                Layout.fillWidth: true
+            SidesEditor {
                 Layout.topMargin: 6
-                spacing: 3
-
-                CustomCard {
-                    autoRadius: false; topRadius: 20; bottomRadius: 5
-                    RowLayout {
-                        Layout.fillWidth: true
-                        spacing: 24
-
-                        RowLayout {
-                            Layout.fillWidth: true
-                            spacing: 16
-                            ColumnLayout {
-                                Layout.preferredWidth: 170
-                                Layout.maximumWidth: 170
-                                spacing: 2
-                                CustomText { content: "Top Extra"; size: 14 }
-                                CustomText { Layout.fillWidth: true; wrapMode: Text.WordWrap; content: "Added on top of bar height (auto-calculated)"; size: 12; customColor: Colors.outline }
-                            }
-                            Item { Layout.fillWidth: true }
-                            M3Slider {
-                                Layout.preferredWidth: 160
-                                stepCount: 21
-                                currentStep: SettingsConfig.general.gapTop ?? 0
-                                onStepChanged: step => {
-                                    if (step !== (SettingsConfig.general.gapTop ?? 0))
-                                        SettingsConfig.general = Object.assign({}, SettingsConfig.general, { gapTop: step })
-                                }
-                            }
-                        }
-
-                        RowLayout {
-                            Layout.fillWidth: true
-                            spacing: 16
-                            ColumnLayout {
-                                Layout.preferredWidth: 170
-                                Layout.maximumWidth: 170
-                                spacing: 2
-                                CustomText { content: "Bottom"; size: 14 }
-                                CustomText { Layout.fillWidth: true; wrapMode: Text.WordWrap; content: "Gap from bottom screen edge · dock space is added automatically in Full and Pill"; size: 12; customColor: Colors.outline }
-                            }
-                            Item { Layout.fillWidth: true }
-                            M3Slider {
-                                Layout.preferredWidth: 160
-                                stepCount: 21
-                                currentStep: SettingsConfig.general.gapBottom ?? 5
-                                onStepChanged: step => {
-                                    if (step !== (SettingsConfig.general.gapBottom ?? 5))
-                                        SettingsConfig.general = Object.assign({}, SettingsConfig.general, { gapBottom: step })
-                                }
-                            }
-                        }
-                    }
-                }
-
-                CustomCard {
-                    autoRadius: false; topRadius: 5; bottomRadius: 20
-                    RowLayout {
-                        Layout.fillWidth: true
-                        spacing: 24
-
-                        RowLayout {
-                            Layout.fillWidth: true
-                            spacing: 16
-                            ColumnLayout {
-                                Layout.preferredWidth: 170
-                                Layout.maximumWidth: 170
-                                spacing: 2
-                                CustomText { content: "Left"; size: 14 }
-                                CustomText { Layout.fillWidth: true; wrapMode: Text.WordWrap; content: "Gap from left screen edge"; size: 12; customColor: Colors.outline }
-                            }
-                            Item { Layout.fillWidth: true }
-                            M3Slider {
-                                Layout.preferredWidth: 160
-                                stepCount: 21
-                                currentStep: SettingsConfig.general.gapLeft ?? 5
-                                onStepChanged: step => {
-                                    if (step !== (SettingsConfig.general.gapLeft ?? 5))
-                                        SettingsConfig.general = Object.assign({}, SettingsConfig.general, { gapLeft: step })
-                                }
-                            }
-                        }
-
-                        RowLayout {
-                            Layout.fillWidth: true
-                            spacing: 16
-                            ColumnLayout {
-                                Layout.preferredWidth: 170
-                                Layout.maximumWidth: 170
-                                spacing: 2
-                                CustomText { content: "Right"; size: 14 }
-                                CustomText { Layout.fillWidth: true; wrapMode: Text.WordWrap; content: "Gap from right screen edge"; size: 12; customColor: Colors.outline }
-                            }
-                            Item { Layout.fillWidth: true }
-                            M3Slider {
-                                Layout.preferredWidth: 160
-                                stepCount: 21
-                                currentStep: SettingsConfig.general.gapRight ?? 5
-                                onStepChanged: step => {
-                                    if (step !== (SettingsConfig.general.gapRight ?? 5))
-                                        SettingsConfig.general = Object.assign({}, SettingsConfig.general, { gapRight: step })
-                                }
-                            }
-                        }
-                    }
+                barSide: ServiceGaps.barSide
+                maxValue: 20
+                values: ({
+                    top: ServiceGaps.extraFor("top"),
+                    right: ServiceGaps.extraFor("right"),
+                    bottom: ServiceGaps.extraFor("bottom"),
+                    left: ServiceGaps.extraFor("left")
+                })
+                onChanged: patch => {
+                    const g = {}
+                    if (patch.top !== undefined) g.gapTop = patch.top
+                    if (patch.right !== undefined) g.gapRight = patch.right
+                    if (patch.bottom !== undefined) g.gapBottom = patch.bottom
+                    if (patch.left !== undefined) g.gapLeft = patch.left
+                    SettingsConfig.general = Object.assign({}, SettingsConfig.general, g)
                 }
             }
 
@@ -712,6 +567,82 @@ Item {
                                 onToggled: function(state) {
                                     BarLayout.setDockMusic(state)
                                 }
+                            }
+                        }
+                    }
+                }
+            }
+
+            CustomText { Layout.topMargin: 16; content: "Desktop"; size: 13; customColor: Colors.primary }
+
+            ColumnLayout {
+                Layout.fillWidth: true
+                Layout.topMargin: 6
+                spacing: 3
+
+                CustomCard {
+                    autoRadius: false; topRadius: 20; bottomRadius: (SettingsConfig.general.desktopRipple ?? false) ? 5 : 20
+                    RowLayout {
+                        Layout.fillWidth: true
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            spacing: 2
+                            CustomText { content: "Click Ripples"; size: 14 }
+                            CustomText { Layout.fillWidth: true; wrapMode: Text.WordWrap; content: "Clicking the empty desktop sends a water ripple through the wallpaper"; size: 12; customColor: Colors.outline }
+                        }
+                        Item { Layout.fillWidth: true }
+                        CustomToogle {
+                            isToggleOn: SettingsConfig.general.desktopRipple ?? false
+                            onToggled: function(state) {
+                                SettingsConfig.general = Object.assign({}, SettingsConfig.general, { desktopRipple: state })
+                            }
+                        }
+                    }
+                }
+
+                CustomCard {
+                    id: rippleStrengthCard
+                    visible: SettingsConfig.general.desktopRipple ?? false
+                    autoRadius: false; topRadius: 5; bottomRadius: 5
+                    readonly property string current: SettingsConfig.general.desktopRippleStrength ?? "normal"
+                    RowLayout {
+                        Layout.fillWidth: true
+                        ColumnLayout {
+                            spacing: 2
+                            CustomText { content: "Ripple Strength"; size: 14 }
+                            CustomText { content: "How far the wallpaper bends"; size: 12; customColor: Colors.outline }
+                        }
+                        Item { Layout.fillWidth: true }
+                        M3ButtonGroup {
+                            model: [
+                                { value: "subtle", label: "Subtle", icon: "water_drop" },
+                                { value: "normal", label: "Normal", icon: "waves" },
+                                { value: "splash", label: "Splash", icon: "tsunami" }
+                            ]
+                            activeCheck: function(value) { return rippleStrengthCard.current === value }
+                            onSegmentClicked: function(value) {
+                                SettingsConfig.general = Object.assign({}, SettingsConfig.general, { desktopRippleStrength: value })
+                            }
+                        }
+                    }
+                }
+
+                CustomCard {
+                    visible: SettingsConfig.general.desktopRipple ?? false
+                    autoRadius: false; topRadius: 5; bottomRadius: 20
+                    RowLayout {
+                        Layout.fillWidth: true
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            spacing: 2
+                            CustomText { content: "Ripple Trail"; size: 14 }
+                            CustomText { Layout.fillWidth: true; wrapMode: Text.WordWrap; content: "Drag across the desktop to draw ripples, like a finger through water"; size: 12; customColor: Colors.outline }
+                        }
+                        Item { Layout.fillWidth: true }
+                        CustomToogle {
+                            isToggleOn: SettingsConfig.general.desktopRippleDrag ?? true
+                            onToggled: function(state) {
+                                SettingsConfig.general = Object.assign({}, SettingsConfig.general, { desktopRippleDrag: state })
                             }
                         }
                     }

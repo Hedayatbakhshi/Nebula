@@ -17,6 +17,7 @@ Text {
     font.pixelSize: Math.round(size * _sizeScale)
     font.weight: weight
     font.family: family
+    font.hintingPreference: Font.PreferFullHinting
 
     readonly property real _sizeScale: {
         var s = SettingsConfig.general.fontScale ?? "normal"

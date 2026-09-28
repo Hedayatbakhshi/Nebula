@@ -3,6 +3,7 @@ pragma Singleton
 import Quickshell
 import QtQuick
 import qs.modules.settings
+import qs.modules.utils
 
 Singleton {
     id: root
@@ -16,73 +17,110 @@ Singleton {
     readonly property Component cClockScript:    Component { ClockScript    { preview: true } }
     readonly property Component cClockStack:     Component { ClockStack     { preview: true } }
     readonly property Component cClockCondensed: Component { ClockCondensed { preview: true } }
-    readonly property Component cMusicCircle:   Component { CircularMusicPlayer    { preview: true } }
-    readonly property Component cMusicStrip:    Component { MusicStripWidget       { preview: true } }
-    readonly property Component cCassette:      Component { CassetteWidget         { preview: true } }
-    readonly property Component cVinyl:         Component { VinylWidget            { preview: true } }
-    readonly property Component cAlbumShape:    Component { AlbumShapeWidget       { preview: true } }
     readonly property Component cAnalogClassic: Component { AnalogClockClassic     { preview: true } }
     readonly property Component cAnalogMinimal: Component { AnalogClockMinimal     { preview: true } }
     readonly property Component cAnalogShape:   Component { AnalogClockShape       { preview: true } }
-    readonly property Component cDateDefault:   Component { DateWidget             { preview: true } }
-    readonly property Component cDateCalendar:  Component { DateWidgetCalendar     { preview: true } }
-    readonly property Component cDatePill:      Component { DateWidgetPill         { preview: true } }
-    readonly property Component cDateSplit:     Component { DateWidgetSplit        { preview: true } }
     readonly property Component cDateBold:      Component { DateWidgetBold         { preview: true } }
-    readonly property Component cDateGhost:     Component { DateWidgetGhost        { preview: true } }
     readonly property Component cDateAccent:    Component { DateWidgetAccent       { preview: true } }
-    readonly property Component cDateInline:    Component { DateWidgetInline       { preview: true } }
     readonly property Component cDateShape:     Component { DateWidgetShape        { preview: true } }
-    readonly property Component cWeatherSlant:  Component { WeatherWidgetSlanted   { preview: true } }
     readonly property Component cWeatherCast:   Component { WeatherWidgetForecast  { preview: true } }
-    readonly property Component cWeatherDetail: Component { WeatherWidgetDetails   { preview: true } }
     readonly property Component cWeatherHourly: Component { WeatherHourlyWidget    { preview: true } }
-    readonly property Component cWeatherWind:   Component { WeatherWindWidget      { preview: true } }
-    readonly property Component cWeatherBaro:   Component { WeatherBarometerWidget { preview: true } }
     readonly property Component cSunArc:        Component { SunArcWidget           { preview: true } }
     readonly property Component cMoonPhase:     Component { MoonPhaseWidget        { preview: true } }
     readonly property Component cWeatherShape:  Component { WeatherShapeWidget     { preview: true } }
-    readonly property Component cJpDay:         Component { JpDayWidget            { preview: true } }
-    readonly property Component cJpClock:       Component { JpClockWidget          { preview: true } }
-    readonly property Component cJpHaiku:       Component { JpHaikuWidget          { preview: true } }
-    readonly property Component cJpWeather:     Component { JpWeatherWidget        { preview: true } }
-    readonly property Component cJpKanji:       Component { JpKanjiWidget          { preview: true } }
-    readonly property Component cJpSeal:        Component { JpSealWidget           { preview: true } }
     readonly property Component cClaudeCode:    Component { ClaudeCodeWidget       { preview: true } }
     readonly property Component cTaskList:      Component { TaskListWidget         { preview: true } }
+    readonly property Component cCommitGarden: Component { CommitGardenWidget { preview: true } }
+    readonly property Component cNotebook: Component { NotebookWidget { preview: true } }
+    readonly property Component cTerminalStats: Component { TerminalStatsWidget { preview: true } }
+    readonly property Component cMostOpened: Component { MostOpenedWidget { preview: true } }
+    readonly property Component cYearAgo: Component { YearAgoWidget { preview: true } }
+    readonly property Component cPhone: Component { PhoneWidget { preview: true } }
+    readonly property Component cHabits: Component { HabitsWidget { preview: true } }
+    readonly property Component cCountdowns: Component { CountdownsWidget { preview: true } }
+    readonly property Component cMood: Component { MoodWidget { preview: true } }
+    readonly property Component cSysCockpit: Component { SysCockpitWidget { preview: true } }
+    readonly property Component cSysBlueprint: Component { SysBlueprintWidget { preview: true } }
+    readonly property Component cSysVitals: Component { SysVitalsWidget { preview: true } }
+    readonly property Component cSysForecast: Component { SysForecastWidget { preview: true } }
+    readonly property Component cSysFlask: Component { SysFlaskWidget { preview: true } }
+    readonly property Component cSysThermo: Component { SysThermoWidget { preview: true } }
+    readonly property Component cSysCreature: Component { SysCreatureWidget { preview: true } }
+    readonly property Component cDayRibbon: Component { DayRibbonWidget { preview: true } }
+    readonly property Component cSysCells: Component { SysCellsWidget { preview: true } }
+    readonly property Component cSysShape: Component { SysShapeWidget { preview: true } }
+    readonly property Component cSysHourglass: Component { SysHourglassWidget { preview: true } }
+    readonly property Component cSysFillNumber: Component { SysFillNumberWidget { preview: true } }
+    readonly property Component cMusicExpressive: Component { MusicExpressiveWidget { preview: true } }
+    readonly property Component cMusicTicket: Component { MusicTicketWidget { preview: true } }
+    readonly property Component cMusicPoster: Component { MusicPosterWidget { preview: true } }
+    readonly property Component cMusicTuner: Component { MusicTunerWidget { preview: true } }
+    readonly property Component cMusicWaveform: Component { MusicWaveformWidget { preview: true } }
+    readonly property Component cMusicSpectrum: Component { MusicSpectrumWidget { preview: true } }
+    readonly property Component cMusicLyrics: Component { MusicLyricsWidget { preview: true } }
+    readonly property Component cMusicCapsule: Component { MusicCapsuleWidget { preview: true } }
+    readonly property Component cMusicGlance: Component { MusicGlanceWidget { preview: true } }
+    readonly property Component cMusicFlap: Component { MusicFlapWidget { preview: true } }
+    readonly property Component cMusicBento: Component { MusicBentoWidget { preview: true } }
+    readonly property Component cMusicRibbon: Component { MusicRibbonWidget { preview: true } }
+    readonly property Component cMusicNeon: Component { MusicNeonWidget { preview: true } }
+    readonly property Component cMusicTerminal: Component { MusicTerminalWidget { preview: true } }
     readonly property Component cStickyNote:    Component { StickyNoteWidget       { preview: true } }
+    readonly property Component cCalendarMini:  Component { CalendarMiniWidget    { preview: true } }
+    readonly property Component cCalendarYarn:  Component { CalendarYarnWidget    { preview: true } }
+    readonly property Component cCalendarAlm:   Component { CalendarAlmanacWidget { preview: true } }
+    readonly property Component cCalendarTorn:  Component { CalendarTornWidget    { preview: true } }
+    readonly property Component cCalendarWindows: Component { CalendarWindowsWidget { preview: true } }
+    readonly property Component cCalendarDaylight: Component { CalendarDaylightWidget { preview: true } }
+    readonly property Component cCalendarYear: Component { CalendarYearWidget { preview: true } }
+    readonly property Component cCalendarStamp: Component { CalendarStampWidget { preview: true } }
+    readonly property Component cCalendarMoon: Component { CalendarMoonWidget { preview: true } }
     readonly property Component cPomodoro:      Component { PomodoroWidget         { preview: true } }
     readonly property Component cWorldClock:    Component { WorldClockWidget       { preview: true } }
     readonly property Component cHeadlines:     Component { HeadlinesWidget        { preview: true } }
     readonly property Component cSysDefault:    Component { SystemMonitorWidget    { preview: true } }
     readonly property Component cSysCompact:    Component { SystemMonitorCompact   { preview: true } }
     readonly property Component cSysPulse:      Component { SystemMonitorPulse     { preview: true } }
-    readonly property Component cBattDefault:   Component { BatteryWidget          { preview: true } }
-    readonly property Component cBattMinimal:   Component { BatteryWidgetMinimal   { preview: true } }
     readonly property Component cBattRing:      Component { BatteryWidgetRing      { preview: true } }
     readonly property Component cBattShape:     Component { BatteryWidgetShape     { preview: true } }
-    readonly property Component cStatStack:    Component { StatStackWidget        { preview: true } }
     readonly property Component cNetGraph:      Component { NetworkGraphWidget     { preview: true } }
-    readonly property Component cVpn:           Component { VpnWidget              { preview: true } }
 
     // show      — the SettingsConfig.widgets key that turns the family on
     // styleKey  — the key holding which variant is active (omitted if only one)
     // style     — this card's variant value
     // def       — the family's default variant, for the ?? fallback
     readonly property var catalog: [
-        { section: "Personal", items: [
+        { section: "Personal", icon: "person", items: [
             { label: "Card", key: "profileCard", comp: root.cProfileCard, show: "showProfileCard", styleKey: "profileCardStyle", style: "card", def: "card" },
             { label: "Tile", key: "profileCard", comp: root.cProfileTile, show: "showProfileCard", styleKey: "profileCardStyle", style: "tile", def: "card" },
-            { label: "Photo Frame", key: "photoFrame", comp: root.cPhotoFrame, show: "showPhotoFrame" }
+            { label: "Photo Frame", key: "photoFrame", comp: root.cPhotoFrame, show: "showPhotoFrame" },
+            { label: "Commit garden", key: "commitGarden", comp: root.cCommitGarden, show: "showCommitGarden" },
+            { label: "Notebook", key: "notebook", comp: root.cNotebook, show: "showNotebook" },
+            { label: "Terminal", key: "terminalStats", comp: root.cTerminalStats, show: "showTerminalStats" },
+            { label: "Most opened", key: "mostOpened", comp: root.cMostOpened, show: "showMostOpened" },
+            { label: "A year ago", key: "yearAgo", comp: root.cYearAgo, show: "showYearAgo" },
+            { label: "Phone", key: "phone", comp: root.cPhone, show: "showPhone" },
+            { label: "Habits", key: "habits", comp: root.cHabits, show: "showHabits" },
+            { label: "Countdowns", key: "countdowns", comp: root.cCountdowns, show: "showCountdowns" },
+            { label: "Mood", key: "mood", comp: root.cMood, show: "showMood" }
         ]},
-        { section: "Music", items: [
-            { label: "Circular Player", key: "musicPlayer", comp: root.cMusicCircle, show: "showCircularMusicPlayer" },
-            { label: "Now Playing",     key: "musicStrip",  comp: root.cMusicStrip,  show: "showMusicStrip" },
-            { label: "Cassette",        key: "cassette",    comp: root.cCassette,    show: "showCassette" },
-            { label: "Vinyl",           key: "vinyl",       comp: root.cVinyl,       show: "showVinyl" },
-            { label: "Art Shape",       key: "albumShape",  comp: root.cAlbumShape,  show: "showAlbumShape" }
+        { section: "Music", icon: "music_note", items: [
+            { label: "Expressive", key: "musicExpressive", comp: root.cMusicExpressive, show: "showMusicExpressive" },
+            { label: "Ticket", key: "musicTicket", comp: root.cMusicTicket, show: "showMusicTicket" },
+            { label: "Poster", key: "musicPoster", comp: root.cMusicPoster, show: "showMusicPoster" },
+            { label: "Radio Tuner", key: "musicTuner", comp: root.cMusicTuner, show: "showMusicTuner" },
+            { label: "Waveform", key: "musicWaveform", comp: root.cMusicWaveform, show: "showMusicWaveform" },
+            { label: "Spectrum", key: "musicSpectrum", comp: root.cMusicSpectrum, show: "showMusicSpectrum" },
+            { label: "Lyrics", key: "musicLyrics", comp: root.cMusicLyrics, show: "showMusicLyrics" },
+            { label: "Capsule", key: "musicCapsule", comp: root.cMusicCapsule, show: "showMusicCapsule" },
+            { label: "Glance Line", key: "musicGlance", comp: root.cMusicGlance, show: "showMusicGlance" },
+            { label: "Split-Flap", key: "musicFlap", comp: root.cMusicFlap, show: "showMusicFlap" },
+            { label: "Bento", key: "musicBento", comp: root.cMusicBento, show: "showMusicBento" },
+            { label: "Edge Ribbon", key: "musicRibbon", comp: root.cMusicRibbon, show: "showMusicRibbon" },
+            { label: "Neon Sign", key: "musicNeon", comp: root.cMusicNeon, show: "showMusicNeon" },
+            { label: "Terminal", key: "musicTerminal", comp: root.cMusicTerminal, show: "showMusicTerminal" }
         ]},
-        { section: "Digital Clock", items: [
+        { section: "Digital Clock", icon: "schedule", items: [
             { label: "Veil",      key: "clock", comp: root.cClockVeil,      show: "showClock", styleKey: "digitalClockStyle", style: "veil",      def: "veil" },
             { label: "Bloom",     key: "clock", comp: root.cClockBloom,     show: "showClock", styleKey: "digitalClockStyle", style: "bloom",     def: "veil" },
             { label: "Orbit",     key: "clock", comp: root.cClockOrbit,     show: "showClock", styleKey: "digitalClockStyle", style: "orbit",     def: "veil" },
@@ -90,64 +128,99 @@ Singleton {
             { label: "Stack",     key: "clock", comp: root.cClockStack,     show: "showClock", styleKey: "digitalClockStyle", style: "stack",     def: "veil" },
             { label: "Condensed", key: "clock", comp: root.cClockCondensed, show: "showClock", styleKey: "digitalClockStyle", style: "condensed", def: "veil" }
         ]},
-        { section: "Analog Clock", items: [
+        { section: "Analog Clock", icon: "watch", items: [
             { label: "Classic", key: "analogClock", comp: root.cAnalogClassic, show: "showAnalogClock", styleKey: "analogClockStyle", style: "classic", def: "classic" },
             { label: "Minimal", key: "analogClock", comp: root.cAnalogMinimal, show: "showAnalogClock", styleKey: "analogClockStyle", style: "minimal", def: "classic" },
             { label: "Shape",   key: "analogClock", comp: root.cAnalogShape,   show: "showAnalogClock", styleKey: "analogClockStyle", style: "shape",   def: "classic" }
         ]},
-        { section: "Date", items: [
-            { label: "Default",  key: "dateWidget", comp: root.cDateDefault,  show: "showDateWidget", styleKey: "dateWidgetStyle", style: "default",  def: "default" },
-            { label: "Calendar", key: "dateWidget", comp: root.cDateCalendar, show: "showDateWidget", styleKey: "dateWidgetStyle", style: "calendar", def: "default" },
-            { label: "Pill",     key: "dateWidget", comp: root.cDatePill,     show: "showDateWidget", styleKey: "dateWidgetStyle", style: "pill",     def: "default" },
-            { label: "Split",    key: "dateWidget", comp: root.cDateSplit,    show: "showDateWidget", styleKey: "dateWidgetStyle", style: "split",    def: "default" },
-            { label: "Bold",     key: "dateWidget", comp: root.cDateBold,     show: "showDateWidget", styleKey: "dateWidgetStyle", style: "bold",     def: "default" },
-            { label: "Ghost",    key: "dateWidget", comp: root.cDateGhost,    show: "showDateWidget", styleKey: "dateWidgetStyle", style: "ghost",    def: "default" },
-            { label: "Accent",   key: "dateWidget", comp: root.cDateAccent,   show: "showDateWidget", styleKey: "dateWidgetStyle", style: "accent",   def: "default" },
-            { label: "Inline",   key: "dateWidget", comp: root.cDateInline,   show: "showDateWidget", styleKey: "dateWidgetStyle", style: "inline",   def: "default" },
-            { label: "Shape",    key: "dateWidget", comp: root.cDateShape,    show: "showDateWidget", styleKey: "dateWidgetStyle", style: "shape",    def: "default" }
+        { section: "Date", icon: "today", items: [
+            { label: "Bold",   key: "dateWidget", comp: root.cDateBold,   show: "showDateWidget", styleKey: "dateWidgetStyle", style: "bold",   def: "bold" },
+            { label: "Accent", key: "dateWidget", comp: root.cDateAccent, show: "showDateWidget", styleKey: "dateWidgetStyle", style: "accent", def: "bold" },
+            { label: "Shape",  key: "dateWidget", comp: root.cDateShape,  show: "showDateWidget", styleKey: "dateWidgetStyle", style: "shape",  def: "bold" }
         ]},
-        { section: "Weather", items: [
-            { label: "Slanted",  key: "weatherSlanted",   comp: root.cWeatherSlant,  show: "showWeatherSlanted" },
+        { section: "Weather", icon: "partly_cloudy_day", items: [
             { label: "Forecast", key: "weatherForecast",  comp: root.cWeatherCast,   show: "showWeatherForecast" },
-            { label: "Details",  key: "weatherDetails",   comp: root.cWeatherDetail, show: "showWeatherDetails" },
             { label: "Hourly",   key: "weatherHourly",    comp: root.cWeatherHourly, show: "showWeatherHourly" },
-            { label: "Wind",     key: "weatherWind",      comp: root.cWeatherWind,   show: "showWeatherWind" },
-            { label: "Pressure", key: "weatherBarometer", comp: root.cWeatherBaro,   show: "showWeatherBarometer" },
             { label: "Sun Arc",  key: "sunArc",           comp: root.cSunArc,        show: "showSunArc" },
             { label: "Moon",     key: "moonPhase",        comp: root.cMoonPhase,     show: "showMoonPhase" },
             { label: "Shape",    key: "weatherShape",     comp: root.cWeatherShape,  show: "showWeatherShape" }
         ]},
-        { section: "Japanese", items: [
-            { label: "暦 Day",    key: "jpDay",     comp: root.cJpDay,     show: "showJpDay" },
-            { label: "縦 Clock",  key: "jpClock",   comp: root.cJpClock,   show: "showJpClock" },
-            { label: "俳句 Haiku", key: "jpHaiku",   comp: root.cJpHaiku,   show: "showJpHaiku" },
-            { label: "天気 Tenki", key: "jpWeather", comp: root.cJpWeather, show: "showJpWeather" },
-            { label: "漢字 Kanji", key: "jpKanji",   comp: root.cJpKanji,   show: "showJpKanji" },
-            { label: "印 Seal",   key: "jpSeal",    comp: root.cJpSeal,    show: "showJpSeal" }
+        { section: "Calendar", icon: "calendar_month", items: [
+            { label: "Mini",    key: "calendarMini",    comp: root.cCalendarMini, show: "showCalendarMini" },
+            { label: "Yarn",    key: "calendarYarn",    comp: root.cCalendarYarn, show: "showCalendarYarn" },
+            { label: "Almanac", key: "calendarAlmanac", comp: root.cCalendarAlm,  show: "showCalendarAlmanac" },
+            { label: "Torn",    key: "calendarTorn",    comp: root.cCalendarTorn, show: "showCalendarTorn" },
+            { label: "Windows", key: "calendarWindows", comp: root.cCalendarWindows, show: "showCalendarWindows" },
+            { label: "Daylight", key: "calendarDaylight", comp: root.cCalendarDaylight, show: "showCalendarDaylight" },
+            { label: "Year", key: "calendarYear", comp: root.cCalendarYear, show: "showCalendarYear" },
+            { label: "Stamp", key: "calendarStamp", comp: root.cCalendarStamp, show: "showCalendarStamp" },
+            { label: "Moon", key: "calendarMoon", comp: root.cCalendarMoon, show: "showCalendarMoon" }
         ]},
-        { section: "Productivity", items: [
+        { section: "Productivity", icon: "task_alt", items: [
             { label: "Claude Code", key: "claudeCode", comp: root.cClaudeCode, show: "showClaudeCode" },
             { label: "Tasks",       key: "taskList",   comp: root.cTaskList,   show: "showTaskList" },
             { label: "Note",        key: "stickyNote", comp: root.cStickyNote, show: "showStickyNote" },
             { label: "Pomodoro",    key: "pomodoro",   comp: root.cPomodoro,   show: "showPomodoro" },
             { label: "World Clock", key: "worldClock", comp: root.cWorldClock, show: "showWorldClock" }
         ]},
-        { section: "News", items: [
+        { section: "News", icon: "newspaper", items: [
             { label: "Headlines", key: "headlines", comp: root.cHeadlines, show: "showHeadlines" }
         ]},
-        { section: "System", items: [
+        { section: "System", icon: "memory", items: [
             { label: "Monitor",    key: "sysMonitor",   comp: root.cSysDefault,  show: "showSystemMonitor", styleKey: "systemMonitorStyle", style: "default", def: "default" },
             { label: "Compact",    key: "sysMonitor",   comp: root.cSysCompact,  show: "showSystemMonitor", styleKey: "systemMonitorStyle", style: "compact", def: "default" },
             { label: "Pulse",      key: "sysMonitor",   comp: root.cSysPulse,    show: "showSystemMonitor", styleKey: "systemMonitorStyle", style: "pulse",   def: "default" },
-            { label: "Battery",    key: "battery",      comp: root.cBattDefault, show: "showBattery", styleKey: "batteryStyle", style: "default", def: "default" },
-            { label: "Bar",        key: "battery",      comp: root.cBattMinimal, show: "showBattery", styleKey: "batteryStyle", style: "minimal", def: "default" },
-            { label: "Ring",       key: "battery",      comp: root.cBattRing,    show: "showBattery", styleKey: "batteryStyle", style: "ring",    def: "default" },
-            { label: "Shape",      key: "battery",      comp: root.cBattShape,   show: "showBattery", styleKey: "batteryStyle", style: "shape",   def: "default" },
-            { label: "Stat Stack", key: "statStack",    comp: root.cStatStack,   show: "showStatStack" },
+            { label: "Ring",       key: "battery",      comp: root.cBattRing,    show: "showBattery", styleKey: "batteryStyle", style: "ring",  def: "ring" },
+            { label: "Shape",      key: "battery",      comp: root.cBattShape,   show: "showBattery", styleKey: "batteryStyle", style: "shape", def: "ring" },
             { label: "Network",    key: "networkGraph", comp: root.cNetGraph,    show: "showNetworkGraph" },
-            { label: "VPN",        key: "vpn",          comp: root.cVpn,         show: "showVpn" }
+            { label: "Cockpit", key: "sysCockpit", comp: root.cSysCockpit, show: "showSysCockpit" },
+            { label: "Blueprint", key: "sysBlueprint", comp: root.cSysBlueprint, show: "showSysBlueprint" },
+            { label: "Vitals", key: "sysVitals", comp: root.cSysVitals, show: "showSysVitals" },
+            { label: "Forecast", key: "sysForecast", comp: root.cSysForecast, show: "showSysForecast" },
+            { label: "Flask", key: "sysFlask", comp: root.cSysFlask, show: "showSysFlask" },
+            { label: "Thermometer", key: "sysThermo", comp: root.cSysThermo, show: "showSysThermo" },
+            { label: "Creature", key: "sysCreature", comp: root.cSysCreature, show: "showSysCreature" },
+            { label: "Day Ribbon", key: "dayRibbon", comp: root.cDayRibbon, show: "showDayRibbon" },
+            { label: "Cell Stack", key: "sysCells", comp: root.cSysCells, show: "showSysCells" },
+            { label: "Shape Shifter", key: "sysShape", comp: root.cSysShape, show: "showSysShape" },
+            { label: "Hourglass", key: "sysHourglass", comp: root.cSysHourglass, show: "showSysHourglass" },
+            { label: "Fill Number", key: "sysFillNumber", comp: root.cSysFillNumber, show: "showSysFillNumber" }
         ]}
     ]
+
+    function tileSize(item) {
+        let probe = null
+        try {
+            probe = item.comp.createObject(null)
+            if (probe && probe.implicitWidth > 0 && probe.implicitHeight > 0)
+                return Qt.size(probe.implicitWidth, probe.implicitHeight)
+        } catch (e) {
+        } finally {
+            if (probe) probe.destroy()
+        }
+        return WidgetSizes.small
+    }
+
+    function place(item, w, h) {
+        root._land(item, WidgetLayout.firstFree(w, h))
+    }
+
+    function placeAt(item, col, halfRow, w, h) {
+        root._land(item, WidgetLayout.spotAt(col, halfRow, w, h))
+    }
+
+    function _land(item, p) {
+        const patch = {}
+        patch[item.show] = true
+        if (item.styleKey) patch[item.styleKey] = item.style
+        patch[item.key + "X"] = p.x
+        patch[item.key + "Y"] = p.y
+        SettingsConfig.widgets = Object.assign({}, SettingsConfig.widgets, patch)
+    }
+
+    function familyOn(item) {
+        return SettingsConfig.widgets[item.show] ?? false
+    }
 
     function familyFor(key) {
         for (let s = 0; s < root.catalog.length; s++) {

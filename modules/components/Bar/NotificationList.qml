@@ -267,7 +267,7 @@ Item {
                     readonly property bool entering: shelfIcon.index === 0 && root.enterIsNew
                     opacity: shelfIcon.entering
                         ? Math.min(1, root.enterProgress * 1.6) : 1
-                    scale: shelfIcon.entering
+                    readonly property real grow: shelfIcon.entering
                         ? 0.55 + 0.45 * root.enterProgress : 1
 
                     readonly property string symbol:
@@ -286,16 +286,16 @@ Item {
                         return ""
                     }
 
-                    width: 22
-                    height: 22
-                    radius: 11
+                    width: Math.round(22 * shelfIcon.grow)
+                    height: width
+                    radius: width / 2
                     color: shelfIcon.symbol !== "" ? Colors.primaryContainer
                                                    : Qt.alpha(Colors.primary, 0.12)
 
                     MaterialIconSymbol {
                         anchors.centerIn: parent
                         content: shelfIcon.symbol
-                        iconSize: 13
+                        iconSize: 13 * shelfIcon.grow
                         customColor: Colors.primaryContainerText
                         visible: shelfIcon.symbol !== ""
                     }

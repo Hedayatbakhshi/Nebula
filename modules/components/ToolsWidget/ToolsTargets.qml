@@ -143,8 +143,6 @@ ColumnLayout {
 
         transform: Translate { y: tc._ey }
         opacity:   tc._eo
-        scale:     tcMa.pressed ? 0.95 : 1.0
-        Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutQuad } }
 
         Row {
             anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter; leftMargin: 12; rightMargin: 10 }

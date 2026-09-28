@@ -35,10 +35,8 @@ WidgetHost {
         return true
     }
 
-    Rectangle {
+    WidgetCard {
         anchors.fill: parent
-        radius: WidgetSizes.radius
-        color: WidgetSizes.cardColor
 
         CustomText {
             x: 20; y: 16

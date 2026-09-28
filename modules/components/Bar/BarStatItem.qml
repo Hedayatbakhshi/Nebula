@@ -1,5 +1,4 @@
 import QtQuick
-import QtQuick.Effects
 import qs.modules.utils
 import qs.modules.services
 import qs.modules.customComponents
@@ -13,285 +12,149 @@ Item {
 
     property string icon: ""
     property real value: 0
+    property real secondary: 0
+    property var stack: []
+    property var cores: []
     property real graphValue: root.value
+    property real altValue: 0
     property real graphMax: 1
     property string label: ""
     property string tip: ""
     property string widthTemplate: ""
     property string shortLabel: ""
-    property string detail: ""
-    property string detailTemplate: ""
     property string number: String(Math.round(Math.max(0, root.value) * 100))
+    property string compactLabel: ""
 
     readonly property bool iconSizable: true
     readonly property real box: BarLayout.boxFor(root.itemId, root.host)
     readonly property real iconPx: BarLayout.iconPxFor(root.itemId, root.box, 16)
     readonly property real plate: BarLayout.platePxFor(root.box, root.iconPx, 16, 26)
-    readonly property string style: BarLayout.opt(root.itemId, "style") ?? "text"
+    readonly property var legacyStyles: ({ ring: "dial", gauge: "dial", arc: "speedo", track: "splittrack", split: "tag",
+                                           dual: "underline", segments: "rising", fill: "labelbar",
+                                           graph: "heat", histogram: "heat", wave: "heat" })
+    readonly property string style: {
+        const s = BarLayout.opt(root.itemId, "style") ?? "text"
+        return root.legacyStyles[s] ?? s
+    }
     readonly property bool showIcon: BarLayout.opt(root.itemId, "showIcon") !== false
+    readonly property bool showValue: BarLayout.opt(root.itemId, "showValue") !== false
+    readonly property real k: root.iconPx / 16
+    function px(v) { return Math.round(v * root.k) }
 
-    implicitWidth: content.implicitWidth + BarLayout.scaleFor(root.iconPx, 16, 12, 6)
-    implicitHeight: root.plate
+    readonly property var squareStyles: ["text", "dial", "rings", "cookie", "liquid", "orbit", "radial", "segring"]
+    readonly property var iconInside: ["dial", "cookie", "orbit", "radial", "segring"]
+    readonly property var ownText: ["thumb", "labelbar", "underline"]
+    readonly property var historyStyles: ["radial", "heat", "mirror"]
+
+    readonly property bool vertical: !!root.host && root.host.vertical === true
+    readonly property bool verticalReady: root.vertical && root.squareStyles.indexOf(root.style) >= 0
+    readonly property string shortValue: root.compactLabel !== "" ? root.compactLabel
+        : root.label.replace("%", "").replace("°C", "°")
+
+    implicitWidth: root.verticalReady ? Math.max(root.plate, content.implicitWidth + 6)
+        : content.implicitWidth + BarLayout.scaleFor(root.iconPx, 16, 12, 6)
+    implicitHeight: root.verticalReady ? content.implicitHeight + 8 : Math.max(root.plate, content.implicitHeight)
 
     Component.onCompleted: ServiceSystemInfo.retain()
     Component.onDestruction: ServiceSystemInfo.release()
 
-    readonly property bool historyStyle: root.style === "graph" || root.style === "histogram" || root.style === "wave"
     readonly property real load: Math.max(0, Math.min(1, root.value))
     readonly property color loadColor: root.load >= 0.9 ? Colors.error : root.load >= 0.7 ? Colors.tertiary : Colors.primary
     readonly property color onLoadColor: root.load >= 0.9 ? Colors.errorText : root.load >= 0.7 ? Colors.tertiaryText : Colors.primaryText
-    readonly property bool ownText: ["ring", "split", "dual", "arc", "wave"].indexOf(root.style) >= 0
 
-    onGraphValueChanged: {
-        if (root.style === "wave") {
-            if (waveLoader.item)
-                waveLoader.item.push(root.graphValue)
-        }
-        else if (root.historyStyle)
-            spark.addValue(root.graphValue)
+    property var history: []
+    property var altHistory: []
+    readonly property int historyPoints: 30
+
+    function pushTo(list, v) {
+        const out = list.length >= root.historyPoints ? list.slice(list.length - root.historyPoints + 1) : list.slice()
+        out.push(v)
+        return out
     }
 
-    Row {
+    function peakOf(list) {
+        let m = 0
+        for (const v of list)
+            m = Math.max(m, v)
+        return m
+    }
+
+    readonly property real historyMax: root.graphMax > 0 ? root.graphMax : Math.max(1024, root.peakOf(root.history))
+    readonly property real altMax: Math.max(1024, root.peakOf(root.altHistory))
+
+    onGraphValueChanged: {
+        if (root.historyStyles.indexOf(root.style) >= 0)
+            root.history = root.pushTo(root.history, root.graphValue)
+    }
+    onAltValueChanged: {
+        if (root.style === "mirror")
+            root.altHistory = root.pushTo(root.altHistory, root.altValue)
+    }
+
+    Grid {
         id: content
         anchors.centerIn: parent
-        spacing: 5
+        spacing: root.verticalReady ? 2 : root.px(6)
+        rows: root.verticalReady ? -1 : 1
+        columns: root.verticalReady ? 1 : -1
+        horizontalItemAlignment: Grid.AlignHCenter
+        verticalItemAlignment: Grid.AlignVCenter
 
         MaterialIconSymbol {
-            anchors.verticalCenter: parent.verticalCenter
-            visible: root.showIcon && ["ring", "gauge", "split", "arc", "wave"].indexOf(root.style) < 0
+            visible: root.showIcon && root.style !== "tag" && root.iconInside.indexOf(root.style) < 0
             content: root.icon
             iconSize: root.iconPx
-            customColor: root.style === "dual" ? root.loadColor : hov.containsMouse ? Colors.primary : Colors.surfaceText
+            customColor: hov.containsMouse ? Colors.primary : Colors.surfaceText
         }
 
-        Item {
-            anchors.verticalCenter: parent.verticalCenter
-            visible: root.style === "ring"
-            width: 24
-            height: 24
-
-            CustomCircularProgressBar {
-                anchors.fill: parent
-                progress: Math.max(0, Math.min(1, root.value))
-                thickness: 2.5
-                showText: false
-            }
-
-            MaterialIconSymbol {
-                anchors.centerIn: parent
-                visible: root.showIcon
-                content: root.icon
-                iconSize: BarLayout.scaleFor(root.iconPx, 16, 12, 8)
-                customColor: Colors.surfaceText
-            }
-        }
-
-        Item {
-            anchors.verticalCenter: parent.verticalCenter
-            visible: root.style === "gauge"
-            width: 26
-            height: 26
-
-            CustomGaugeProgress {
-                anchors.fill: parent
-                showData: false
-                progress: Math.max(0, Math.min(1, root.value))
-                thickness: 3
-                baseColor: Colors.surfaceContainerHighest
-                lineColor: Colors.primary
-            }
-
-            MaterialIconSymbol {
-                anchors.centerIn: parent
-                visible: root.showIcon
-                content: root.icon
-                iconSize: BarLayout.scaleFor(root.iconPx, 16, 11, 8)
-                customColor: Colors.surfaceText
-            }
-        }
-
-        CustomProgressBar {
-            anchors.verticalCenter: parent.verticalCenter
-            visible: root.style === "track"
-            value: Math.max(0, Math.min(1, root.value))
-            valueBarWidth: 46
-            valueBarHeight: 5
-            highlightColor: Colors.primary
-            trackColor: Colors.surfaceContainerHighest
-        }
-
-        Rectangle {
-            anchors.verticalCenter: parent.verticalCenter
-            visible: root.style === "split"
-            width: splitRow.implicitWidth
-            height: 24
-            radius: 12
-            color: root.loadColor
-
-            Behavior on color { EffectsColorAnim {} }
-
-            Row {
-                id: splitRow
-                height: parent.height
-
-                Rectangle {
-                    width: splitLabel.implicitWidth + 14
-                    height: parent.height
-                    topLeftRadius: height / 2
-                    bottomLeftRadius: height / 2
-                    color: Colors.secondaryContainer
-                    CustomText {
-                        id: splitLabel
-                        anchors.centerIn: parent
-                        content: root.shortLabel
-                        size: 10
-                        weight: 700
-                        font.letterSpacing: 0.6
-                        customColor: Colors.secondaryContainerText
-                    }
-                }
-                Item {
-                    width: splitValue.width + 16
-                    height: parent.height
-                    CustomText {
-                        id: splitValue
-                        anchors.centerIn: parent
-                        width: Math.max(splitValue.implicitWidth, splitProbe.advanceWidth)
-                        horizontalAlignment: Text.AlignHCenter
-                        font.features: { "tnum": 1 }
-                        content: root.label
-                        size: 12
-                        weight: 800
-                        customColor: root.onLoadColor
-                    }
-                    TextMetrics {
-                        id: splitProbe
-                        font: splitValue.font
-                        text: root.widthTemplate
-                    }
-                }
-            }
-        }
-
-        Column {
-            anchors.verticalCenter: parent.verticalCenter
-            visible: root.style === "dual"
-            spacing: 1
-
-            CustomText {
-                id: dualValue
-                width: Math.max(dualValue.implicitWidth, dualProbe.advanceWidth)
-                font.features: { "tnum": 1 }
-                content: root.label
-                size: 13
-                weight: 800
-            }
-            CustomText {
-                id: dualDetail
-                width: Math.max(dualDetail.implicitWidth, detailProbe.advanceWidth)
-                font.features: { "tnum": 1 }
-                content: root.detail
-                size: 9
-                weight: 500
-                customColor: Colors.outline
-            }
-            TextMetrics {
-                id: dualProbe
-                font: dualValue.font
-                text: root.widthTemplate
-            }
-            TextMetrics {
-                id: detailProbe
-                font: dualDetail.font
-                text: root.detailTemplate
-            }
-        }
-
-        Row {
-            anchors.verticalCenter: parent.verticalCenter
-            visible: root.style === "segments"
-            height: 18
-            spacing: 2
-
-            Repeater {
-                model: 8
-                delegate: Rectangle {
-                    required property int index
-                    anchors.bottom: parent.bottom
-                    width: 4
-                    height: 8 + index * 1.4
-                    radius: 2
-                    color: index < Math.round(root.load * 8) ? root.loadColor : Colors.surfaceContainerHighest
-                    Behavior on color { EffectsColorAnim {} }
-                }
-            }
-        }
-
-        Item {
-            anchors.verticalCenter: parent.verticalCenter
-            visible: root.style === "arc"
-            width: 32
-            height: 32
-
-            CustomGaugeProgress {
-                anchors.fill: parent
-                showData: false
-                progress: root.load
-                thickness: 3
-                baseColor: Colors.surfaceContainerHighest
-                lineColor: root.loadColor
-            }
-            Column {
-                anchors.centerIn: parent
-                spacing: 0
-                CustomText {
-                    anchors.horizontalCenter: parent.horizontalCenter
-                    font.features: { "tnum": 1 }
-                    content: root.number
-                    size: 10
-                    weight: 800
-                }
-                CustomText {
-                    anchors.horizontalCenter: parent.horizontalCenter
-                    content: root.shortLabel
-                    size: 7
-                    weight: 700
-                    customColor: Colors.outline
-                }
-            }
+        CustomText {
+            visible: root.style === "tag"
+            content: root.shortLabel
+            size: root.px(10.5)
+            weight: 700
+            font.letterSpacing: 0.6
+            customColor: Colors.surfaceVariantText
         }
 
         Loader {
-            id: waveLoader
-            anchors.verticalCenter: parent.verticalCenter
-            active: root.style === "wave"
+            id: meter
+            active: root.style !== "text"
             visible: active
-            sourceComponent: waveComp
-        }
-
-        CustomSparkline {
-            id: spark
-            anchors.verticalCenter: parent.verticalCenter
-            visible: root.style === "graph" || root.style === "histogram"
-            width: 44
-            height: 20
-            maxPoints: 30
-            maxOverride: root.graphMax
-            lineWidth: 1.5
-            cornerRadius: 4
-            bars: root.style === "histogram"
-            barWidth: 2
-            barGap: 1.5
+            sourceComponent: {
+                switch (root.style) {
+                case "dial":      return dialComp
+                case "rings":     return ringsComp
+                case "cookie":    return cookieComp
+                case "liquid":    return liquidComp
+                case "speedo":    return speedoComp
+                case "orbit":     return orbitComp
+                case "radial":    return radialComp
+                case "segring":   return segringComp
+                case "splittrack":
+                case "tag":       return splitComp
+                case "capsules":  return capsulesComp
+                case "rising":    return risingComp
+                case "stacked":   return stackedComp
+                case "columns":   return columnsComp
+                case "ruler":     return rulerComp
+                case "dots":      return dotsComp
+                case "heat":      return heatComp
+                case "mirror":    return mirrorComp
+                case "thumb":     return thumbComp
+                case "labelbar":  return labelComp
+                case "underline": return underlineComp
+                }
+                return null
+            }
         }
 
         CustomText {
             id: valueText
-            anchors.verticalCenter: parent.verticalCenter
-            visible: !root.ownText
-            width: Math.max(valueText.implicitWidth, widthProbe.advanceWidth)
+            visible: root.ownText.indexOf(root.style) < 0 && root.showValue
+            width: root.verticalReady ? valueText.implicitWidth : Math.max(valueText.implicitWidth, widthProbe.advanceWidth)
             font.features: { "tnum": 1 }
-            content: root.label
-            size: 12
+            content: root.verticalReady ? root.shortValue : root.label
+            size: root.verticalReady ? root.px(11) : root.px(13)
             weight: 700
         }
     }
@@ -314,100 +177,311 @@ Item {
     }
 
     Component {
-        id: waveComp
-
-        Item {
-            id: waveBox
-            property bool seeded: false
-            function push(v) {
-                if (!waveBox.seeded) {
-                    waveSpark.values = new Array(30).fill(v)
-                    waveBox.seeded = true
-                } else {
-                    waveSpark.addValue(v)
-                }
+        id: dialComp
+        MeterTickDial {
+            implicitWidth: root.px(28)
+            implicitHeight: root.px(28)
+            ticks: 16
+            majorEvery: 0
+            tickWidth: Math.max(1.5, root.px(2))
+            tickLength: root.px(4)
+            value: root.load
+            color: root.loadColor
+            MaterialIconSymbol {
+                anchors.centerIn: parent
+                visible: root.showIcon
+                content: root.icon
+                iconSize: root.px(12)
+                customColor: Colors.surfaceText
             }
-            implicitWidth: Math.max(78, waveRow.implicitWidth + 20)
-            implicitHeight: 32
+        }
+    }
 
-            Item {
-                id: waveBg
-                anchors.fill: parent
-                visible: false
-                layer.enabled: true
+    Component {
+        id: ringsComp
+        MeterRings {
+            implicitWidth: root.px(26)
+            implicitHeight: root.px(26)
+            thickness: Math.max(2, root.px(3))
+            gap: Math.max(1, root.px(1.5))
+            values: [root.load, root.secondary]
+            colors: [root.loadColor, Colors.secondary]
+        }
+    }
 
-                Rectangle {
-                    anchors.fill: parent
-                    color: Colors.surfaceContainer
-                }
-
-                CustomSparkline {
-                    id: waveSpark
-                    anchors.left: parent.left
-                    anchors.right: parent.right
-                    anchors.bottom: parent.bottom
-                    height: 11
-                    opacity: 0.85
-                    maxPoints: 30
-                    maxOverride: root.graphMax
-                    lineWidth: 1.2
-                    cornerRadius: 4
-                    filled: true
-                    gradientFill: false
-                    lineColor: root.loadColor
-                    fillColor: Qt.alpha(root.loadColor, 0.22)
-                }
+    Component {
+        id: cookieComp
+        MeterCookie {
+            implicitWidth: root.px(28)
+            implicitHeight: root.px(28)
+            thickness: Math.max(2, root.px(2.5))
+            faceColor: "transparent"
+            value: root.load
+            color: root.loadColor
+            MaterialIconSymbol {
+                anchors.centerIn: parent
+                visible: root.showIcon
+                content: root.icon
+                iconSize: root.px(12)
+                customColor: Colors.surfaceText
             }
+        }
+    }
 
-            Rectangle {
-                id: waveMask
-                anchors.fill: parent
-                radius: height / 2
-                visible: false
-                layer.enabled: true
+    Component {
+        id: liquidComp
+        MeterLiquid {
+            implicitWidth: root.px(24)
+            implicitHeight: root.px(24)
+            amplitude: Math.max(1, root.px(1.2))
+            value: root.load
+            color: root.loadColor
+            backColor: Qt.alpha(root.loadColor, 0.45)
+            trackColor: Colors.surfaceContainerHighest
+        }
+    }
+
+    Component {
+        id: speedoComp
+        MeterSpeedo {
+            implicitWidth: root.px(32)
+            implicitHeight: root.px(21)
+            thickness: Math.max(2.5, root.px(3.5))
+            showTicks: false
+            value: root.load
+            color: root.loadColor
+            hubHole: Colors.surfaceContainer
+        }
+    }
+
+    Component {
+        id: orbitComp
+        MeterOrbit {
+            implicitWidth: root.px(28)
+            implicitHeight: root.px(28)
+            thickness: Math.max(1.2, root.px(1.4))
+            planet: root.px(4.5)
+            coreScale: 0
+            value: root.load
+            color: root.loadColor
+            MaterialIconSymbol {
+                anchors.centerIn: parent
+                visible: root.showIcon
+                content: root.icon
+                iconSize: root.px(12)
+                customColor: Colors.surfaceText
             }
+        }
+    }
 
-            MultiEffect {
-                anchors.fill: parent
-                source: waveBg
-                maskEnabled: true
-                maskSource: waveMask
-                maskThresholdMin: 0.5
-                maskSpreadAtMin: 1.0
+    Component {
+        id: radialComp
+        MeterRadialHistory {
+            implicitWidth: root.px(28)
+            implicitHeight: root.px(28)
+            points: 24
+            inner: 0.5
+            barWidth: Math.max(1.2, root.px(1.4))
+            history: root.history
+            max: root.historyMax
+            color: root.loadColor
+            MaterialIconSymbol {
+                anchors.centerIn: parent
+                visible: root.showIcon
+                content: root.icon
+                iconSize: root.px(10)
+                customColor: Colors.surfaceText
             }
+        }
+    }
 
-            Row {
-                id: waveRow
-                anchors.left: parent.left
-                anchors.leftMargin: 10
-                anchors.right: parent.right
-                anchors.rightMargin: 10
-                anchors.verticalCenter: parent.verticalCenter
-                anchors.verticalCenterOffset: -4
-                spacing: 8
-                CustomText {
-                    id: waveLabel
-                    anchors.verticalCenter: parent.verticalCenter
-                    content: root.shortLabel
-                    size: 10
-                    weight: 700
-                    customColor: Colors.outline
-                }
-                CustomText {
-                    id: waveValue
-                    anchors.verticalCenter: parent.verticalCenter
-                    width: Math.max(waveValue.implicitWidth, waveProbe.advanceWidth)
-                    horizontalAlignment: Text.AlignRight
-                    font.features: { "tnum": 1 }
-                    content: root.label
-                    size: 12
-                    weight: 800
-                }
-                TextMetrics {
-                    id: waveProbe
-                    font: waveValue.font
-                    text: root.widthTemplate
-                }
+    Component {
+        id: segringComp
+        MeterSegmentRing {
+            implicitWidth: root.px(26)
+            implicitHeight: root.px(26)
+            segments: 8
+            gapDegrees: 12
+            thickness: Math.max(2.5, root.px(3.5))
+            value: root.load
+            color: root.loadColor
+            MaterialIconSymbol {
+                anchors.centerIn: parent
+                visible: root.showIcon
+                content: root.icon
+                iconSize: root.px(11)
+                customColor: Colors.surfaceText
+            }
+        }
+    }
+
+    Component {
+        id: splitComp
+        MeterSplitTrack {
+            implicitWidth: root.style === "tag" ? root.px(40) : root.px(46)
+            implicitHeight: root.px(6)
+            gap: root.px(3)
+            value: root.load
+            color: root.loadColor
+        }
+    }
+
+    Component {
+        id: capsulesComp
+        MeterCapsules {
+            implicitWidth: root.px(52)
+            implicitHeight: root.px(14)
+            count: 10
+            gap: Math.max(1, root.px(1.5))
+            value: root.load
+            color: root.loadColor
+        }
+    }
+
+    Component {
+        id: risingComp
+        MeterCapsules {
+            implicitWidth: root.px(40)
+            implicitHeight: root.px(18)
+            count: 8
+            rising: true
+            gap: Math.max(1, root.px(2))
+            value: root.load
+            color: root.loadColor
+        }
+    }
+
+    Component {
+        id: stackedComp
+        MeterStacked {
+            implicitWidth: root.px(52)
+            implicitHeight: root.px(8)
+            gap: Math.max(1, root.px(1.5))
+            values: root.stack.length > 0 ? root.stack : [root.load]
+            colors: [root.loadColor, Colors.tertiary, Colors.secondary]
+        }
+    }
+
+    Component {
+        id: columnsComp
+        MeterColumns {
+            readonly property var list: root.cores.length > 0 ? root.cores : [root.load]
+            implicitWidth: Math.max(root.px(20), list.length * root.px(4.5))
+            implicitHeight: root.px(20)
+            gap: Math.max(1, root.px(1.5))
+            radius: Math.max(1, root.px(1.5))
+            values: list
+        }
+    }
+
+    Component {
+        id: rulerComp
+        MeterRuler {
+            implicitWidth: root.px(50)
+            implicitHeight: root.px(14)
+            barHeight: Math.max(3, root.px(4))
+            showTicks: false
+            value: root.load
+        }
+    }
+
+    Component {
+        id: dotsComp
+        MeterDotMatrix {
+            implicitWidth: root.px(48)
+            implicitHeight: root.px(13)
+            rows: 3
+            dot: Math.max(2, root.px(3))
+            gap: Math.max(1, root.px(2))
+            value: root.load
+            color: root.loadColor
+        }
+    }
+
+    Component {
+        id: heatComp
+        MeterHeatStrip {
+            implicitWidth: root.px(58)
+            implicitHeight: root.px(16)
+            points: 16
+            gap: Math.max(1, root.px(1.2))
+            radius: Math.max(1, root.px(1.5))
+            history: root.history
+            max: root.historyMax
+            color: root.graphMax > 0 ? root.loadColor : Colors.primary
+        }
+    }
+
+    Component {
+        id: mirrorComp
+        MeterMirror {
+            implicitWidth: root.px(56)
+            implicitHeight: root.px(12)
+            leftValue: root.graphValue / root.historyMax
+            rightValue: root.altValue / root.altMax
+        }
+    }
+
+    Component {
+        id: thumbComp
+        MeterThumb {
+            implicitWidth: root.px(70)
+            implicitHeight: root.px(20)
+            textSize: root.px(11)
+            value: root.load
+            text: root.showValue ? root.label : ""
+            color: root.loadColor
+            inkColor: root.onLoadColor
+            fillColor: Qt.alpha(root.loadColor, 0.5)
+        }
+    }
+
+    Component {
+        id: labelComp
+        MeterLabelBar {
+            id: labelBar
+            implicitWidth: Math.max(root.px(64), labelProbe.advanceWidth + root.px(24))
+            implicitHeight: root.px(22)
+            textSize: root.px(12)
+            value: root.load
+            text: root.showValue ? root.label : root.shortLabel
+            color: root.loadColor
+            inkColor: root.onLoadColor
+
+            TextMetrics {
+                id: labelProbe
+                font.family: labelBar.family
+                font.pixelSize: root.px(12)
+                text: root.widthTemplate
+            }
+        }
+    }
+
+    Component {
+        id: underlineComp
+        Column {
+            spacing: root.px(2)
+            CustomText {
+                id: ulText
+                width: Math.max(ulText.implicitWidth, ulProbe.advanceWidth)
+                horizontalAlignment: Text.AlignHCenter
+                font.features: { "tnum": 1 }
+                content: root.showValue ? root.label : root.shortLabel
+                size: root.px(13)
+                weight: 700
+            }
+            MeterSplitTrack {
+                width: ulText.width
+                height: Math.max(2, root.px(3))
+                gap: root.px(2)
+                stopDot: false
+                value: root.load
+                color: root.loadColor
+            }
+            TextMetrics {
+                id: ulProbe
+                font: ulText.font
+                text: root.widthTemplate
             }
         }
     }

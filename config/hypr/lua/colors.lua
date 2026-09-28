@@ -1,10 +1,5 @@
--- Pywal-generated color variables
--- ~/.config/hypr/lua/colors.lua
---
--- To regenerate these from pywal, create a template at:
---   ~/.config/wal/templates/hypr-colors.lua
--- and add the following pywal template variables mapped to Lua table fields.
--- Then run `wal -R` or `wal -i <wallpaper>` to regenerate.
+-- Placeholder until the first run: nebula overwrites this file with
+-- colours from your wallpaper (template: config/matugen/templates/hyprland-colors.lua).
 
 local M = {}
 

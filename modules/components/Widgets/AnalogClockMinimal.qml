@@ -60,9 +60,6 @@ WidgetHost {
         color: Colors.surfaceVariantText
         transformOrigin: Item.Bottom
         rotation: (parseInt(ServiceClock.minute) + parseInt(ServiceClock.seconds) / 60) / 60 * 360
-        Behavior on rotation {
-            RotationAnimation { direction: RotationAnimation.Clockwise; duration: 400; easing.type: Easing.OutCubic }
-        }
     }
 
     // Second hand

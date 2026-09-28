@@ -43,10 +43,8 @@ WidgetHost {
         return "Good night"
     }
 
-    Rectangle {
+    WidgetCard {
         anchors.fill: parent
-        radius: WidgetSizes.radius
-        color: WidgetSizes.cardColor
 
         ColumnLayout {
             anchors.centerIn: parent

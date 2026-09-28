@@ -15,23 +15,34 @@ Singleton {
 
     readonly property var groups: ["Core", "Dock", "Stats", "Toggles", "Launchers", "Layout"]
 
-    readonly property var statStyle: {
-        "key": "style", "label": "Style", "type": "grid", "default": "text",
-        "choices": [
-            { "value": "text",      "label": "Text",      "icon": "text_fields" },
-            { "value": "ring",      "label": "Ring",      "icon": "progress_activity" },
-            { "value": "graph",     "label": "Graph",     "icon": "show_chart" },
-            { "value": "gauge",     "label": "Gauge",     "icon": "speed" },
-            { "value": "track",     "label": "Track",     "icon": "linear_scale" },
-            { "value": "histogram", "label": "Histogram", "icon": "bar_chart" },
-            { "value": "split",     "label": "Split pill", "icon": "splitscreen_right" },
-            { "value": "dual",      "label": "Two-line",  "icon": "format_line_spacing" },
-            { "value": "segments",  "label": "Segments",  "icon": "signal_cellular_alt" },
-            { "value": "arc",       "label": "Arc",       "icon": "speed" },
-            { "value": "wave",      "label": "Wave",      "icon": "airwave" }
-        ]
+    readonly property var statStyleChoices: [
+        { "value": "text",      "label": "Text",           "icon": "text_fields" },
+        { "value": "dial",      "label": "Tick dial",      "icon": "speed" },
+        { "value": "rings",     "label": "Twin ring",      "icon": "radio_button_checked" },
+        { "value": "cookie",    "label": "Cookie",         "icon": "cookie" },
+        { "value": "liquid",    "label": "Liquid",         "icon": "water_drop" },
+        { "value": "speedo",    "label": "Speedo",         "icon": "avg_pace" },
+        { "value": "orbit",     "label": "Orbit",          "icon": "orbit" },
+        { "value": "radial",    "label": "Radial history", "icon": "sunny" },
+        { "value": "segring",   "label": "Segment ring",   "icon": "donut_large" },
+        { "value": "splittrack", "label": "Split track",    "icon": "linear_scale" },
+        { "value": "tag",       "label": "Tagged track",   "icon": "label" },
+        { "value": "underline", "label": "Underline",      "icon": "format_underlined" },
+        { "value": "capsules",  "label": "Capsules",       "icon": "view_week" },
+        { "value": "rising",    "label": "Rising cells",   "icon": "signal_cellular_alt" },
+        { "value": "ruler",     "label": "Ruler",          "icon": "straighten" },
+        { "value": "dots",      "label": "Dot matrix",     "icon": "grid_on" },
+        { "value": "heat",      "label": "Heat strip",     "icon": "view_column" },
+        { "value": "thumb",     "label": "Thumb",          "icon": "toggle_on" },
+        { "value": "labelbar",  "label": "Label pill",     "icon": "battery_horiz_050" }
+    ]
+    function statStyleWith(extra) {
+        return { "key": "style", "label": "Style", "type": "grid", "default": "text",
+                 "choices": root.statStyleChoices.concat(extra) }
     }
+    readonly property var statStyle: root.statStyleWith([])
     readonly property var showIconOpt: { "key": "showIcon", "label": "Show icon", "type": "toggle", "default": true }
+    readonly property var showValueOpt: { "key": "showValue", "label": "Show value", "type": "toggle", "default": true }
     readonly property var showLabelOpt: { "key": "showLabel", "label": "Show label", "type": "toggle", "default": false }
     readonly property var dockShowOpt: {
         "key": "show", "label": "Show", "type": "grid", "default": "all",
@@ -56,14 +67,16 @@ Singleton {
 
     function musicOptions(style) {
         return [{ key: "style", label: "Style", type: "grid", default: style,
-                  choices: [{ value: "chip",      label: "Chip",      icon: "smart_button" },
-                            { value: "ring",      label: "Ring",      icon: "donut_large" },
-                            { value: "pill",      label: "Transport", icon: "skip_next" },
-                            { value: "vis",       label: "Visualizer", icon: "graphic_eq" },
-                            { value: "underline", label: "Underline", icon: "format_underlined" },
-                            { value: "disc",      label: "Disc",      icon: "album" }] },
+                  choices: [{ value: "pill",   label: "Transport", icon: "skip_next" },
+                            { value: "wave",   label: "Waveform",  icon: "graphic_eq" },
+                            { value: "island", label: "Island",    icon: "pill" },
+                            { value: "fill",   label: "Fill",      icon: "linear_scale" },
+                            { value: "type",   label: "Type",      icon: "title" },
+                            { value: "sources", label: "Sources",  icon: "queue_music" }] },
                 { key: "panel", label: "Panel", type: "choice", default: "side",
-                  choices: [{ value: "side", label: "Side by side" }, { value: "backdrop", label: "Artwork" }] },
+                  choices: [{ value: "side", label: "Side by side" }, { value: "wave", label: "Waveform" },
+                            { value: "island", label: "Island" }, { value: "fill", label: "Fill" },
+                            { value: "type", label: "Type" }, { value: "sources", label: "Sources" }] },
                 { key: "hideIdle", label: "Hide when nothing plays", type: "toggle", default: false }]
     }
 
@@ -85,29 +98,54 @@ Singleton {
                                 { value: "worm",    label: "Worm",      icon: "more_horiz" },
                                 { value: "numbers", label: "Numbers",   icon: "pin" },
                                 { value: "strip",   label: "App strip", icon: "apps" },
-                                { value: "kanji",   label: "Kanji",     icon: "translate" }] },
+                                { value: "kanji",   label: "Kanji",     icon: "translate" },
+                                { value: "lanterns", label: "Lanterns", icon: "light" },
+                                { value: "books",   label: "Bookshelf", icon: "shelves" },
+                                { value: "house",   label: "House",     icon: "cottage" },
+                                { value: "moons",   label: "Moons",     icon: "bedtime" },
+                                { value: "stars",   label: "Stars",     icon: "auto_awesome" },
+                                { value: "map",     label: "Window map", icon: "dashboard" },
+                                { value: "dial",    label: "Dial",      icon: "speed" },
+                                { value: "candles", label: "Candles",   icon: "local_fire_department" },
+                                { value: "ruler",   label: "Ruler",     icon: "straighten" },
+                                { value: "ring",    label: "Segment ring", icon: "donut_large" },
+                                { value: "viewfinder", label: "Viewfinder", icon: "center_focus_weak" },
+                                { value: "focus",   label: "Focus pill", icon: "label" },
+                                { value: "cards",   label: "Card stack", icon: "filter_none" }] },
                     { key: "numbers", label: "Show numbers", type: "toggle", setting: "showWorkspaceNumbers", default: false,
                       onlyIf: { key: "style", values: ["pill"] } }] },
         { id: "windowTitle",   label: "Window title",  icon: "web_asset",            group: "Core", surfaces: ["bar"],
           options: [{ key: "lines", label: "Lines", type: "choice", default: "two",
                       choices: [{ value: "two", label: "Two" }, { value: "one", label: "One" }] },
-                    { key: "width", label: "Width", type: "slider", min: 100, max: 360, step: 20, default: 200, auto: "Fit text" }] },
+                    { key: "width", label: "Width", type: "slider", min: 100, max: 360, step: 20, default: 200, auto: "Fit text" },
+                    { key: "icon", label: "Icon", type: "choice", default: "app",
+                      choices: [{ value: "app", label: "App icon" }, { value: "generic", label: "Generic" }] },
+                    { key: "tint", label: "Tinted chip", type: "toggle", default: false }] },
         { id: "clock",         label: "Clock",         icon: "schedule",             group: "Core",
           options: [{ key: "style", label: "Style", type: "grid", default: "display",
-                      choices: [{ value: "display",  label: "Display" },
-                                { value: "plain",    label: "Inline" },
-                                { value: "led",      label: "Date-led" },
-                                { value: "stacked",  label: "Column" },
-                                { value: "pill",     label: "Split pill" },
-                                { value: "pilldate", label: "Pill + date" },
-                                { value: "seconds",  label: "Ticker" },
-                                { value: "jp",       label: "Japanese" }] },
-                    { key: "showDate", label: "Show date", type: "toggle", default: true,
-                      onlyIf: { key: "style", values: ["plain", "led", "stacked", "pill", "pilldate", "seconds", "jp"] } },
-                    { key: "use24", label: "24-hour", type: "toggle", default: false }] },
+                      choices: [{ value: "display",   label: "Display",     icon: "schedule" },
+                                { value: "inline",    label: "Time · Date", icon: "more_horiz" },
+                                { value: "stack",     label: "Stacked",     icon: "view_agenda" },
+                                { value: "datefirst", label: "Date first",  icon: "today" },
+                                { value: "twotone",   label: "Two tone",    icon: "contrast" },
+                                { value: "ampm",      label: "AM/PM",       icon: "wb_sunny" },
+                                { value: "tab",       label: "Day tab",     icon: "label" },
+                                { value: "tiles",     label: "Tiles",       icon: "grid_view" },
+                                { value: "side",      label: "Side date",   icon: "vertical_split" },
+                                { value: "mono",      label: "Seconds",     icon: "timer" },
+                                { value: "long",      label: "Long form",   icon: "notes" }] },
+                    { key: "use24", label: "24-hour", type: "toggle", default: false },
+                    { key: "panel", label: "Calendar panel", type: "grid", default: "rail",
+                      choices: [{ value: "rail",   label: "Date rail", icon: "view_sidebar" },
+                                { value: "sheet",  label: "Day sheet", icon: "event_note" },
+                                { value: "weeks",  label: "Weeks",     icon: "calendar_view_week" },
+                                { value: "shapes", label: "Shapes",    icon: "interests" }] },
+                    { key: "live", label: "Live island (volume, notifications, charging)", type: "toggle", default: false },
+                    { key: "dndBadge", label: "Moon when Do not disturb is on", type: "toggle", default: true }] },
         { id: "music",         label: "Music",         icon: "music_note",           group: "Core",
-          options: root.musicOptions("chip") },
-        { id: "rec",           label: "Recording",     icon: "screen_record",        group: "Core" },
+          options: root.musicOptions("pill") },
+        { id: "rec",           label: "Recording",     icon: "screen_record",        group: "Core",
+          options: [{ key: "showTime", label: "Show timer", type: "toggle", default: true }] },
         { id: "tray",          label: "System tray",   icon: "apps",                 group: "Core", surfaces: ["bar"],
           options: [{ key: "visible", label: "Visible icons", type: "slider", min: 1, max: 8, step: 1, default: 3, auto: "All" }] },
         { id: "weather",       label: "Weather",       icon: "partly_cloudy_day",    group: "Core",
@@ -119,15 +157,40 @@ Singleton {
                                 { value: "timeline", label: "Timeline", icon: "view_timeline" },
                                 { value: "glance",   label: "Glance",   icon: "short_text" }] }] },
         { id: "volume",        label: "Volume",        icon: "volume_up",            group: "Core",
-          options: [{ key: "showPercent", label: "Show percentage", type: "toggle", default: true }] },
+          options: [{ key: "style", label: "Style", type: "choice", default: "icon",
+                      choices: [{ value: "icon", label: "Icon" }, { value: "fill", label: "Fill" }] },
+                    { key: "showPercent", label: "Show percentage", type: "toggle", default: true,
+                      onlyIf: { key: "style", values: ["icon"] } }] },
         { id: "brightness",    label: "Brightness",    icon: "brightness_6",         group: "Core",
-          options: [{ key: "showPercent", label: "Show percentage", type: "toggle", default: true }] },
+          options: [{ key: "style", label: "Style", type: "choice", default: "icon",
+                      choices: [{ value: "icon", label: "Icon" }, { value: "fill", label: "Fill" }] },
+                    { key: "showPercent", label: "Show percentage", type: "toggle", default: true,
+                      onlyIf: { key: "style", values: ["icon"] } }] },
         { id: "powerMode",     label: "Power mode",    icon: "energy_savings_leaf",  group: "Core", options: [root.showLabelOpt] },
         { id: "wifi",         label: "Network",       icon: "wifi",                 group: "Core" },
         { id: "bluetooth",     label: "Bluetooth",     icon: "bluetooth",            group: "Core" },
-        { id: "notifications", label: "Notifications", icon: "notifications",        group: "Core" },
+        { id: "notifications", label: "Notifications", icon: "notifications",        group: "Core",
+          options: [{ key: "popupStyle", label: "Popups", type: "choice", setting: "notifPopupStyle", default: "corner",
+                      choices: [{ value: "corner", label: "Corner" }, { value: "bar", label: "Bar tab" },
+                                { value: "dock", label: "Dock toast" }, { value: "icon", label: "Icon bubble" }] }] },
         { id: "battery",       label: "Battery",       icon: "battery_android_full", group: "Core",
-          options: [{ key: "showPercent", label: "Show percentage", type: "toggle", default: false }] },
+          options: [{ key: "style", label: "Style", type: "choice", default: "icon",
+                      choices: [{ value: "icon", label: "Icon" }, { value: "fill", label: "Fill" }] },
+                    { key: "showPercent", label: "Show percentage", type: "toggle", default: false,
+                      onlyIf: { key: "style", values: ["icon"] } }] },
+        { id: "status",        label: "Status cluster", icon: "tune",               group: "Core",
+          options: [{ key: "privacy", label: "Privacy dots (mic, screen share)", type: "toggle", default: true },
+                    { key: "battery", label: "Battery", type: "toggle", default: true }] },
+        { id: "privacy",       label: "Privacy",       icon: "privacy_tip",          group: "Core" },
+        { id: "keyboard",      label: "Keyboard",      icon: "keyboard",             group: "Core",
+          options: [{ key: "layout", label: "Show layout", type: "toggle", default: true },
+                    { key: "caps", label: "Show caps lock", type: "toggle", default: true }] },
+        { id: "sun",           label: "Sun arc",       icon: "wb_twilight",          group: "Core",
+          options: [{ key: "showLabel", label: "Show time to sunrise/sunset", type: "toggle", default: true }] },
+        { id: "nextEvent",     label: "Next holiday",  icon: "event",                group: "Core",
+          options: [{ key: "days", label: "Look ahead (days)", type: "slider", min: 7, max: 120, step: 1, default: 30 },
+                    { key: "width", label: "Name width", type: "slider", min: 60, max: 240, step: 10, default: 140 }] },
+        { id: "week",          label: "Week number",   icon: "date_range",           group: "Core" },
         { id: "dashboard",     label: "Dashboard",     icon: "dashboard",            group: "Core" },
 
         { id: "dockApps",      label: "App icons",     icon: "apps",                 group: "Dock", surfaces: ["dock"], multi: true,
@@ -139,21 +202,28 @@ Singleton {
         { id: "dockMusic",     label: "Music player",  icon: "music_note",           group: "Dock", surfaces: ["dock"],
           options: root.musicOptions("pill") },
 
-        { id: "cpu",           label: "CPU",           icon: "memory",               group: "Stats", options: [root.statStyle, root.showIconOpt] },
-        { id: "memory",        label: "Memory",        icon: "memory_alt",           group: "Stats", options: [root.statStyle, root.showIconOpt] },
-        { id: "temperature",   label: "Temperature",   icon: "device_thermostat",    group: "Stats", options: [root.statStyle, root.showIconOpt] },
-        { id: "gpu",           label: "GPU",           icon: "developer_board",      group: "Stats", options: [root.statStyle, root.showIconOpt] },
+        { id: "cpu",           label: "CPU",           icon: "memory",               group: "Stats", options: [root.statStyleWith([{ "value": "columns", "label": "Per-core", "icon": "bar_chart" }]), root.showIconOpt, root.showValueOpt] },
+        { id: "memory",        label: "Memory",        icon: "memory_alt",           group: "Stats", options: [root.statStyleWith([{ "value": "stacked", "label": "Stacked", "icon": "stacked_bar_chart" }]), root.showIconOpt, root.showValueOpt] },
+        { id: "temperature",   label: "Temperature",   icon: "device_thermostat",    group: "Stats", options: [root.statStyle, root.showIconOpt, root.showValueOpt] },
+        { id: "gpu",           label: "GPU",           icon: "developer_board",      group: "Stats", options: [root.statStyle, root.showIconOpt, root.showValueOpt] },
         { id: "netSpeed",      label: "Net speed",     icon: "swap_vert",            group: "Stats",
           options: [{ key: "style", label: "Style", type: "grid", default: "text",
                       choices: [{ value: "text", label: "Text", icon: "text_fields" },
-                                { value: "graph", label: "Graph", icon: "show_chart" },
-                                { value: "histogram", label: "Histogram", icon: "bar_chart" },
-                                { value: "wave", label: "Wave", icon: "airwave" }] },
+                                { value: "heat", label: "Heat strip", icon: "view_column" },
+                                { value: "radial", label: "Radial history", icon: "sunny" },
+                                { value: "mirror", label: "Mirror", icon: "compare_arrows" }] },
                     { key: "direction", label: "Show", type: "choice", default: "both",
                       choices: [{ value: "down", label: "Down" }, { value: "up", label: "Up" }, { value: "both", label: "Both" }] },
-                    root.showIconOpt] },
+                    root.showIconOpt, root.showValueOpt] },
 
-        { id: "micMute",       label: "Mic",           icon: "mic",                  group: "Toggles", options: [root.showLabelOpt] },
+        { id: "micMute",       label: "Mic",           icon: "mic",                  group: "Toggles",
+          options: [root.showLabelOpt, { key: "onlyMuted", label: "Only show when muted", type: "toggle", default: false }] },
+        { id: "focus",         label: "Focus timer",   icon: "timer",                group: "Toggles",
+          options: [{ key: "dots", label: "Session dots", type: "toggle", default: true },
+                    { key: "focusMin", label: "Focus (min)", type: "slider", setting: "focusMinutes", min: 5, max: 90, step: 5, default: 25 },
+                    { key: "shortMin", label: "Short break (min)", type: "slider", setting: "focusShortBreak", min: 1, max: 30, step: 1, default: 5 },
+                    { key: "longMin", label: "Long break (min)", type: "slider", setting: "focusLongBreak", min: 5, max: 45, step: 5, default: 15 },
+                    { key: "rounds", label: "Sessions per round", type: "slider", setting: "focusRounds", min: 2, max: 8, step: 1, default: 4 }] },
         { id: "caffeine",      label: "Caffeine",      icon: "coffee",               group: "Toggles", options: [root.showLabelOpt] },
         { id: "dnd",           label: "Do not disturb", icon: "do_not_disturb_on",   group: "Toggles", options: [root.showLabelOpt] },
         { id: "gameMode",      label: "Game mode",     icon: "sports_esports",       group: "Toggles", options: [root.showLabelOpt] },
@@ -177,17 +247,31 @@ Singleton {
                     { key: "run", label: "Run  >", type: "toggle", setting: "launcherRun", default: true },
                     { key: "emoji", label: "Emoji  :", type: "toggle", setting: "launcherEmoji", default: true },
                     { key: "windows", label: "Windows  w", type: "toggle", setting: "launcherWindows", default: true }] },
-        { id: "clipboard",     label: "Clipboard",     icon: "content_paste",        group: "Launchers", options: [root.showLabelOpt] },
+        { id: "clipboard",     label: "Clipboard",     icon: "content_paste",        group: "Launchers",
+          options: [root.showLabelOpt,
+                    { key: "style", label: "Panel style", type: "choice", setting: "clipboardStyle", default: "list",
+                      choices: [{ value: "list", label: "List + preview", icon: "view_list" }, { value: "fan", label: "Card fan", icon: "style" }] }] },
         { id: "tools",         label: "Tools",         icon: "screenshot_monitor",   group: "Launchers", options: [root.showLabelOpt] },
-        { id: "wallpaper",     label: "Wallpaper",     icon: "wallpaper",            group: "Launchers", options: [root.showLabelOpt] },
+        { id: "wallpaper",     label: "Wallpaper",     icon: "wallpaper",            group: "Launchers",
+          options: [root.showLabelOpt,
+                    { key: "style", label: "Panel style", type: "grid", setting: "wallpaperStyle", default: "classic",
+                      choices: ServiceWallpaper.panelStyles.map(x => ({ value: x.value, label: x.label, icon: x.icon })) }] },
         { id: "overview",      label: "Overview",      icon: "grid_view",            group: "Launchers", options: [root.showLabelOpt] },
         { id: "settings",      label: "Settings",      icon: "settings",             group: "Launchers", options: [root.showLabelOpt] },
         { id: "power",         label: "Power",         icon: "power_settings_new",   group: "Launchers", options: [root.showLabelOpt] },
+        { id: "soundscape",    label: "Soundscape",    icon: "graphic_eq",           group: "Launchers", options: [root.showLabelOpt] },
+        { id: "scenes",        label: "Scenes",        icon: "view_quilt",           group: "Launchers", options: [root.showLabelOpt] },
 
         { id: "spacer",        label: "Spacer",        icon: "space_bar",            group: "Layout", multi: true,
           options: [{ key: "width", label: "Width", type: "slider", min: 4, max: 120, step: 4, default: 16 }] },
         { id: "separator",     label: "Separator",     icon: "horizontal_rule",      group: "Layout", multi: true,
-          options: [{ key: "height", label: "Height", type: "slider", min: 8, max: 32, step: 2, default: 18 },
+          options: [{ key: "style", label: "Style", type: "grid", default: "line",
+                      choices: [{ value: "line", label: "Line", icon: "more_vert" },
+                                { value: "dot", label: "Dot", icon: "fiber_manual_record" },
+                                { value: "accent", label: "Accent", icon: "format_color_fill" },
+                                { value: "gap", label: "Gap", icon: "space_bar" }] },
+                    { key: "height", label: "Height", type: "slider", min: 8, max: 32, step: 2, default: 18,
+                      onlyIf: { key: "style", values: ["line", "accent"] } },
                     { key: "thickness", label: "Thickness", type: "slider", min: 1, max: 4, step: 1, default: 1 }] },
         { id: "shape",         label: "Shape",         icon: "category",             group: "Layout", multi: true,
           options: [{ key: "shape", label: "Shape", type: "shape", default: "cookie6" },
@@ -200,6 +284,22 @@ Singleton {
                                 { value: "pulse", label: "Pulse" }] },
                     { key: "speed", label: "Speed", type: "slider", min: 1, max: 10, step: 1, default: 4,
                       onlyIf: { key: "motion", values: ["spin", "pulse"] } }] },
+        { id: "logo",          label: "Nebula logo",   icon: "deployed_code",        group: "Layout", multi: true,
+          options: [{ key: "look", label: "Look", type: "grid", default: "chip",
+                      choices: [{ value: "plain",  label: "Plain",  icon: "crop_free" },
+                                { value: "chip",   label: "Soft chip", icon: "circle" },
+                                { value: "filled", label: "Filled", icon: "radio_button_checked" },
+                                { value: "ring",   label: "Ring",   icon: "radio_button_unchecked" }] },
+                    { key: "size", label: "Size", type: "slider", min: 14, max: 32, step: 2, default: 20 },
+                    root.colorRoleOpt,
+                    { key: "action", label: "When clicked", type: "grid", default: "dashboard",
+                      choices: [{ value: "none",      label: "Nothing", icon: "block" },
+                                { value: "dashboard", label: "Dashboard", icon: "space_dashboard" },
+                                { value: "launcher",  label: "Apps", icon: "apps" },
+                                { value: "overview",  label: "Overview", icon: "grid_view" },
+                                { value: "pie",       label: "Quick actions", icon: "donut_small" },
+                                { value: "power",     label: "Power", icon: "power_settings_new" },
+                                { value: "settings",  label: "Settings", icon: "settings" }] }] },
         { id: "glyph",         label: "Icon",          icon: "emoji_symbols",        group: "Layout", multi: true,
           options: [{ key: "symbol", label: "Symbol", type: "text", default: "favorite" },
                     { key: "size", label: "Size", type: "slider", min: 12, max: 32, step: 2, default: 18 },
@@ -280,8 +380,17 @@ Singleton {
     readonly property var blocks: root.allBlocks.filter(b => b.edge === "top")
     readonly property var bottomBlocks: root.allBlocks.filter(b => b.edge === "bottom")
     readonly property bool dockOn: (SettingsConfig.general ?? {}).dock ?? true
-    readonly property bool dockSdf: ((SettingsConfig.general ?? {}).dockSdf ?? false) === true
-    readonly property bool barSdf: ((SettingsConfig.general ?? {}).barSdf ?? false) === true
+    readonly property var sides: BarOps.sidesOf(SettingsConfig.bar)
+    readonly property string barSide: root.sides.bar
+    readonly property string dockSide: root.sides.dock
+
+    function sideOf(edge) {
+        return edge === "bottom" ? root.dockSide : root.barSide
+    }
+
+    function setSide(which, side) {
+        root._patch(BarOps.withSide(SettingsConfig.bar, which, side))
+    }
     readonly property bool dockPresent: root.bottomBlocks.some(b => b.items.length > 0)
 
     Binding {
@@ -322,6 +431,7 @@ Singleton {
     }
 
     readonly property bool sysPanelOpen: GlobalStates.clipboardOpen || GlobalStates.wallpaperOpen
+        || GlobalStates.panelPreview === "wallpaper" || GlobalStates.panelPreview === "clipboard"
         || GlobalStates.fileDropOpen || GlobalStates.osdOpen
     readonly property bool needSysHost: root.sysPanelOpen
         && (!root.dockOn || !root.bottomBlocks.some(b => b.anchor === "center"))
@@ -734,7 +844,7 @@ Singleton {
                        "defW": ServiceLauncher.defaultWidth, "minH": ServiceLauncher.minHeight,
                        "maxH": ServiceLauncher.maxHeight, "defH": ServiceLauncher.defaultHeight }
     })
-    readonly property var panelOpeners: ({ "clock": "calendar", "weather": "weather", "dashboard": "dashboard", "launcher": "launcher" })
+    readonly property var panelOpeners: ({ "clock": "calendar", "weather": "weather", "dashboard": "dashboard", "launcher": "launcher", "wallpaper": "wallpaper", "clipboard": "clipboard" })
     readonly property var panelSizes: SettingsConfig.bar?.panelSizes ?? ({})
     property var panelDraft: null
 
@@ -750,6 +860,30 @@ Singleton {
 
     function panelCustom(kind) {
         return kind === "launcher" ? ServiceLauncher.customSize : kind in root.panelSizes
+    }
+
+    function isPlaced(id) {
+        return root.allBlocks.some(b => b.items.indexOf(id) >= 0)
+            || (root.groupedIds ?? []).indexOf(id) >= 0
+    }
+
+    function panelHostItem(kind) {
+        if (kind === "calendar") return "clock"
+        if (kind === "dashboard" && !root.isPlaced("dashboard")) {
+            const logo = root.logoFor("dashboard")
+            if (logo !== "")
+                return logo
+            if (root.isPlaced("notifications"))
+                return "notifications"
+        }
+        return kind
+    }
+
+    function logoFor(action) {
+        const ids = []
+        root.allBlocks.forEach(b => b.items.forEach(id => ids.push(id)))
+        const found = ids.find(id => root.baseId(id) === "logo" && (root.opt(id, "action") ?? "dashboard") === action)
+        return found ?? ""
     }
 
     function panelFor(id) {
@@ -797,6 +931,31 @@ Singleton {
     function panelHeightIn(kind, auto, room) {
         const h = root.panelH(kind)
         return Math.max(0, Math.min(room, h < 0 ? auto : h))
+    }
+
+    function panelPresets(kind) {
+        const s = root.panelSpecs[kind]
+        if (!s)
+            return []
+        const mid = (a, b) => Math.round((a + b) / 2)
+        return [
+            { value: "snug", label: "Snug", w: s.minW, h: s.defH < 0 ? -1 : s.minH },
+            { value: "roomy", label: "Roomy", w: s.defW, h: s.defH, reset: true },
+            { value: "wide", label: "Wide", w: mid(s.defW, s.maxW), h: s.defH < 0 ? -1 : mid(s.defH, s.maxH) }
+        ]
+    }
+
+    function presetActive(kind, value) {
+        const p = root.panelPresets(kind).find(x => x.value === value)
+        return !!p && root.panelW(kind) === root.clampPanelW(kind, p.w) && root.panelH(kind) === root.clampPanelH(kind, p.h)
+    }
+
+    function applyPreset(kind, value) {
+        const p = root.panelPresets(kind).find(x => x.value === value)
+        if (!p)
+            return
+        if (p.reset) root.clearPanelSize(kind)
+        else root.setPanelSize(kind, p.w, p.h)
     }
 
     function setPanelSize(kind, w, h) {

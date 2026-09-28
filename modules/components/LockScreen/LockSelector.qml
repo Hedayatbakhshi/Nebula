@@ -48,7 +48,8 @@ Scope {
                 readonly property int appliedIndex: LockCatalog.indexOf(
                     (root.targetGreeter ? SettingsConfig.greeter : SettingsConfig.lockscreen)?.layout)
                 property int sel: LockCatalog.indexOf(SettingsConfig.lockscreen?.layout)
-                property int shown: root.sel
+                property int named: root.sel
+                property int dir: 1
                 property bool open: false
                 property bool leaving: false
 
@@ -56,9 +57,21 @@ Scope {
                     ? { x: 392, y: 112, w: 1136, h: 639, strip: 776 }
                     : { x: 160, y: 112, w: 1600, h: 900, strip: 1030 }
 
-                function select(i) {
+                readonly property real thumbW: Math.min(256, (1800 - (root.styles.length - 1) * 20) / root.styles.length)
+                readonly property real thumbGap: 20
+
+                readonly property var decel: [0.05, 0.7, 0.1, 1.0, 1, 1]
+                readonly property var accel: [0.3, 0.0, 0.8, 0.15, 1, 1]
+                readonly property var standard: [0.2, 0.0, 0.0, 1.0, 1, 1]
+                readonly property var pop: [0.38, 1.21, 0.22, 1.0, 1, 1]
+
+                function select(i, d) {
                     const n = root.styles.length
-                    root.sel = ((i % n) + n) % n
+                    const next = ((i % n) + n) % n
+                    if (next === root.sel || root.leaving)
+                        return
+                    root.dir = d !== undefined ? d : (next > root.sel ? 1 : -1)
+                    root.sel = next
                 }
 
                 function apply() {
@@ -74,8 +87,9 @@ Scope {
                     if (root.leaving)
                         return
                     root.leaving = true
-                    inAnim.stop()
-                    root.enter = 1
+                    swap.finish()
+                    inAnim.complete()
+                    settleAnim.complete()
                     root.growing = true
                     growAnim.start()
                 }
@@ -84,24 +98,35 @@ Scope {
                     if (root.leaving)
                         return
                     root.leaving = true
-                    inAnim.stop()
-                    outAnim.start()
+                    leaveAnim.start()
                 }
 
                 function band(a, b) {
                     return Math.max(0, Math.min(1, (root.enter - a) / (b - a)))
                 }
 
+                function out3(t) {
+                    return 1 - Math.pow(1 - t, 3)
+                }
+
+                function back(t) {
+                    const c = 1.7
+                    return 1 + (c + 1) * Math.pow(t - 1, 3) + c * Math.pow(t - 1, 2)
+                }
+
                 function lerp(a, b, t) {
                     return a + (b - a) * t
                 }
 
-                onSelChanged: swapAnim.restart()
-                onTargetChanged: root.sel = root.appliedIndex
+                onSelChanged: {
+                    swap.go(root.sel)
+                    nameSwap.restart()
+                }
+                onTargetChanged: root.select(root.appliedIndex)
 
                 Keys.onPressed: event => {
-                    if (event.key === Qt.Key_Left) root.select(root.sel - 1)
-                    else if (event.key === Qt.Key_Right) root.select(root.sel + 1)
+                    if (event.key === Qt.Key_Left) root.select(root.sel - 1, -1)
+                    else if (event.key === Qt.Key_Right) root.select(root.sel + 1, 1)
                     else if (event.key === Qt.Key_Up) root.open = true
                     else if (event.key === Qt.Key_Down) root.open = false
                     else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) root.apply()
@@ -117,76 +142,122 @@ Scope {
                 }
 
                 property real enter: 0
+                property real settle: 0
+                property real leave: 0
                 property real grow: 0
+                property real toast: 0
                 property bool growing: false
-                readonly property real e: Math.max(0, Math.min(1, root.enter))
+                readonly property real full: Math.max(1 - root.settle, root.grow)
+                readonly property real chromeIn: 1 - Math.min(1, root.leave * 2.2)
+                readonly property real chromeOut: root.chromeIn * (1 - Math.min(1, root.grow * 3))
 
                 NumberAnimation on enter {
                     id: inAnim
                     running: true
                     from: 0
                     to: 1
-                    duration: 640
-                    easing.type: Easing.BezierSpline
-                    easing.bezierCurve: [0.05, 0.7, 0.1, 1.0, 1, 1]
+                    duration: 1000
+                }
+
+                SequentialAnimation {
+                    id: settleAnim
+                    running: true
+                    PauseAnimation { duration: 240 }
+                    NumberAnimation {
+                        target: root
+                        property: "settle"
+                        to: 1
+                        duration: 660
+                        easing.type: Easing.BezierSpline
+                        easing.bezierCurve: root.decel
+                    }
                 }
 
                 NumberAnimation {
-                    id: outAnim
+                    id: leaveAnim
                     target: root
-                    property: "enter"
-                    to: 0
-                    duration: 320
+                    property: "leave"
+                    to: 1
+                    duration: 340
                     easing.type: Easing.BezierSpline
-                    easing.bezierCurve: [0.3, 0.0, 0.8, 0.15, 1, 1]
+                    easing.bezierCurve: root.accel
                     onFinished: GlobalStates.lockSelectorOpen = false
                 }
 
                 SequentialAnimation {
                     id: growAnim
+                    ParallelAnimation {
+                        NumberAnimation {
+                            target: root
+                            property: "grow"
+                            to: 1
+                            duration: 600
+                            easing.type: Easing.BezierSpline
+                            easing.bezierCurve: root.standard
+                        }
+                        SequentialAnimation {
+                            PauseAnimation { duration: 360 }
+                            ScriptAction { script: swap.replay() }
+                        }
+                    }
+                    PauseAnimation { duration: 420 }
                     NumberAnimation {
                         target: root
-                        property: "grow"
+                        property: "toast"
                         to: 1
-                        duration: 560
+                        duration: 420
                         easing.type: Easing.BezierSpline
-                        easing.bezierCurve: [0.2, 0.0, 0.0, 1.0, 1, 1]
+                        easing.bezierCurve: root.pop
                     }
-                    PauseAnimation { duration: 140 }
-                    NumberAnimation { target: root; property: "opacity"; to: 0; duration: 280; easing.type: Easing.InCubic }
+                    PauseAnimation { duration: 1100 }
+                    ParallelAnimation {
+                        NumberAnimation { target: root; property: "toast"; to: 0; duration: 200; easing.type: Easing.InCubic }
+                        NumberAnimation {
+                            target: root
+                            property: "opacity"
+                            to: 0
+                            duration: 340
+                            easing.type: Easing.BezierSpline
+                            easing.bezierCurve: root.accel
+                        }
+                    }
                     ScriptAction { script: GlobalStates.lockSelectorOpen = false }
                 }
 
-                Image {
+                Item {
                     anchors.fill: parent
-                    opacity: root.band(0, 0.55)
-                    source: WallpaperTheme.wallpaper
-                    fillMode: Image.PreserveAspectCrop
-                    sourceSize.width: 960
-                    asynchronous: true
-                    layer.enabled: true
-                    layer.effect: MultiEffect {
-                        blurEnabled: true
-                        blur: 1.0
-                        blurMax: 64
-                        autoPaddingEnabled: false
-                        brightness: -0.5
-                        saturation: 0.2
+                    opacity: root.out3(root.band(0.1, 0.6)) * (1 - root.leave)
+
+                    Image {
+                        anchors.fill: parent
+                        source: WallpaperTheme.wallpaperScreen
+                        fillMode: Image.PreserveAspectCrop
+                        sourceSize.width: 960
+                        asynchronous: true
+                        layer.enabled: true
+                        layer.effect: MultiEffect {
+                            blurEnabled: true
+                            blur: 1.0
+                            blurMax: 64
+                            autoPaddingEnabled: false
+                            brightness: -0.5
+                            saturation: 0.2
+                        }
+                    }
+
+                    Rectangle {
+                        anchors.fill: parent
+                        color: Qt.alpha(Colors.surface, 0.35)
                     }
                 }
 
-                Rectangle {
-                    anchors.fill: parent
-                    opacity: root.band(0, 0.55)
-                    color: Qt.alpha(Colors.surface, 0.35)
-                }
-
-
                 RowLayout {
+                    id: topBar
+                    readonly property real t: root.out3(root.band(0.45, 0.85))
                     x: 64 * root.u
                     y: 28 * root.u
-                    opacity: root.band(0.25, 1) * (1 - root.grow)
-                    transform: Translate { y: (1 - root.e) * -30 * root.u }
+                    opacity: topBar.t * root.chromeOut
+                    transform: Translate { y: (1 - topBar.t) * -36 * root.u }
                     width: parent.width - 128 * root.u
                     height: 60 * root.u
                     spacing: 22 * root.u
@@ -209,10 +280,35 @@ Scope {
 
                     Item { Layout.fillWidth: true }
 
-                    RowLayout {
-                        spacing: 10 * root.u
-                        CustomText { content: root.styles[root.sel].label; size: Math.round(22 * root.u); weight: 600 }
-                        CustomText { content: root.styles[root.sel].role; size: Math.round(18 * root.u); weight: 400; customColor: Colors.surfaceVariantText }
+                    Item {
+                        id: nameBox
+                        Layout.preferredWidth: 420 * root.u
+                        Layout.preferredHeight: 40 * root.u
+                        clip: true
+
+                        property real shift: 0
+
+                        RowLayout {
+                            anchors.horizontalCenter: parent.horizontalCenter
+                            y: (nameBox.height - height) / 2 + nameBox.shift * 26 * root.u
+                            opacity: 1 - Math.abs(nameBox.shift)
+                            spacing: 10 * root.u
+                            CustomText { content: root.styles[root.named].label; size: Math.round(22 * root.u); weight: 600 }
+                            CustomText { content: root.styles[root.named].role; size: Math.round(18 * root.u); weight: 400; customColor: Colors.surfaceVariantText }
+                        }
+
+                        SequentialAnimation {
+                            id: nameSwap
+                            NumberAnimation {
+                                target: nameBox; property: "shift"; to: -root.dir; duration: 170
+                                easing.type: Easing.BezierSpline; easing.bezierCurve: root.accel
+                            }
+                            ScriptAction { script: { root.named = root.sel; nameBox.shift = root.dir } }
+                            NumberAnimation {
+                                target: nameBox; property: "shift"; to: 0; duration: 340
+                                easing.type: Easing.BezierSpline; easing.bezierCurve: root.decel
+                            }
+                        }
                     }
 
                     Item { Layout.fillWidth: true }
@@ -253,37 +349,99 @@ Scope {
 
                 ClippingRectangle {
                     id: frame
-                    x: root.lerp(root.geo.x * root.u, 0, root.grow)
-                    y: root.lerp(root.geo.y * root.u, 0, root.grow)
-                    width: root.lerp(root.geo.w * root.u, root.width, root.grow)
-                    height: root.lerp(root.geo.h * root.u, root.height, root.grow)
-                    radius: 34 * root.u * (1 - root.grow)
+                    property real gx: root.geo.x * root.u
+                    property real gy: root.geo.y * root.u
+                    property real gw: root.geo.w * root.u
+                    property real gh: root.geo.h * root.u
+
+                    x: root.lerp(frame.gx, 0, root.full)
+                    y: root.lerp(frame.gy, 0, root.full)
+                    width: root.lerp(frame.gw, root.width, root.full)
+                    height: root.lerp(frame.gh, root.height, root.full)
+                    radius: 34 * root.u * (1 - root.full)
                     color: "black"
-                    opacity: root.band(0, 0.4)
+                    opacity: Math.min(1, root.enter / 0.12) * (1 - root.leave)
                     transform: [
                         Scale {
                             origin.x: frame.width / 2
                             origin.y: frame.height / 2
-                            xScale: 0.88 + 0.12 * root.e
-                            yScale: 0.88 + 0.12 * root.e
+                            xScale: 1 - 0.08 * root.leave
+                            yScale: 1 - 0.08 * root.leave
                         },
-                        Translate { y: (1 - root.e) * 70 * root.u }
+                        Translate { y: 40 * root.u * root.leave }
                     ]
 
-                    Behavior on x { enabled: !root.growing; SpatialAnim {} }
-                    Behavior on y { enabled: !root.growing; SpatialAnim {} }
-                    Behavior on width { enabled: !root.growing; SpatialAnim {} }
-                    Behavior on height { enabled: !root.growing; SpatialAnim {} }
+                    Behavior on gx { NumberAnimation { duration: 540; easing.type: Easing.BezierSpline; easing.bezierCurve: root.open ? root.decel : root.standard } }
+                    Behavior on gy { NumberAnimation { duration: 540; easing.type: Easing.BezierSpline; easing.bezierCurve: root.open ? root.decel : root.standard } }
+                    Behavior on gw { NumberAnimation { duration: 540; easing.type: Easing.BezierSpline; easing.bezierCurve: root.open ? root.decel : root.standard } }
+                    Behavior on gh { NumberAnimation { duration: 540; easing.type: Easing.BezierSpline; easing.bezierCurve: root.open ? root.decel : root.standard } }
 
-                    LockPreview {
-                        id: big
+                    Item {
+                        id: swap
                         anchors.fill: parent
-                        live: true
-                        layoutStyle: root.styles[root.shown].value
-                        greeter: root.targetGreeter
 
-                        property real k: 1
-                        transform: Scale { origin.x: big.width / 2; origin.y: big.height / 2; xScale: big.k; yScale: big.k }
+                        property bool frontA: true
+                        readonly property Item front: swap.frontA ? layerA : layerB
+                        readonly property Item back: swap.frontA ? layerB : layerA
+
+                        function go(i) {
+                            if (swapAnim.running)
+                                swapAnim.complete()
+                            const inn = swap.back
+                            const out = swap.front
+                            inn.idx = i
+                            inn.off = root.dir * 0.22
+                            inn.fade = 0
+                            out.off = 0
+                            out.fade = 1
+                            swapAnim.inn = inn
+                            swapAnim.out = out
+                            swap.frontA = !swap.frontA
+                            swapAnim.restart()
+                        }
+
+                        function finish() {
+                            if (swapAnim.running)
+                                swapAnim.complete()
+                        }
+
+                        function replay() {
+                            swap.front.reload()
+                        }
+
+                        SequentialAnimation {
+                            id: swapAnim
+                            property Item inn: null
+                            property Item out: null
+
+                            ParallelAnimation {
+                                NumberAnimation {
+                                    target: swapAnim.out; property: "off"; to: -root.dir * 0.22; duration: 300
+                                    easing.type: Easing.BezierSpline; easing.bezierCurve: root.accel
+                                }
+                                NumberAnimation {
+                                    target: swapAnim.out; property: "fade"; to: 0; duration: 220
+                                    easing.type: Easing.BezierSpline; easing.bezierCurve: root.accel
+                                }
+                                SequentialAnimation {
+                                    PauseAnimation { duration: 70 }
+                                    ParallelAnimation {
+                                        NumberAnimation {
+                                            target: swapAnim.inn; property: "off"; to: 0; duration: 520
+                                            easing.type: Easing.BezierSpline; easing.bezierCurve: root.decel
+                                        }
+                                        NumberAnimation {
+                                            target: swapAnim.inn; property: "fade"; to: 1; duration: 300
+                                            easing.type: Easing.BezierSpline; easing.bezierCurve: root.standard
+                                        }
+                                    }
+                                }
+                            }
+                            ScriptAction { script: if (swapAnim.out) swapAnim.out.idx = -1 }
+                        }
+
+                        SwapLayer { id: layerA; Component.onCompleted: layerA.idx = root.sel }
+                        SwapLayer { id: layerB }
                     }
 
                     Rectangle {
@@ -294,7 +452,7 @@ Scope {
                         radius: height / 2
                         color: Qt.alpha(Colors.surface, 0.75)
                         visible: !root.growing
-                        opacity: root.appliedIndex === root.sel ? 1 : 0
+                        opacity: (root.appliedIndex === root.sel ? 1 : 0) * Math.max(0, (root.settle - 0.6) / 0.4)
                         Behavior on opacity { EffectsAnim { speed: "fast" } }
 
                         RowLayout {
@@ -314,41 +472,68 @@ Scope {
                     }
                 }
 
-                SequentialAnimation {
-                    id: swapAnim
-                    ParallelAnimation {
-                        NumberAnimation { target: big; property: "opacity"; to: 0; duration: 140; easing.type: Easing.InCubic }
-                        NumberAnimation { target: big; property: "k"; to: 0.97; duration: 140; easing.type: Easing.InCubic }
+                component SwapLayer: Item {
+                    id: layer
+                    property int idx: -1
+                    property real off: 0
+                    property real fade: 1
+                    property bool live: true
+
+                    function reload() {
+                        layer.live = false
+                        Qt.callLater(() => layer.live = true)
                     }
-                    ScriptAction { script: { root.shown = root.sel; big.k = 1.035 } }
-                    ParallelAnimation {
-                        NumberAnimation { target: big; property: "opacity"; to: 1; duration: 320; easing.type: Easing.OutCubic }
-                        SpatialAnim { target: big; property: "k"; to: 1 }
+
+                    width: frame.width
+                    height: frame.height
+                    opacity: layer.fade
+                    transform: [
+                        Scale {
+                            origin.x: layer.width / 2
+                            origin.y: layer.height / 2
+                            xScale: 1 - 0.04 * Math.min(1, Math.abs(layer.off) / 0.22)
+                            yScale: 1 - 0.04 * Math.min(1, Math.abs(layer.off) / 0.22)
+                        },
+                        Translate { x: layer.off * frame.width }
+                    ]
+
+                    Loader {
+                        anchors.fill: parent
+                        active: layer.idx >= 0 && layer.live
+                        sourceComponent: LockPreview {
+                            live: true
+                            layoutStyle: root.styles[Math.max(0, layer.idx)].value
+                            greeter: root.targetGreeter
+                        }
                     }
                 }
 
                 component NavButton: M3IconButton {
+                    readonly property real t: root.band(0.55, 0.95)
                     y: frame.y + frame.height / 2 - height / 2
-                    opacity: root.band(0.35, 1) * (1 - root.grow)
-                    scale: 0.6 + 0.4 * root.band(0.35, 1)
+                    opacity: Math.min(1, t * 1.6) * root.chromeOut
+                    scale: 0.6 + 0.4 * root.back(t)
                     implicitWidth: 64 * root.u
                     implicitHeight: 64 * root.u
                     iconSize: Math.round(34 * root.u)
                     color: Qt.alpha(Colors.surfaceContainerHighest, 0.8)
                 }
 
-                NavButton { x: 52 * root.u; icon: "chevron_left"; onClicked: root.select(root.sel - 1) }
-                NavButton { x: parent.width - width - 52 * root.u; icon: "chevron_right"; onClicked: root.select(root.sel + 1) }
+                NavButton { x: 52 * root.u; icon: "chevron_left"; onClicked: root.select(root.sel - 1, -1) }
+                NavButton { x: parent.width - width - 52 * root.u; icon: "chevron_right"; onClicked: root.select(root.sel + 1, 1) }
 
                 Item {
                     id: strip
+                    readonly property real t: root.out3(root.band(0.6, 1))
                     x: 0
-                    opacity: root.band(0.3, 1) * (1 - root.grow)
-                    transform: Translate { y: (1 - root.e) * 110 * root.u }
-                    y: root.geo.strip * root.u
+                    opacity: Math.min(1, strip.t * 1.4) * root.chromeOut
+                    transform: Translate { y: (1 - strip.t) * 110 * root.u }
+                    y: strip.gy
                     width: parent.width
                     height: 300 * root.u
-                    Behavior on y { SpatialAnim {} }
+
+                    property real gy: root.geo.strip * root.u
+                    Behavior on gy { NumberAnimation { duration: 540; easing.type: Easing.BezierSpline; easing.bezierCurve: root.open ? root.decel : root.standard } }
 
                     HoverHandler {
                         id: stripHover
@@ -395,92 +580,169 @@ Scope {
                         }
                     }
 
-                    Row {
+                    Item {
+                        id: thumbs
                         anchors.horizontalCenter: parent.horizontalCenter
                         y: 66 * root.u
-                        spacing: 22 * root.u
+                        width: (root.styles.length * root.thumbW + (root.styles.length - 1) * root.thumbGap) * root.u
+                        height: 190 * root.u
 
-                        Repeater {
-                            model: root.styles
+                        readonly property real picH: root.thumbW * 9 / 16 * root.u
 
-                            delegate: Item {
-                                id: thumb
-                                required property var modelData
-                                required property int index
-                                readonly property bool isSel: thumb.index === root.sel
+                        Rectangle {
+                            id: ring
+                            property real l: root.sel * (root.thumbW + root.thumbGap) * root.u
+                            property real r: ring.l + root.thumbW * root.u
+                            x: ring.l - 5 * root.u
+                            y: -5 * root.u
+                            width: ring.r - ring.l + 10 * root.u
+                            height: thumbs.picH + 10 * root.u
+                            radius: 30 * root.u
+                            color: "transparent"
+                            border.width: 4 * root.u
+                            border.color: Colors.primary
+                            opacity: thumbRow.lift
+                            z: 2
 
-                                width: 256 * root.u
-                                height: 190 * root.u
-                                opacity: root.open ? 1 : 0
-                                Behavior on opacity { EffectsAnim {} }
-                                transform: Translate {
-                                    y: root.open ? 0 : 24 * root.u
-                                    Behavior on y { SpatialAnim {} }
-                                }
-
-                                ClippingRectangle {
-                                    id: pic
-                                    width: parent.width
-                                    height: 144 * root.u
-                                    radius: (thumb.isSel ? 30 : 20) * root.u
-                                    color: "black"
-                                    Behavior on radius { SpatialAnim { speed: "fast" } }
-
-                                    LockPreview {
-                                        anchors.fill: parent
-                                        layoutStyle: thumb.modelData.value
-                                        greeter: root.targetGreeter
-                                    }
-                                }
-
-                                Rectangle {
-                                    anchors.fill: pic
-                                    anchors.margins: -4 * root.u
-                                    radius: pic.radius + 4 * root.u
-                                    color: "transparent"
-                                    border.width: 4 * root.u
-                                    border.color: Colors.primary
-                                    opacity: thumb.isSel ? 1 : 0
-                                    Behavior on opacity { EffectsAnim { speed: "fast" } }
-                                }
-
-                                RowLayout {
-                                    anchors.left: parent.left
-                                    anchors.right: parent.right
-                                    anchors.leftMargin: 6 * root.u
-                                    anchors.rightMargin: 6 * root.u
-                                    y: pic.height + 12 * root.u
-
-                                    CustomText {
-                                        content: thumb.modelData.label
-                                        size: Math.round(19 * root.u)
-                                        weight: 600
-                                        customColor: thumb.isSel ? Colors.primary : Colors.surfaceText
-                                    }
-                                    Item { Layout.fillWidth: true }
-                                    Rectangle {
-                                        visible: thumb.index === root.appliedIndex
-                                        implicitWidth: inUse.implicitWidth + 20 * root.u
-                                        implicitHeight: 26 * root.u
-                                        radius: height / 2
-                                        color: Colors.secondaryContainer
-                                        CustomText {
-                                            id: inUse
-                                            anchors.centerIn: parent
-                                            content: "In use"
-                                            size: Math.round(14 * root.u)
-                                            weight: 600
-                                            customColor: Colors.secondaryContainerText
-                                        }
-                                    }
-                                }
-
-                                MouseArea {
-                                    anchors.fill: parent
-                                    cursorShape: Qt.PointingHandCursor
-                                    onClicked: root.select(thumb.index)
+                            Behavior on l {
+                                NumberAnimation {
+                                    duration: root.dir > 0 ? 460 : 250
+                                    easing.type: Easing.BezierSpline
+                                    easing.bezierCurve: root.standard
                                 }
                             }
+                            Behavior on r {
+                                NumberAnimation {
+                                    duration: root.dir > 0 ? 250 : 460
+                                    easing.type: Easing.BezierSpline
+                                    easing.bezierCurve: root.standard
+                                }
+                            }
+                        }
+
+                        Row {
+                            id: thumbRow
+                            spacing: root.thumbGap * root.u
+                            property real lift: root.open ? 1 : 0
+                            Behavior on lift {
+                                SequentialAnimation {
+                                    PauseAnimation { duration: root.open ? 80 + root.styles.length * 45 : 0 }
+                                    NumberAnimation { duration: 300; easing.type: Easing.OutCubic }
+                                }
+                            }
+
+                            Repeater {
+                                model: root.styles
+
+                                delegate: Item {
+                                    id: thumb
+                                    required property var modelData
+                                    required property int index
+                                    readonly property bool isSel: thumb.index === root.sel
+
+                                    property real lift: root.open ? 1 : 0
+                                    Behavior on lift {
+                                        SequentialAnimation {
+                                            PauseAnimation { duration: root.open ? 80 + thumb.index * 45 : 0 }
+                                            NumberAnimation {
+                                                duration: root.open ? 480 : 160
+                                                easing.type: Easing.BezierSpline
+                                                easing.bezierCurve: root.open ? root.decel : root.accel
+                                            }
+                                        }
+                                    }
+
+                                    width: root.thumbW * root.u
+                                    height: 190 * root.u
+                                    opacity: thumb.lift
+                                    transform: [
+                                        Scale {
+                                            origin.x: thumb.width / 2
+                                            origin.y: thumb.height
+                                            xScale: 0.94 + 0.06 * thumb.lift
+                                            yScale: 0.94 + 0.06 * thumb.lift
+                                        },
+                                        Translate { y: (1 - thumb.lift) * 46 * root.u }
+                                    ]
+
+                                    ClippingRectangle {
+                                        id: pic
+                                        width: parent.width
+                                        height: thumbs.picH
+                                        radius: (thumb.isSel ? 26 : 20) * root.u
+                                        color: "black"
+                                        Behavior on radius { SpatialAnim { speed: "fast" } }
+
+                                        LockPreview {
+                                            anchors.fill: parent
+                                            layoutStyle: thumb.modelData.value
+                                            greeter: root.targetGreeter
+                                        }
+                                    }
+
+                                    RowLayout {
+                                        anchors.left: parent.left
+                                        anchors.right: parent.right
+                                        anchors.leftMargin: 6 * root.u
+                                        anchors.rightMargin: 6 * root.u
+                                        y: pic.height + 12 * root.u
+
+                                        CustomText {
+                                            content: thumb.modelData.label
+                                            size: Math.round(19 * root.u)
+                                            weight: 600
+                                            customColor: thumb.isSel ? Colors.primary : Colors.surfaceText
+                                        }
+                                        Item { Layout.fillWidth: true }
+                                        Rectangle {
+                                            visible: thumb.index === root.appliedIndex
+                                            implicitWidth: inUse.implicitWidth + 20 * root.u
+                                            implicitHeight: 26 * root.u
+                                            radius: height / 2
+                                            color: Colors.secondaryContainer
+                                            CustomText {
+                                                id: inUse
+                                                anchors.centerIn: parent
+                                                content: "In use"
+                                                size: Math.round(14 * root.u)
+                                                weight: 600
+                                                customColor: Colors.secondaryContainerText
+                                            }
+                                        }
+                                    }
+
+                                    MouseArea {
+                                        anchors.fill: parent
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: root.select(thumb.index)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Rectangle {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    y: 48 * root.u - (1 - root.toast) * 24 * root.u
+                    visible: root.toast > 0
+                    opacity: Math.min(1, root.toast)
+                    scale: 0.9 + 0.1 * root.toast
+                    width: toastRow.implicitWidth + 52 * root.u
+                    height: 60 * root.u
+                    radius: height / 2
+                    color: Colors.inverseSurface
+
+                    RowLayout {
+                        id: toastRow
+                        anchors.centerIn: parent
+                        spacing: 12 * root.u
+                        MaterialIconSymbol { content: "check_circle"; iconSize: Math.round(24 * root.u); customColor: Colors.inversePrimary }
+                        CustomText {
+                            content: root.styles[root.sel].label + (root.targetGreeter ? " is your login screen" : " is your lock screen")
+                            size: Math.round(20 * root.u)
+                            weight: 600
+                            customColor: Colors.inverseSurfaceText
                         }
                     }
                 }

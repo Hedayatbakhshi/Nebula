@@ -11,7 +11,8 @@ QtObject {
         { value: "orbit",    label: "Orbit",    role: "Watch face", blurb: "A dial with a seconds ring and orbiting status",       backdrop: "orbit" },
         { value: "darkroom", label: "Darkroom", role: "Photo",      blurb: "Your wallpaper as an instant print that develops",     backdrop: "darkroom" },
         { value: "deck",     label: "Deck",     role: "Music",      blurb: "Album art in a cookie with the progress on its edge",  backdrop: "deck" },
-        { value: "tessera",  label: "Tessera",  role: "Tiles",      blurb: "A mosaic of Material tone tiles",                      backdrop: "tessera" }
+        { value: "tessera",  label: "Tessera",  role: "Tiles",      blurb: "A mosaic of Material tone tiles",                      backdrop: "tessera" },
+        { value: "tear",     label: "Tear-off", role: "Paper",      blurb: "A paper day calendar; unlocking tears off the page",   backdrop: "tear" }
     ]
 
     readonly property string fallback: "veil"

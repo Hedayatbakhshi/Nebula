@@ -27,8 +27,6 @@
 <p>Every shortcut is exposed as <code>quickshell:&lt;name&gt;</code>. Dispatch to it with
    Hyprland&rsquo;s <code>global</code> dispatcher:</p>
 
-<div class="code"><span class="lang">hyprland.conf</span><pre>bind = SUPER, V, global, quickshell:clipboard</pre></div>
-
 <div class="code"><span class="lang">lua</span><pre>hl.bind(<span class="st">"SUPER + V"</span>, hl.dsp.global(<span class="st">"quickshell:clipboard"</span>))</pre></div>
 
 <h2>The shortcuts</h2>
@@ -44,7 +42,6 @@
 <tr><td><code>filedrop</code></td><td>Nebula Drop</td></tr>
 <tr><td><code>settingOpen</code></td><td>Settings</td></tr>
 <tr><td><code>cheatsheet</code></td><td>Keybinding cheat sheet</td></tr>
-<tr><td><code>welcome</code></td><td>First-run setup screen</td></tr>
 <tr><td><code>lock</code></td><td>Lock screen</td></tr>
 <tr><td><code>shutdown</code></td><td>Session menu</td></tr>
 <tr><td><code>brightnessIncrease</code></td><td>Brightness OSD, one step up</td></tr>

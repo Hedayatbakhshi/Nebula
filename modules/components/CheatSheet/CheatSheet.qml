@@ -17,14 +17,24 @@ import qs.modules.customComponents
 Scope {
     id: scope
 
-    property bool everOpened: false
+    property bool loaded: false
 
     Connections {
         target: GlobalStates
         function onCheatSheetOpenChanged() {
-            if (GlobalStates.cheatSheetOpen)
-                scope.everOpened = true
+            if (GlobalStates.cheatSheetOpen) {
+                unloadTimer.stop()
+                scope.loaded = true
+            } else {
+                unloadTimer.restart()
+            }
         }
+    }
+
+    Timer {
+        id: unloadTimer
+        interval: 10000
+        onTriggered: if (!GlobalStates.cheatSheetOpen) scope.loaded = false
     }
 
     GlobalShortcut {
@@ -35,7 +45,7 @@ Scope {
 
     LazyLoader {
         id: loader
-        activeAsync: scope.everOpened
+        activeAsync: scope.loaded
 
         component: PanelWindow {
             id: win

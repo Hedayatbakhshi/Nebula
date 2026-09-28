@@ -10,18 +10,28 @@ import qs.modules.customComponents
 Scope {
     id: scope
 
-    property bool everOpened: false
+    property bool loaded: false
 
     Connections {
         target: GlobalStates
         function onToolsWidgetOpenChanged() {
-            if (GlobalStates.toolsWidgetOpen)
-                scope.everOpened = true
+            if (GlobalStates.toolsWidgetOpen) {
+                unloadTimer.stop()
+                scope.loaded = true
+            } else {
+                unloadTimer.restart()
+            }
         }
+    }
+
+    Timer {
+        id: unloadTimer
+        interval: 10000
+        onTriggered: if (!GlobalStates.toolsWidgetOpen) scope.loaded = false
     }
     LazyLoader {
         id: loader
-        activeAsync: scope.everOpened
+        activeAsync: scope.loaded
 
         component: PanelWindow {
             id: panelWindow

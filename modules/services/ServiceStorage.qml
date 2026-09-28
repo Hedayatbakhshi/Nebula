@@ -9,8 +9,7 @@ Singleton {
     id: root
 
     readonly property string home: Quickshell.env("HOME")
-    readonly property string childrenScript:
-        Quickshell.env("HOME") + "/.config/quickshell/scripts/storage_children.sh"
+    readonly property string cli: Quickshell.shellDir + "/bin/nebula"
 
     property var drives: []
     property var children: []
@@ -70,7 +69,7 @@ Singleton {
         root.mapScanning = true
         childrenProc.rows = []
         childrenProc.dirty = false
-        childrenProc.command = ["bash", root.childrenScript, path]
+        childrenProc.command = [root.cli, "storage", path]
         childrenProc.running = true
     }
 

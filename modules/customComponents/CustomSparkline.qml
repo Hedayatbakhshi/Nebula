@@ -1,39 +1,24 @@
 import QtQuick
+import Nebula
 import qs.modules.utils
 
 Item {
     id: root
 
-    property var values: []         // array of numeric values (push new ones in)
-    property int maxPoints: 30      // how many history points to keep
+    property var values: []
+    property int maxPoints: 30
     property color lineColor: Colors.primary
     property color fillColor: Qt.rgba(lineColor.r, lineColor.g, lineColor.b, 0.15)
     property real lineWidth: 1.5
-    property bool filled: true      // fill area under the line
-
-    // Pins the Y scale instead of self-scaling to this series' own peak. Needed
-    // when two sparklines are read against each other — an upload trace that
-    // self-scales looks as tall as a download trace 20x its size.
-    property real maxOverride: 0    // <= 0 keeps the self-scaling behaviour
-
-    // AOSP UsageGraph spec (Settings/widget/UsageGraph.java + SettingsLib
-    // dimens): CornerPathEffect 6dp on the trace, and a fill that fades from
-    // accent@20% at the top to fully transparent at the baseline. This is what
-    // Android uses for *running* usage, as opposed to the trapezoid segments of
-    // the battery-history chart.
+    property bool filled: true
+    property real maxOverride: 0
     property real cornerRadius: 6
     property bool gradientFill: true
-
-    // Throughput is bursty: one 8 MB/s spike against a few-KB/s baseline flattens
-    // every other sample onto the axis under linear scaling. log1p compression
-    // keeps the quiet traffic readable without clipping the peak.
     property bool logScale: false
-
     property bool bars: false
     property real barWidth: 2
     property real barGap: 1.5
 
-    // Call this to append a new data point
     function addValue(v) {
         const copy = values.slice()
         copy.push(v)
@@ -41,113 +26,20 @@ Item {
         values = copy
     }
 
-    Canvas {
-        id: canvas
+    Sparkline {
         anchors.fill: parent
-        antialiasing: true
-
-        onPaint: {
-            const ctx = getContext("2d")
-            ctx.clearRect(0, 0, width, height)
-
-            const pts = root.values
-            if (pts.length < 2) return
-
-            const maxVal = root.maxOverride > 0 ? root.maxOverride : Math.max(...pts, 1)
-
-            if (root.bars) {
-                const slot = root.barWidth + root.barGap
-                const count = Math.max(1, Math.floor((width + root.barGap) / slot))
-                const first = Math.max(0, pts.length - count)
-                const shown = pts.slice(first)
-                const normB = root.logScale
-                    ? v => Math.log1p(Math.max(0, v)) / Math.log1p(maxVal)
-                    : v => v / maxVal
-                for (let i = 0; i < shown.length; i++) {
-                    const h = Math.max(2, normB(shown[i]) * height * 0.95)
-                    const x = width - (shown.length - i) * slot + root.barGap
-                    ctx.beginPath()
-                    ctx.roundedRect(x, height - h, root.barWidth, h,
-                                    root.barWidth / 2, root.barWidth / 2)
-                    ctx.fillStyle = i === shown.length - 1
-                        ? root.lineColor
-                        : Qt.rgba(root.lineColor.r, root.lineColor.g, root.lineColor.b, 0.55)
-                    ctx.fill()
-                }
-                return
-            }
-
-            const stepX  = width / (root.maxPoints - 1)
-            const offsetX = (root.maxPoints - pts.length) * stepX
-
-            const xAt = i => offsetX + i * stepX
-            const norm = root.logScale
-                ? v => Math.log1p(Math.max(0, v)) / Math.log1p(maxVal)
-                : v => v / maxVal
-            const yAt = v => height - norm(v) * height * 0.9
-
-            // arcTo at each interior vertex is the Canvas equivalent of
-            // CornerPathEffect. AOSP skips it on segments shorter than the
-            // radius; at widget widths the step is only a few px, and an
-            // oversized radius bows the trace away from its own data points.
-            const r = Math.min(root.cornerRadius, stepX / 2)
-
-            // `move` must be false when continuing an open fill subpath — a
-            // moveTo there starts a new one and the fill never closes
-            function trace(move) {
-                if (move) ctx.moveTo(xAt(0), yAt(pts[0]))
-                else ctx.lineTo(xAt(0), yAt(pts[0]))
-                if (r > 0.01) {
-                    for (let i = 1; i < pts.length - 1; i++)
-                        ctx.arcTo(xAt(i), yAt(pts[i]), xAt(i + 1), yAt(pts[i + 1]), r)
-                } else {
-                    for (let i = 1; i < pts.length - 1; i++)
-                        ctx.lineTo(xAt(i), yAt(pts[i]))
-                }
-                const last = pts.length - 1
-                ctx.lineTo(xAt(last), yAt(pts[last]))
-            }
-
-            // Fill under the line
-            if (root.filled) {
-                ctx.beginPath()
-                ctx.moveTo(xAt(0), height)
-                trace(false)
-                ctx.lineTo(xAt(pts.length - 1), height)
-                ctx.closePath()
-
-                if (root.gradientFill) {
-                    const g = ctx.createLinearGradient(0, 0, 0, height)
-                    g.addColorStop(0, Qt.rgba(root.lineColor.r, root.lineColor.g,
-                                              root.lineColor.b, 0.2))
-                    g.addColorStop(1, Qt.rgba(root.lineColor.r, root.lineColor.g,
-                                              root.lineColor.b, 0))
-                    ctx.fillStyle = g
-                } else {
-                    ctx.fillStyle = root.fillColor
-                }
-                ctx.fill()
-            }
-
-            // Line
-            ctx.beginPath()
-            trace(true)
-            ctx.strokeStyle = root.lineColor
-            ctx.lineWidth = root.lineWidth
-            ctx.lineJoin = "round"
-            ctx.lineCap = "round"
-            ctx.stroke()
-        }
-
-        Connections {
-            target: root
-            function onValuesChanged() { canvas.requestPaint() }
-            function onMaxOverrideChanged() { canvas.requestPaint() }
-            function onLineColorChanged() { canvas.requestPaint() }
-            function onLogScaleChanged() { canvas.requestPaint() }
-            function onBarsChanged() { canvas.requestPaint() }
-            function onCornerRadiusChanged() { canvas.requestPaint() }
-            function onGradientFillChanged() { canvas.requestPaint() }
-        }
+        values: root.values
+        maxPoints: root.maxPoints
+        lineColor: root.lineColor
+        areaColor: root.fillColor
+        lineWidth: root.lineWidth
+        filled: root.filled
+        maxOverride: root.maxOverride
+        cornerRadius: root.cornerRadius
+        gradientFill: root.gradientFill
+        logScale: root.logScale
+        bars: root.bars
+        barWidth: root.barWidth
+        barGap: root.barGap
     }
 }

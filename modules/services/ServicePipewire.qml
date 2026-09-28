@@ -38,6 +38,24 @@ Singleton{
     readonly property real volume:    sink?.audio?.volume ?? 0
     readonly property real micVolume: source?.audio?.volume ?? 0
 
+    readonly property var micApps: {
+        const out = []
+        for (const n of root.playbacks) {
+            const p = n?.properties ?? {}
+            if (p["media.class"] !== "Stream/Input/Audio" || String(p["stream.capture.sink"]) === "true")
+                continue
+            const name = p["application.name"] ?? n.name ?? ""
+            if (name !== "" && out.indexOf(name) < 0)
+                out.push(name)
+        }
+        return out
+    }
+    readonly property bool micInUse: root.micApps.length > 0
+    readonly property bool screenShared: Pipewire.nodes.values.some(n => {
+        const name = n?.name ?? ""
+        return name.indexOf("xdph-streaming") === 0 || name.indexOf("xdg-desktop-portal") === 0
+    })
+
     function toggleMute(): void {
         if (sink?.audio) sink.audio.muted = !sink.audio.muted
     }

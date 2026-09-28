@@ -20,29 +20,53 @@ Item {
     readonly property real gapPx: BarLayout.scaleFor(root.iconPx, 18, 6, 3)
     readonly property real padPx: BarLayout.scaleFor(root.iconPx, 18, 18, 8)
     readonly property bool showPercent: BarLayout.opt(root.itemId, "showPercent") !== false
+    readonly property bool fill: BarLayout.opt(root.itemId, "style") === "fill"
 
     readonly property var monitor: ServiceBrightness.getMonitorForScreen(layout.screen)
     readonly property real level: root.monitor?.brightness ?? 0
     readonly property bool shown: !!root.monitor
+    readonly property bool vertical: !!root.host && root.host.vertical === true
+    readonly property bool verticalReady: true
 
     implicitWidth: pill.width
-    implicitHeight: root.plate
+    implicitHeight: pill.height
 
     Rectangle {
         id: pill
         anchors.verticalCenter: parent.verticalCenter
-        width: root.showPercent ? row.implicitWidth + root.padPx : root.plate
-        height: root.plate
-        radius: root.plate / 2
-        color: root.plateless ? "transparent" : root.plateColor
+        width: root.fill ? fillChip.implicitWidth : root.vertical ? Math.max(root.plate, row.implicitWidth + 8)
+            : root.showPercent ? row.implicitWidth + root.padPx : root.plate
+        height: root.fill ? fillChip.implicitHeight : root.vertical && root.showPercent ? row.implicitHeight + 10 : root.plate
+        radius: Math.min(width, height) / 2
+        color: root.plateless || root.fill ? "transparent" : root.plateColor
         Behavior on color { ColorAnimation { duration: 150 } }
 
-        RowLayout {
+        BarFillChip {
+            id: fillChip
+            anchors.fill: parent
+            visible: root.fill
+            value: root.level
+            icon: "light_mode"
+            label: Math.round(root.level * 100) + ""
+            widthTemplate: "100"
+            vertical: root.vertical
+            iconPx: root.iconPx - 2
+            chipHeight: root.plate
+            hovered: hov.containsMouse
+            fillColor: Colors.secondaryContainer
+            fillInk: Colors.secondaryContainerText
+        }
+
+        GridLayout {
             id: row
+            visible: !root.fill
             anchors.centerIn: parent
-            spacing: root.gapPx
+            columns: root.vertical ? 1 : -1
+            rowSpacing: 1
+            columnSpacing: root.gapPx
 
             MaterialIconSymbol {
+                Layout.alignment: Qt.AlignHCenter
                 content: root.level > 0.66 ? "brightness_7" : root.level > 0.33 ? "brightness_6" : "brightness_5"
                 iconSize: root.iconPx
                 customColor: hov.containsMouse ? Colors.primaryContainerText : Colors.surfaceText
@@ -51,8 +75,9 @@ Item {
 
             CustomText {
                 visible: root.showPercent
-                content: Math.round(root.level * 100) + "%"
-                size: root.labelPx
+                Layout.alignment: Qt.AlignHCenter
+                content: Math.round(root.level * 100) + (root.vertical ? "" : "%")
+                size: root.vertical ? root.labelPx - 2 : root.labelPx
                 weight: 700
                 customColor: hov.containsMouse ? Colors.primaryContainerText : Colors.surfaceText
                 Behavior on customColor { ColorAnimation { duration: 150 } }

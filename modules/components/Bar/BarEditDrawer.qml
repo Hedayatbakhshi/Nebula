@@ -22,6 +22,8 @@ Item {
     readonly property string selected: drawer.editor ? drawer.editor.selectedItem : ""
     readonly property bool itemPage: drawer.selected !== ""
     readonly property bool dashPage: drawer.selected.indexOf("dash:") === 0
+    readonly property bool loose: drawer.itemPage && !drawer.dashPage && drawer.selected !== "dashboard" && !BarLayout.isPlaced(drawer.selected)
+    readonly property bool chromeless: drawer.dashPage || drawer.loose
     readonly property string dashKey: drawer.dashPage ? drawer.selected.substring(5) : ""
     readonly property string itemTint: drawer.dashPage ? "none"
         : BarLayout.itemStyle(drawer.selected, "tint", "none")
@@ -30,7 +32,7 @@ Item {
     property real previewW: 0
     property real previewH: 0
     property bool previewSizable: false
-    readonly property bool iconSizable: !drawer.dashPage && drawer.previewSizable
+    readonly property bool iconSizable: !drawer.chromeless && drawer.previewSizable
     readonly property real itemIconSize: drawer.dashPage ? 0
         : BarLayout.itemStyle(drawer.selected, "iconSize", 0)
     readonly property bool iconItem: !drawer.dashPage
@@ -195,51 +197,6 @@ Item {
         }
     }
 
-    component GridChip: Rectangle {
-        id: gchip
-        property var choice: null
-        property bool active: false
-        signal activated
-
-        implicitWidth: gchipRow.implicitWidth + 20
-        implicitHeight: 32
-        radius: 10
-        color: gchip.active ? Colors.primaryContainer
-             : gchipArea.containsMouse ? Colors.surfaceContainerHighest : Colors.surfaceContainerHigh
-        border.width: gchip.active ? 2 : 0
-        border.color: Colors.primary
-        Behavior on color { EffectsColorAnim {} }
-
-        Row {
-            id: gchipRow
-            anchors.centerIn: parent
-            spacing: 5
-
-            MaterialIconSymbol {
-                anchors.verticalCenter: parent.verticalCenter
-                visible: !!gchip.choice && !!gchip.choice.icon
-                content: gchip.choice && gchip.choice.icon ? gchip.choice.icon : ""
-                iconSize: 15
-                customColor: gchip.active ? Colors.primaryContainerText : Colors.surfaceText
-            }
-            CustomText {
-                anchors.verticalCenter: parent.verticalCenter
-                content: gchip.choice ? gchip.choice.label : ""
-                size: 12
-                weight: 600
-                customColor: gchip.active ? Colors.primaryContainerText : Colors.surfaceText
-            }
-        }
-
-        MouseArea {
-            id: gchipArea
-            anchors.fill: parent
-            hoverEnabled: true
-            cursorShape: Qt.PointingHandCursor
-            onClicked: gchip.activated()
-        }
-    }
-
     readonly property var tintChoices: [
         { value: "none",        label: "None" },
         { value: "primary",     label: "Primary" },
@@ -257,31 +214,21 @@ Item {
 
         spacing: 6
 
-        RowLayout {
+        CustomText {
             Layout.fillWidth: true
-            spacing: 10
+            content: BarLayout.blockLabel(btr.blockId)
+            size: 13
+            weight: 600
+            customColor: Colors.surfaceVariantText
+        }
 
-            CustomText {
-                Layout.preferredWidth: 96
-                content: BarLayout.blockLabel(btr.blockId)
-                size: 12
-            }
-
-            Flow {
-                Layout.fillWidth: true
-                spacing: 6
-
-                Repeater {
-                    model: drawer.tintChoices
-
-                    delegate: GridChip {
-                        required property var modelData
-                        choice: modelData
-                        active: btr.tint === modelData.value
-                        onActivated: BarLayout.setBlockStyle(btr.blockId, "tint", modelData.value)
-                    }
-                }
-            }
+        EditChoice {
+            Layout.fillWidth: true
+            maxPerRow: 5
+            minCell: 76
+            choices: drawer.tintChoices
+            value: btr.tint
+            onPicked: v => BarLayout.setBlockStyle(btr.blockId, "tint", v)
         }
 
         RowLayout {
@@ -324,6 +271,25 @@ Item {
                 }
             }
         }
+    }
+
+    function edgeRadius(card, dir) {
+        const p = card ? card.parent : null
+        if (!p)
+            return 20
+        const ch = p.children
+        let idx = -1
+        for (let i = 0; i < ch.length; i++)
+            if (ch[i] === card) { idx = i; break }
+        for (let i = idx + dir; i >= 0 && i < ch.length; i += dir) {
+            if (!ch[i].visible)
+                continue
+            if (ch[i].isHeading === true)
+                return 20
+            if (ch[i].isCustomCard === true)
+                return 5
+        }
+        return 20
     }
 
     function optValue(key) {
@@ -396,21 +362,28 @@ Item {
 
                     RowLayout {
                         Layout.fillWidth: true
-                        spacing: 10
+                        visible: !drawer.itemPage
+                        spacing: 12
 
-                        MaterialIconSymbol { content: "edit"; iconSize: 20; customColor: Colors.primary }
-                        CustomText { content: "Edit layout"; size: 16; weight: 700 }
-                        Item { Layout.fillWidth: true }
-                        M3Button {
-                            variant: "tonal"
-                            icon: "restart_alt"
-                            label: "Reset"
-                            onClicked: BarLayout.reset()
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            Layout.maximumWidth: 100000
+                            spacing: 0
+                            CustomText {
+                                content: "Bar & dock"
+                                size: 18
+                                weight: 600
+                            }
+                            CustomText {
+                                content: "Shape, size and blocks"
+                                size: 12
+                                weight: 400
+                                customColor: Colors.surfaceVariantText
+                            }
                         }
-                        M3Button {
-                            icon: "check"
-                            label: "Done"
-                            onClicked: GlobalStates.barEditMode = false
+                        M3IconButton {
+                            icon: "close"
+                            onClicked: if (drawer.editor) drawer.editor.drawerMode = ""
                         }
                     }
 
@@ -422,11 +395,10 @@ Item {
                         iconSize: 16
                         textSize: 12
                         model: [
-                            { value: "add",  label: "Add items", icon: "add_circle" },
-                            { value: "bar",  label: "Bar",       icon: "toolbar" },
-                            { value: "dock", label: "Dock",      icon: "dock_to_bottom" }
+                            { value: "bar",  label: "Bar",  icon: "toolbar" },
+                            { value: "dock", label: "Dock", icon: "dock_to_bottom" }
                         ]
-                        activeCheck: function(v) { return drawer.tab === v }
+                        activeCheck: function(v) { return drawer.tab === v || (v === "bar" && drawer.tab === "add") }
                         onSegmentClicked: function(v) { drawer.tab = v }
                     }
 
@@ -440,49 +412,77 @@ Item {
                                                                      : BarLayout.entry(drawer.selected)
                         readonly property var margin: drawer.dashPage ? [0, 0]
                                                                       : BarLayout.marginsFor(drawer.selected)
-                        readonly property var options: selectedSection.entry && selectedSection.entry.options
-                            ? selectedSection.entry.options : []
+                        readonly property var options: {
+                            const all = selectedSection.entry && selectedSection.entry.options
+                                ? selectedSection.entry.options : []
+                            return drawer.loose ? all.filter(o => o.setting || o.type === "heading") : all
+                        }
 
                         RowLayout {
                             Layout.fillWidth: true
                             spacing: 8
 
                             M3IconButton {
+                                visible: drawer.dashPage
                                 icon: "arrow_back"
-                                onClicked: if (drawer.editor) drawer.editor.selectedItem = drawer.dashPage ? "dashboard" : ""
+                                onClicked: if (drawer.editor) drawer.editor.selectedItem = "dashboard"
                             }
-                            MaterialIconSymbol {
-                                content: selectedSection.entry ? selectedSection.entry.icon : ""
-                                iconSize: 18
-                                customColor: Colors.primary
-                            }
-                            CustomText {
+                            ColumnLayout {
                                 Layout.fillWidth: true
-                                content: selectedSection.entry ? selectedSection.entry.label : drawer.selected
-                                elide: Text.ElideRight
-                                size: 15
-                                weight: 700
-                            }
-                            M3Button {
-                                variant: "text"
-                                visible: !drawer.dashPage
-                                icon: "restart_alt"
-                                label: "Reset margins"
-                                enabledButton: selectedSection.margin[0] > 0 || selectedSection.margin[1] > 0
-                                onClicked: BarLayout.clearMargins(drawer.selected)
+                                Layout.maximumWidth: 100000
+                                spacing: 0
+                                CustomText {
+                                    Layout.fillWidth: true
+                                    content: selectedSection.entry ? selectedSection.entry.label : drawer.selected
+                                    elide: Text.ElideRight
+                                    size: 18
+                                    weight: 600
+                                }
+                                CustomText {
+                                    Layout.fillWidth: true
+                                    content: drawer.dashPage ? "Dashboard item"
+                                        : drawer.selected === "dashboard" ? "Your items, layout and grid"
+                                        : drawer.loose ? "Not in your bar · panel settings only"
+                                        : selectedSection.entry && selectedSection.entry.group ? selectedSection.entry.group + " item" : "Bar item"
+                                    size: 12
+                                    weight: 400
+                                    customColor: Colors.surfaceVariantText
+                                }
                             }
                             M3Button {
                                 variant: "text"
                                 visible: drawer.dashPage
-                                icon: "visibility_off"
-                                label: "Hide"
+                                icon: "delete"
+                                label: "Remove"
                                 onClicked: {
                                     const k = drawer.dashKey
                                     if (drawer.editor)
                                         drawer.editor.selectedItem = "dashboard"
-                                    Qt.callLater(() => DashLayout.hideSection(k))
+                                    Qt.callLater(() => DashLayout.dropItem(k))
                                 }
                             }
+                            M3IconButton {
+                                icon: "close"
+                                onClicked: if (drawer.editor) drawer.editor.drawerMode = ""
+                            }
+                        }
+
+                        CustomText {
+                            Layout.fillWidth: true
+                            visible: drawer.selected === "wallpaper"
+                            wrapMode: Text.WordWrap
+                            content: "The wallpaper panel is open where it normally appears, as a live preview."
+                            size: 12
+                            customColor: Colors.outline
+                        }
+
+                        CustomText {
+                            Layout.fillWidth: true
+                            visible: drawer.loose
+                            wrapMode: Text.WordWrap
+                            content: "This item isn't in your bar. Only its panel settings are shown."
+                            size: 12
+                            customColor: Colors.outline
                         }
 
                         CustomText {
@@ -499,396 +499,17 @@ Item {
                             visible: drawer.selected === "dashboard" || drawer.dashPage
                             wrapMode: Text.WordWrap
                             content: drawer.dashPage
-                                ? "This section is live in the dashboard beside you. Drag it there to move it."
-                                : "The dashboard is open as a live preview. Drag its sections to reorder them, and click one to open its own options."
+                                ? "This item is live in the dashboard beside you. Drag it there to move it, or drag its corner to resize it."
+                                : "Your dashboard is open beside you. Click an item there to change its options."
                             size: 12
                             customColor: Colors.outline
-                        }
-
-                        ColumnLayout {
-                            id: dashSections
-                            Layout.fillWidth: true
-                            Layout.topMargin: 8
-                            spacing: 8
-                            visible: drawer.selected === "dashboard"
-
-                            RowLayout {
-                                Layout.fillWidth: true
-                                spacing: 8
-
-                                CustomText { content: "Sections"; size: 13; customColor: Colors.primary }
-                                Item { Layout.fillWidth: true }
-                                M3Button {
-                                    variant: "text"
-                                    icon: "restart_alt"
-                                    label: "Reset"
-                                    onClicked: DashLayout.reset()
-                                }
-                            }
-
-                            Repeater {
-                                model: DashLayout.visibleIds
-
-                                delegate: Rectangle {
-                                    id: secRow
-                                    required property string modelData
-                                    required property int index
-                                    readonly property var entry: DashLayout.entry(secRow.modelData)
-                                    readonly property bool last: secRow.index === DashLayout.visibleIds.length - 1
-
-                                    Layout.fillWidth: true
-                                    Layout.preferredHeight: 38
-                                    radius: 12
-                                    color: secArea.containsMouse ? Colors.surfaceContainerHighest
-                                                                 : Colors.surfaceContainerHigh
-
-                                    MouseArea {
-                                        id: secArea
-                                        anchors.fill: parent
-                                        hoverEnabled: true
-                                        cursorShape: Qt.PointingHandCursor
-                                        onClicked: if (drawer.editor)
-                                            drawer.editor.selectedItem = "dash:" + secRow.modelData
-                                    }
-
-                                    RowLayout {
-                                        anchors.fill: parent
-                                        anchors.leftMargin: 12
-                                        anchors.rightMargin: 4
-                                        spacing: 8
-
-                                        MaterialIconSymbol {
-                                            content: secRow.entry ? secRow.entry.icon : "widgets"
-                                            iconSize: 17
-                                            customColor: Colors.primary
-                                        }
-
-                                        CustomText {
-                                            Layout.fillWidth: true
-                                            content: secRow.entry ? secRow.entry.label : secRow.modelData
-                                            size: 13
-                                            weight: 600
-                                            elide: Text.ElideRight
-                                        }
-
-                                        M3IconButton {
-                                            implicitWidth: 30
-                                            implicitHeight: 30
-                                            icon: "keyboard_arrow_up"
-                                            iconSize: 17
-                                            enabledButton: secRow.index > 0
-                                            onClicked: if (secRow.index > 0)
-                                                DashLayout.moveStep(secRow.modelData, -1)
-                                        }
-
-                                        M3IconButton {
-                                            implicitWidth: 30
-                                            implicitHeight: 30
-                                            icon: "keyboard_arrow_down"
-                                            iconSize: 17
-                                            enabledButton: !secRow.last
-                                            onClicked: if (!secRow.last)
-                                                DashLayout.moveStep(secRow.modelData, 1)
-                                        }
-
-                                        M3IconButton {
-                                            implicitWidth: 30
-                                            implicitHeight: 30
-                                            icon: "visibility_off"
-                                            iconSize: 17
-                                            enabledButton: DashLayout.visibleIds.length > 1
-                                            onClicked: {
-                                                const k = secRow.modelData
-                                                Qt.callLater(() => DashLayout.hideSection(k))
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-
-                            CustomText {
-                                Layout.fillWidth: true
-                                Layout.topMargin: 4
-                                visible: DashLayout.hiddenIds.length > 0
-                                content: "Add"
-                                size: 11
-                                weight: 700
-                                customColor: Colors.outline
-                            }
-
-                            Flow {
-                                Layout.fillWidth: true
-                                spacing: 6
-
-                                Repeater {
-                                    model: DashLayout.hiddenIds
-
-                                    delegate: Rectangle {
-                                        id: dashChip
-                                        required property string modelData
-                                        readonly property var entry: DashLayout.entry(dashChip.modelData)
-
-                                        width: dashChipRow.implicitWidth + 22
-                                        height: 32
-                                        radius: 16
-                                        color: dashChipArea.containsMouse ? Colors.surfaceContainerHighest : Colors.surfaceContainerHigh
-                                        border.width: 1
-                                        border.color: Qt.alpha(Colors.outline, 0.3)
-
-                                        Row {
-                                            id: dashChipRow
-                                            anchors.centerIn: parent
-                                            spacing: 6
-
-                                            MaterialIconSymbol {
-                                                anchors.verticalCenter: parent.verticalCenter
-                                                content: "add"
-                                                iconSize: 16
-                                            }
-                                            CustomText {
-                                                anchors.verticalCenter: parent.verticalCenter
-                                                content: dashChip.entry ? dashChip.entry.label : dashChip.modelData
-                                                size: 12
-                                                weight: 600
-                                            }
-                                        }
-
-                                        MouseArea {
-                                            id: dashChipArea
-                                            anchors.fill: parent
-                                            hoverEnabled: true
-                                            cursorShape: Qt.PointingHandCursor
-                                            onClicked: DashLayout.showSection(dashChip.modelData)
-                                        }
-
-                                        CustomToolTip {
-                                            content: "Put this section back"
-                                            visible: dashChipArea.containsMouse
-                                        }
-                                    }
-                                }
-                            }
-
-                            CustomText {
-                                Layout.fillWidth: true
-                                visible: DashLayout.hiddenIds.length === 0
-                                wrapMode: Text.WordWrap
-                                content: "Every section is in the dashboard."
-                                size: 12
-                                customColor: Colors.outline
-                            }
-
-                            CustomText { Layout.topMargin: 6; content: "Layout"; size: 13; customColor: Colors.primary }
-
-                            RowLayout {
-                                Layout.fillWidth: true
-                                spacing: 10
-
-                                CustomText { Layout.preferredWidth: 96; content: "Columns"; size: 12 }
-                                Item { Layout.fillWidth: true }
-                                M3ButtonGroup {
-                                    model: [{ value: 0, label: "Auto" }, { value: 1, label: "One" },
-                                            { value: 2, label: "Two" }, { value: 3, label: "Three" }]
-                                    activeCheck: function(v) { return DashLayout.columnsSetting === v }
-                                    onSegmentClicked: function(v) { DashLayout.setColumns(v) }
-                                }
-                            }
-
-                            CustomText {
-                                Layout.fillWidth: true
-                                wrapMode: Text.WordWrap
-                                content: DashLayout.columnsSetting === 0
-                                    ? "Auto follows the panel width: two columns past 520px, three past 900px."
-                                    : "Fixed columns still drop back when the panel is too narrow to hold them."
-                                size: 11
-                                customColor: Colors.outline
-                            }
-
-                            RowLayout {
-                                Layout.fillWidth: true
-                                spacing: 10
-
-                                CustomText { Layout.preferredWidth: 96; content: "Density"; size: 12 }
-                                Item { Layout.fillWidth: true }
-                                M3ButtonGroup {
-                                    model: [{ value: "auto", label: "Auto" },
-                                            { value: "comfortable", label: "Roomy" },
-                                            { value: "compact", label: "Compact" }]
-                                    activeCheck: function(v) { return DashLayout.density === v }
-                                    onSegmentClicked: function(v) { DashLayout.setDensity(v) }
-                                }
-                            }
-
-                            RowLayout {
-                                Layout.fillWidth: true
-                                spacing: 10
-
-                                ColumnLayout {
-                                    Layout.fillWidth: true
-                                    spacing: 1
-
-                                    CustomText { content: "Cards"; size: 13 }
-                                    CustomText {
-                                        content: DashLayout.cards ? "Each section sits in a titled card"
-                                                                  : "Sections run flush, without frames"
-                                        size: 11
-                                        customColor: Colors.outline
-                                    }
-                                }
-
-                                CustomToogle {
-                                    isToggleOn: DashLayout.cards
-                                    onToggled: state => DashLayout.setCards(state)
-                                }
-                            }
-                        }
-
-                        ColumnLayout {
-                            id: panelSizeSection
-                            readonly property string kind: drawer.dashPage ? "" : BarLayout.panelFor(drawer.selected)
-                            readonly property var spec: BarLayout.panelSpecs[panelSizeSection.kind] ?? null
-                            readonly property bool custom: panelSizeSection.kind !== ""
-                                && BarLayout.panelCustom(panelSizeSection.kind)
-                            readonly property real roomH: Math.max(0, drawer.Window.height - Appearance.size.barHeight - 16)
-
-                            Layout.fillWidth: true
-                            visible: panelSizeSection.spec !== null
-                            spacing: 8
-
-                            RowLayout {
-                                Layout.fillWidth: true
-                                Layout.topMargin: 4
-
-                                CustomText {
-                                    Layout.fillWidth: true
-                                    content: "Panel size"
-                                    size: 13
-                                    customColor: Colors.primary
-                                }
-                                M3Button {
-                                    variant: "text"
-                                    icon: "restart_alt"
-                                    label: "Default size"
-                                    enabledButton: panelSizeSection.custom
-                                    onClicked: BarLayout.clearPanelSize(panelSizeSection.kind)
-                                }
-                            }
-
-                            CustomText {
-                                Layout.fillWidth: true
-                                visible: drawer.selected !== "dashboard"
-                                wrapMode: Text.WordWrap
-                                content: "The " + (panelSizeSection.spec ? panelSizeSection.spec.label.toLowerCase() : "")
-                                    + " panel is open as a live preview. Drag its edges or use the sliders to resize it."
-                                size: 12
-                                customColor: Colors.outline
-                            }
-
-                            Repeater {
-                                model: panelSizeSection.spec ? [
-                                    { key: "w", label: "Width",  min: panelSizeSection.spec.minW, auto: false,
-                                      max: panelSizeSection.spec.maxW },
-                                    { key: "h", label: "Height", min: panelSizeSection.spec.minH, auto: panelSizeSection.spec.defH < 0,
-                                      max: Math.max(panelSizeSection.spec.minH,
-                                                    Math.min(panelSizeSection.spec.maxH, panelSizeSection.roomH)) }
-                                ] : []
-
-                                delegate: RowLayout {
-                                    id: panelRow
-                                    required property var modelData
-                                    readonly property string kind: panelSizeSection.kind
-                                    readonly property real value: panelRow.modelData.key === "w" ? BarLayout.panelW(panelRow.kind)
-                                                                                                 : BarLayout.panelH(panelRow.kind)
-                                    readonly property int offset: panelRow.modelData.auto ? 1 : 0
-                                    readonly property bool isAuto: panelRow.modelData.auto && panelRow.value < 0
-                                    readonly property int step: 10
-
-                                    Layout.fillWidth: true
-                                    spacing: 12
-
-                                    CustomText {
-                                        Layout.preferredWidth: 96
-                                        content: panelRow.modelData.label
-                                        size: 12
-                                    }
-                                    M3Slider {
-                                        Layout.fillWidth: true
-                                        Layout.preferredHeight: 30
-                                        stepCount: Math.floor((panelRow.modelData.max - panelRow.modelData.min) / panelRow.step) + 1 + panelRow.offset
-                                        currentStep: panelRow.isAuto ? 0
-                                            : Math.max(panelRow.offset, Math.min(stepCount - 1,
-                                                Math.round((panelRow.value - panelRow.modelData.min) / panelRow.step) + panelRow.offset))
-                                        valueText: panelRow.modelData.auto && currentStep === 0 ? "Auto"
-                                            : String(panelRow.modelData.min + (currentStep - panelRow.offset) * panelRow.step)
-                                        onStepChanged: s => {
-                                            const v = panelRow.modelData.auto && s === 0 ? -1
-                                                : panelRow.modelData.min + (s - panelRow.offset) * panelRow.step
-                                            if (Math.abs(v - panelRow.value) < panelRow.step / 2 && (v < 0) === (panelRow.value < 0))
-                                                return
-                                            const k = panelRow.kind
-                                            if (panelRow.modelData.key === "w")
-                                                BarLayout.setPanelSize(k, v, BarLayout.panelH(k))
-                                            else
-                                                BarLayout.setPanelSize(k, BarLayout.panelW(k), v)
-                                        }
-                                    }
-                                    CustomText {
-                                        Layout.preferredWidth: 48
-                                        horizontalAlignment: Text.AlignRight
-                                        content: panelRow.isAuto ? "Auto" : Math.round(panelRow.value) + "px"
-                                        size: 12
-                                        customColor: Colors.outline
-                                    }
-                                }
-                            }
-                        }
-
-                        Repeater {
-                            model: [
-                                { side: "left",  label: "Left",  at: 0 },
-                                { side: "right", label: "Right", at: 1 }
-                            ]
-
-                            delegate: RowLayout {
-                                id: marginRow
-                                required property var modelData
-                                readonly property int px: selectedSection.margin[marginRow.modelData.at]
-
-                                Layout.fillWidth: true
-                                visible: !drawer.dashPage
-                                spacing: 12
-
-                                CustomText {
-                                    Layout.preferredWidth: 96
-                                    content: marginRow.modelData.label + " margin"
-                                    size: 12
-                                }
-                                M3Slider {
-                                    Layout.fillWidth: true
-                                    Layout.preferredHeight: 30
-                                    stepCount: 21
-                                    currentStep: Math.round(marginRow.px / 2)
-                                    valueText: (currentStep * 2) + "px"
-                                    onStepChanged: step => {
-                                        if (step * 2 !== marginRow.px)
-                                            BarLayout.setMargin(drawer.selected, marginRow.modelData.side, step * 2)
-                                    }
-                                }
-                                CustomText {
-                                    Layout.preferredWidth: 40
-                                    horizontalAlignment: Text.AlignRight
-                                    content: marginRow.px + "px"
-                                    size: 12
-                                    customColor: Colors.outline
-                                }
-                            }
                         }
 
                         Rectangle {
                             id: previewStrip
                             Layout.fillWidth: true
                             Layout.preferredHeight: Appearance.size.barHeight + 16
-                            visible: !drawer.dashPage && previewLoader.status === Loader.Ready
+                            visible: !drawer.chromeless && drawer.selected !== "dashboard" && previewLoader.status === Loader.Ready
                             radius: 12
                             color: Colors.surface
 
@@ -936,474 +557,548 @@ Item {
                             }
                         }
 
-                        CustomText {
-                            Layout.fillWidth: true
-                            Layout.topMargin: 4
-                            visible: drawer.groupPage
-                            content: "Items in this group"
-                            size: 13
-                            customColor: Colors.primary
-                        }
-
-                        Flow {
-                            Layout.fillWidth: true
-                            visible: drawer.groupPage
-                            spacing: 6
-
-                            Repeater {
-                                model: drawer.groupMembers
-
-                                delegate: MemberChip {
-                                    required property string modelData
-                                    required property int index
-                                    entry: BarLayout.entry(modelData)
-                                    canLeft: index > 0
-                                    canRight: index < drawer.groupMembers.length - 1
-                                    onMoveLeft: BarLayout.moveInGroup(drawer.selected, modelData, -1)
-                                    onMoveRight: BarLayout.moveInGroup(drawer.selected, modelData, 1)
-                                    onRemoved: BarLayout.removeFromGroup(drawer.selected, modelData)
-                                }
-                            }
-                        }
-
-                        CustomText {
-                            Layout.fillWidth: true
-                            visible: drawer.groupPage && drawer.groupMembers.length === 0
-                            wrapMode: Text.WordWrap
-                            content: "Empty. Add items below, then give the group a tint."
-                            size: 12
-                            customColor: Colors.outline
-                        }
-
-                        CustomText {
-                            Layout.fillWidth: true
-                            Layout.topMargin: 4
-                            visible: drawer.groupPage
-                            content: "Add"
-                            size: 13
-                            customColor: Colors.primary
-                        }
-
-                        Flow {
-                            Layout.fillWidth: true
-                            visible: drawer.groupPage
-                            spacing: 6
-
-                            Repeater {
-                                model: drawer.groupCandidates
-
-                                delegate: Chip {
-                                    required property string modelData
-                                    entry: BarLayout.entry(modelData)
-                                    adding: true
-                                    onActivated: BarLayout.addToGroup(drawer.selected, modelData)
-                                }
-                            }
-                        }
-
-                        CustomText {
-                            Layout.fillWidth: true
-                            Layout.topMargin: 4
-                            visible: drawer.iconSizable
-                            content: "Icon"
-                            size: 13
-                            customColor: Colors.primary
-                        }
-
-                        RowLayout {
-                            Layout.fillWidth: true
-                            visible: drawer.iconSizable
-                            spacing: 12
-
-                            CustomText {
-                                Layout.preferredWidth: 96
-                                content: "Size"
-                                size: 12
-                            }
-                            M3Slider {
-                                Layout.fillWidth: true
-                                Layout.preferredHeight: 30
-                                stepCount: 16
-                                currentStep: drawer.itemIconSize > 0
-                                    ? Math.round(drawer.itemIconSize) - 9 : 0
-                                valueText: currentStep === 0 ? "Auto" : String(currentStep + 9) + "px"
-                                onStepChanged: st => {
-                                    const v = st === 0 ? 0 : st + 9
-                                    if (v !== drawer.itemIconSize)
-                                        BarLayout.setItemStyle(drawer.selected, "iconSize", v)
-                                }
-                            }
-                            CustomText {
-                                Layout.preferredWidth: 40
-                                horizontalAlignment: Text.AlignRight
-                                content: drawer.itemIconSize > 0 ? drawer.itemIconSize + "px" : "Auto"
-                                size: 12
-                                customColor: Colors.outline
-                            }
-                        }
-
-                        CustomText {
-                            Layout.fillWidth: true
-                            Layout.topMargin: 4
-                            visible: !drawer.dashPage
-                            content: "Background"
-                            size: 13
-                            customColor: Colors.primary
-                        }
-
-                        RowLayout {
-                            Layout.fillWidth: true
-                            visible: !drawer.dashPage
-                            spacing: 10
-
-                            CustomText { Layout.preferredWidth: 96; content: "Tint"; size: 12 }
-
-                            Flow {
-                                Layout.fillWidth: true
-                                spacing: 6
-
-                                Repeater {
-                                    model: drawer.tintChoices
-
-                                    delegate: GridChip {
-                                        required property var modelData
-                                        choice: modelData
-                                        active: drawer.itemTint === modelData.value
-                                        onActivated: BarLayout.setItemStyle(drawer.selected, "tint", modelData.value)
-                                    }
-                                }
-                            }
-                        }
-
-                        ColumnLayout {
-                            Layout.fillWidth: true
-                            visible: !drawer.dashPage && drawer.itemTint !== "none"
-                            spacing: 8
-
-                            CustomText {
-                                Layout.fillWidth: true
-                                content: "Shape"
-                                size: 12
-                            }
-
-                            CustomText {
-                                Layout.fillWidth: true
-                                visible: !drawer.iconItem
-                                wrapMode: Text.WordWrap
-                                content: "Single-icon items only."
-                                size: 12
-                                customColor: Colors.outline
-                            }
-
-                            ShapePicker {
-                                Layout.fillWidth: true
-                                visible: drawer.iconItem
-                                autoLabel: "None"
-                                autoIcon: "crop_square"
-                                autoHint: "Rounded rectangle"
-                                pickedHint: ""
-                                selected: drawer.itemShape === "none" ? "" : drawer.itemShape
-                                onPicked: name => BarLayout.setItemStyle(drawer.selected, "shape",
-                                                                        name === "" ? "none" : name)
-                            }
-                        }
-
-                        Repeater {
-                            model: [
-                                { key: "radius", label: "Radius",    min: 0, max: 24,  step: 2, def: -1, auto: "Pill", shapeLabel: "",        tintOnly: true,  groupOnly: false },
-                                { key: "pad",    label: "Padding",   min: 0, max: 24,  step: 2, def: 10, auto: "",     shapeLabel: "Padding", tintOnly: true,  groupOnly: false },
-                                { key: "gap",    label: "Spacing",   min: 0, max: 20,  step: 2, def: -1, auto: "Auto", shapeLabel: "Spacing", tintOnly: false, groupOnly: true },
-                                { key: "minW",   label: "Min width", min: 0, max: 160, step: 8, def: 0,  auto: "",     shapeLabel: "",        tintOnly: true,  groupOnly: false },
-                                { key: "minH",   label: "Height",    min: 0, max: 56,  step: 2, def: 0,  auto: "",     shapeLabel: "Size",    tintOnly: false, groupOnly: false }
-                            ]
-
-                            delegate: RowLayout {
-                                id: chipRow
-                                required property var modelData
-                                readonly property bool hasAuto: chipRow.modelData.auto !== ""
-                                readonly property real value: BarLayout.itemStyle(drawer.selected,
-                                                                                  chipRow.modelData.key,
-                                                                                  chipRow.modelData.def)
-                                readonly property int off: chipRow.hasAuto ? 1 : 0
-                                readonly property bool isAuto: chipRow.hasAuto && chipRow.value < 0
-
-                                Layout.fillWidth: true
-                                visible: !drawer.dashPage
-                                    && (drawer.itemTint !== "none"
-                                        || (!chipRow.modelData.tintOnly && drawer.groupPage))
-                                    && (!chipRow.modelData.groupOnly || drawer.groupPage)
-                                    && (!drawer.shapedChip || chipRow.modelData.shapeLabel !== "")
-                                spacing: 12
-
-                                CustomText {
-                                    Layout.preferredWidth: 96
-                                    content: drawer.shapedChip && chipRow.modelData.shapeLabel !== ""
-                                             ? chipRow.modelData.shapeLabel : chipRow.modelData.label
-                                    size: 12
-                                }
-                                M3Slider {
-                                    Layout.fillWidth: true
-                                    Layout.preferredHeight: 30
-                                    stepCount: Math.round((chipRow.modelData.max - chipRow.modelData.min)
-                                                          / chipRow.modelData.step) + 1 + chipRow.off
-                                    currentStep: chipRow.isAuto ? 0
-                                        : Math.round((chipRow.value - chipRow.modelData.min) / chipRow.modelData.step) + chipRow.off
-                                    valueText: chipRow.hasAuto && currentStep === 0 ? chipRow.modelData.auto
-                                        : String(chipRow.modelData.min + (currentStep - chipRow.off) * chipRow.modelData.step)
-                                    onStepChanged: st => {
-                                        const v = chipRow.hasAuto && st === 0 ? -1
-                                            : chipRow.modelData.min + (st - chipRow.off) * chipRow.modelData.step
-                                        if (v !== chipRow.value)
-                                            BarLayout.setItemStyle(drawer.selected, chipRow.modelData.key, v)
-                                    }
-                                }
-                                CustomText {
-                                    Layout.preferredWidth: 40
-                                    horizontalAlignment: Text.AlignRight
-                                    content: chipRow.isAuto ? chipRow.modelData.auto
-                                           : (chipRow.value === 0 && !chipRow.hasAuto ? "Hug" : chipRow.value + "px")
-                                    size: 12
-                                    customColor: Colors.outline
-                                }
-                            }
-                        }
-
-                        Repeater {
-                            model: selectedSection.options
-
-                            delegate: RowLayout {
-                                id: optRow
-                                required property var modelData
-                                readonly property var value: drawer.optValue(optRow.modelData.key)
-                                readonly property string kind: optRow.modelData.type
-                                readonly property int off: optRow.modelData.auto ? 1 : 0
-                                readonly property var cond: optRow.modelData.onlyIf ?? null
-
-                                Layout.fillWidth: true
-                                Layout.topMargin: optRow.kind === "heading" ? 8 : 0
-                                spacing: 12
-                                visible: !optRow.cond
-                                    || optRow.cond.values.indexOf(drawer.optValue(optRow.cond.key)) >= 0
-
-                                CustomText {
-                                    visible: optRow.kind === "heading"
-                                    content: optRow.modelData.label
-                                    size: 13
-                                    customColor: Colors.primary
-                                }
-
-                                CustomText {
-                                    visible: optRow.kind !== "heading" && optRow.kind !== "buttons"
-                                        && optRow.kind !== "shape"
-                                    Layout.preferredWidth: 96
-                                    content: optRow.modelData.label
-                                    size: 12
-                                }
-
+EditHeading {
+    Layout.fillWidth: true
+    Layout.topMargin: 10
+    visible: panelSizeSection.spec !== null && !!drawer.editor && drawer.editor.panelStage
+    content: "Panel size"
+    size: 13
+    customColor: Colors.primary
+}
+ColumnLayout {
+    id: drawerGroup2
+    Layout.fillWidth: true
+    visible: panelSizeSection.spec !== null && !!drawer.editor && drawer.editor.panelStage
+    spacing: 8
+    EditRow {
+        id: drawerBlock2
+        autoRadius: false
+        visible: true
+        topRadius: drawer.edgeRadius(drawerBlock2, -1)
+        bottomRadius: drawer.edgeRadius(drawerBlock2, 1)
                                 ColumnLayout {
-                                    id: buttonList
-                                    visible: optRow.kind === "buttons"
+                                    id: panelSizeSection
+                                    readonly property string kind: drawer.dashPage ? "" : BarLayout.panelFor(drawer.selected)
+                                    readonly property var spec: BarLayout.panelSpecs[panelSizeSection.kind] ?? null
+                                    readonly property bool custom: panelSizeSection.kind !== ""
+                                        && BarLayout.panelCustom(panelSizeSection.kind)
+                                    readonly property real roomH: Math.max(0, drawer.Window.height - Appearance.size.barHeight - 16)
+
                                     Layout.fillWidth: true
-                                    spacing: 6
+                                    visible: panelSizeSection.spec !== null && !!drawer.editor && drawer.editor.panelStage
+                                    spacing: 8
 
-                                    readonly property var chosen: optRow.kind === "buttons"
-                                        ? DashLayout.itemList(drawer.dashKey, optRow.modelData.key) : []
-                                    readonly property var pool: optRow.kind === "buttons"
-                                        ? optRow.modelData.catalog.filter(e => buttonList.chosen.indexOf(e.id) < 0) : []
-
-                                    CustomText {
-                                        Layout.fillWidth: true
-                                        content: "In the row"
-                                        size: 11
-                                        weight: 700
-                                        customColor: Colors.outline
-                                    }
-
-                                    Flow {
-                                        Layout.fillWidth: true
-                                        spacing: 6
-
-                                        Repeater {
-                                            model: buttonList.chosen
-
-                                            delegate: Chip {
-                                                required property string modelData
-                                                entry: optRow.modelData.catalog.find(e => e.id === modelData) ?? null
-                                                onActivated: DashLayout.removeItem(drawer.dashKey,
-                                                                                   optRow.modelData.key, modelData)
-                                            }
-                                        }
-                                    }
-
-                                    CustomText {
-                                        Layout.fillWidth: true
-                                        visible: buttonList.chosen.length === 0
-                                        wrapMode: Text.WordWrap
-                                        content: "No buttons in this row."
-                                        size: 11
-                                        customColor: Colors.outline
-                                    }
-
-                                    CustomText {
+                                    RowLayout {
                                         Layout.fillWidth: true
                                         Layout.topMargin: 4
-                                        visible: buttonList.pool.length > 0
-                                        content: "Add"
-                                        size: 11
-                                        weight: 700
+
+                                        CustomText {
+                                            Layout.fillWidth: true
+                                            content: "Panel size"
+                                            size: 13
+                                            customColor: Colors.primary
+                                        }
+                                        M3Button {
+                                            variant: "text"
+                                            icon: "restart_alt"
+                                            label: "Default size"
+                                            enabledButton: panelSizeSection.custom
+                                            onClicked: BarLayout.clearPanelSize(panelSizeSection.kind)
+                                        }
+                                    }
+
+                                    CustomText {
+                                        Layout.fillWidth: true
+                                        visible: drawer.selected !== "dashboard"
+                                        wrapMode: Text.WordWrap
+                                        content: "The " + (panelSizeSection.spec ? panelSizeSection.spec.label.toLowerCase() : "")
+                                            + " panel is open as a live preview. Drag its edges or use the sliders to resize it."
+                                        size: 12
                                         customColor: Colors.outline
                                     }
 
-                                    Flow {
-                                        Layout.fillWidth: true
-                                        spacing: 6
+                                    Repeater {
+                                        model: panelSizeSection.spec ? [
+                                            { key: "w", label: "Width",  min: panelSizeSection.spec.minW, auto: false,
+                                              max: panelSizeSection.spec.maxW },
+                                            { key: "h", label: "Height", min: panelSizeSection.spec.minH, auto: panelSizeSection.spec.defH < 0,
+                                              max: Math.max(panelSizeSection.spec.minH,
+                                                            Math.min(panelSizeSection.spec.maxH, panelSizeSection.roomH)) }
+                                        ] : []
 
-                                        Repeater {
-                                            model: buttonList.pool
+                                        delegate: RowLayout {
+                                            id: panelRow
+                                            required property var modelData
+                                            readonly property string kind: panelSizeSection.kind
+                                            readonly property real value: panelRow.modelData.key === "w" ? BarLayout.panelW(panelRow.kind)
+                                                                                                         : BarLayout.panelH(panelRow.kind)
+                                            readonly property int offset: panelRow.modelData.auto ? 1 : 0
+                                            readonly property bool isAuto: panelRow.modelData.auto && panelRow.value < 0
+                                            readonly property int step: 10
 
-                                            delegate: Chip {
-                                                required property var modelData
-                                                entry: modelData
-                                                adding: true
-                                                onActivated: DashLayout.addItem(drawer.dashKey,
-                                                                                optRow.modelData.key, modelData.id)
+                                            Layout.fillWidth: true
+                                            spacing: 12
+
+                                            CustomText {
+                                                Layout.preferredWidth: 110
+                                                content: panelRow.modelData.label
+                                                size: 12
+                                            }
+                                            M3Slider {
+                                                Layout.fillWidth: true
+                                                Layout.preferredHeight: 30
+                                                stepCount: Math.floor((panelRow.modelData.max - panelRow.modelData.min) / panelRow.step) + 1 + panelRow.offset
+                                                currentStep: panelRow.isAuto ? 0
+                                                    : Math.max(panelRow.offset, Math.min(stepCount - 1,
+                                                        Math.round((panelRow.value - panelRow.modelData.min) / panelRow.step) + panelRow.offset))
+                                                valueText: panelRow.modelData.auto && currentStep === 0 ? "Auto"
+                                                    : String(panelRow.modelData.min + (currentStep - panelRow.offset) * panelRow.step)
+                                                onStepChanged: s => {
+                                                    const v = panelRow.modelData.auto && s === 0 ? -1
+                                                        : panelRow.modelData.min + (s - panelRow.offset) * panelRow.step
+                                                    if (Math.abs(v - panelRow.value) < panelRow.step / 2 && (v < 0) === (panelRow.value < 0))
+                                                        return
+                                                    const k = panelRow.kind
+                                                    if (panelRow.modelData.key === "w")
+                                                        BarLayout.setPanelSize(k, v, BarLayout.panelH(k))
+                                                    else
+                                                        BarLayout.setPanelSize(k, BarLayout.panelW(k), v)
+                                                }
+                                            }
+                                            CustomText {
+                                                Layout.preferredWidth: 48
+                                                horizontalAlignment: Text.AlignRight
+                                                content: panelRow.isAuto ? "Auto" : Math.round(panelRow.value) + "px"
+                                                size: 12
+                                                customColor: Colors.outline
                                             }
                                         }
                                     }
                                 }
+    }
+}
 
-                                Item {
+EditHeading {
+    Layout.fillWidth: true
+    Layout.topMargin: 10
+    visible: !drawer.chromeless
+    content: "Look"
+    size: 13
+    customColor: Colors.primary
+}
+ColumnLayout {
+    id: drawerGroup3
+    Layout.fillWidth: true
+    visible: !drawer.chromeless
+    spacing: 8
+    EditRow {
+        id: drawerBlock4
+        autoRadius: false
+        visible: drawer.iconSizable
+        topRadius: drawer.edgeRadius(drawerBlock4, -1)
+        bottomRadius: drawer.edgeRadius(drawerBlock4, 1)
+                                RowLayout {
                                     Layout.fillWidth: true
-                                    visible: optRow.kind === "toggle" || optRow.kind === "choice"
-                                }
+                                    visible: drawer.iconSizable
+                                    spacing: 12
 
-                                CustomToogle {
-                                    visible: optRow.kind === "toggle"
-                                    isToggleOn: optRow.value === true
-                                    onToggled: state => drawer.setOptValue(optRow.modelData.key, state)
-                                }
-
-                                M3ButtonGroup {
-                                    visible: optRow.kind === "choice"
-                                    model: optRow.kind === "choice" ? optRow.modelData.choices : []
-                                    activeCheck: function(v) { return optRow.value === v }
-                                    onSegmentClicked: function(v) {
-                                        drawer.setOptValue(optRow.modelData.key, v)
+                                    CustomText {
+                                        Layout.preferredWidth: 110
+                                        content: "Size"
+                                        size: 12
                                     }
-                                }
-
-                                M3Slider {
-                                    id: optSlider
-                                    visible: optRow.kind === "slider"
-                                    Layout.fillWidth: true
-                                    Layout.preferredHeight: 30
-                                    readonly property real lo: optRow.modelData.min ?? 0
-                                    readonly property real st: optRow.modelData.step ?? 1
-                                    stepCount: optRow.kind === "slider"
-                                        ? Math.round(((optRow.modelData.max ?? 1) - optSlider.lo) / optSlider.st) + 1 + optRow.off : 0
-                                    currentStep: optRow.kind !== "slider" ? -1
-                                        : optRow.off && (optRow.value ?? 0) < 0 ? 0
-                                        : Math.round(((optRow.value ?? optSlider.lo) - optSlider.lo) / optSlider.st) + optRow.off
-                                    valueText: optRow.off && currentStep === 0 ? optRow.modelData.auto
-                                        : String(optSlider.lo + (currentStep - optRow.off) * optSlider.st)
-                                    onStepChanged: step => {
-                                        const v = optRow.off && step === 0 ? -1 : optSlider.lo + (step - optRow.off) * optSlider.st
-                                        if (v !== optRow.value)
-                                            drawer.setOptValue(optRow.modelData.key, v)
-                                    }
-                                }
-
-                                CustomText {
-                                    visible: optRow.kind === "slider"
-                                    Layout.preferredWidth: optRow.off ? 64 : 40
-                                    horizontalAlignment: Text.AlignRight
-                                    content: optRow.off && (optRow.value ?? 0) < 0 ? optRow.modelData.auto : String(optRow.value ?? "")
-                                    size: 12
-                                    customColor: Colors.outline
-                                }
-
-                                Rectangle {
-                                    visible: optRow.kind === "text"
-                                    Layout.fillWidth: true
-                                    Layout.preferredHeight: 32
-                                    radius: 10
-                                    color: Colors.surfaceContainerHigh
-                                    border.width: fieldInput.activeFocus ? 2 : 0
-                                    border.color: Colors.primary
-
-                                    TextInput {
-                                        id: fieldInput
-                                        anchors.fill: parent
-                                        anchors.leftMargin: 10
-                                        anchors.rightMargin: 10
-                                        verticalAlignment: TextInput.AlignVCenter
-                                        clip: true
-                                        selectByMouse: true
-                                        color: Colors.surfaceText
-                                        selectionColor: Qt.alpha(Colors.primary, 0.35)
-                                        font.pixelSize: 13
-                                        font.family: SettingsConfig.general.defaultFont ?? "Rubik"
-                                        text: optRow.kind === "text" ? String(optRow.value ?? "") : ""
-                                        onEditingFinished: {
-                                            if (fieldInput.text !== String(optRow.value ?? ""))
-                                                drawer.setOptValue(optRow.modelData.key, fieldInput.text)
+                                    M3Slider {
+                                        Layout.fillWidth: true
+                                        Layout.preferredHeight: 30
+                                        stepCount: 16
+                                        currentStep: drawer.itemIconSize > 0
+                                            ? Math.round(drawer.itemIconSize) - 9 : 0
+                                        valueText: currentStep === 0 ? "Auto" : String(currentStep + 9) + "px"
+                                        onStepChanged: st => {
+                                            const v = st === 0 ? 0 : st + 9
+                                            if (v !== drawer.itemIconSize)
+                                                BarLayout.setItemStyle(drawer.selected, "iconSize", v)
                                         }
                                     }
-                                }
-
-                                Flow {
-                                    visible: optRow.kind === "grid"
-                                    Layout.fillWidth: true
-                                    spacing: 6
-
-                                    Repeater {
-                                        model: optRow.kind === "grid" ? optRow.modelData.choices : []
-
-                                        delegate: GridChip {
-                                            required property var modelData
-                                            choice: modelData
-                                            active: optRow.value === modelData.value
-                                            onActivated: drawer.setOptValue(optRow.modelData.key, modelData.value)
-                                        }
+                                    CustomText {
+                                        Layout.preferredWidth: 40
+                                        horizontalAlignment: Text.AlignRight
+                                        content: drawer.itemIconSize > 0 ? drawer.itemIconSize + "px" : "Auto"
+                                        size: 12
+                                        customColor: Colors.outline
                                     }
                                 }
-
+    }
+    EditRow {
+        id: drawerBlock6
+        autoRadius: false
+        visible: !drawer.chromeless
+        topRadius: drawer.edgeRadius(drawerBlock6, -1)
+        bottomRadius: drawer.edgeRadius(drawerBlock6, 1)
                                 ColumnLayout {
-                                    visible: optRow.kind === "shape"
                                     Layout.fillWidth: true
+                                    visible: !drawer.chromeless
+                                    spacing: 8
+
+                                    CustomText { Layout.fillWidth: true; content: "Tint"; size: 13; weight: 600; customColor: Colors.surfaceVariantText }
+
+                                    EditChoice {
+                                        Layout.fillWidth: true
+                                        maxPerRow: 5
+                                        minCell: 76
+                                        choices: drawer.tintChoices
+                                        value: drawer.itemTint
+                                        onPicked: v => BarLayout.setItemStyle(drawer.selected, "tint", v)
+                                    }
+                                }
+    }
+    EditRow {
+        id: drawerBlock7
+        autoRadius: false
+        visible: !drawer.chromeless && drawer.itemTint !== "none"
+        topRadius: drawer.edgeRadius(drawerBlock7, -1)
+        bottomRadius: drawer.edgeRadius(drawerBlock7, 1)
+                                ColumnLayout {
+                                    Layout.fillWidth: true
+                                    Layout.maximumWidth: 100000
+                                    visible: !drawer.chromeless && drawer.itemTint !== "none"
                                     spacing: 8
 
                                     CustomText {
-                                        content: optRow.modelData.label
+                                        Layout.fillWidth: true
+                                        content: "Shape"
                                         size: 12
+                                    }
+
+                                    CustomText {
+                                        Layout.fillWidth: true
+                                        visible: !drawer.iconItem
+                                        wrapMode: Text.WordWrap
+                                        content: "Single-icon items only."
+                                        size: 12
+                                        customColor: Colors.outline
                                     }
 
                                     ShapePicker {
                                         Layout.fillWidth: true
-                                        showAuto: false
-                                        selected: optRow.kind === "shape" ? String(optRow.value ?? "") : ""
-                                        onPicked: name => drawer.setOptValue(optRow.modelData.key, name)
+                                        visible: drawer.iconItem
+                                        autoLabel: "None"
+                                        autoIcon: "crop_square"
+                                        autoHint: "Rounded rectangle"
+                                        pickedHint: ""
+                                        selected: drawer.itemShape === "none" ? "" : drawer.itemShape
+                                        onPicked: name => BarLayout.setItemStyle(drawer.selected, "shape",
+                                                                                name === "" ? "none" : name)
                                     }
                                 }
-                            }
-                        }
+    }
+    EditRow {
+        id: drawerBlock8
+        autoRadius: false
+        visible: !drawer.chromeless && (drawer.itemTint !== "none" || drawer.groupPage)
+        topRadius: drawer.edgeRadius(drawerBlock8, -1)
+        bottomRadius: drawer.edgeRadius(drawerBlock8, 1)
+                                Repeater {
+                                    model: [
+                                        { key: "radius", label: "Radius",    min: 0, max: 24,  step: 2, def: -1, auto: "Pill", shapeLabel: "",        tintOnly: true,  groupOnly: false },
+                                        { key: "pad",    label: "Padding",   min: 0, max: 24,  step: 2, def: 10, auto: "",     shapeLabel: "Padding", tintOnly: true,  groupOnly: false },
+                                        { key: "gap",    label: "Spacing",   min: 0, max: 20,  step: 2, def: -1, auto: "Auto", shapeLabel: "Spacing", tintOnly: false, groupOnly: true },
+                                        { key: "minW",   label: "Min width", min: 0, max: 160, step: 8, def: 0,  auto: "",     shapeLabel: "",        tintOnly: true,  groupOnly: false },
+                                        { key: "minH",   label: "Height",    min: 0, max: 56,  step: 2, def: 0,  auto: "",     shapeLabel: "Size",    tintOnly: false, groupOnly: false }
+                                    ]
 
-                        CustomText {
-                            Layout.fillWidth: true
-                            visible: selectedSection.options.length === 0 && drawer.selected !== "dashboard"
-                            wrapMode: Text.WordWrap
-                            content: drawer.dashPage ? "This section has no options yet."
-                                                     : "This item has no options besides its margins."
-                            size: 12
-                            customColor: Colors.outline
-                        }
+                                    delegate: RowLayout {
+                                        id: chipRow
+                                        required property var modelData
+                                        readonly property bool hasAuto: chipRow.modelData.auto !== ""
+                                        readonly property real value: BarLayout.itemStyle(drawer.selected,
+                                                                                          chipRow.modelData.key,
+                                                                                          chipRow.modelData.def)
+                                        readonly property int off: chipRow.hasAuto ? 1 : 0
+                                        readonly property bool isAuto: chipRow.hasAuto && chipRow.value < 0
+
+                                        Layout.fillWidth: true
+                                        visible: !drawer.chromeless
+                                            && (drawer.itemTint !== "none"
+                                                || (!chipRow.modelData.tintOnly && drawer.groupPage))
+                                            && (!chipRow.modelData.groupOnly || drawer.groupPage)
+                                            && (!drawer.shapedChip || chipRow.modelData.shapeLabel !== "")
+                                        spacing: 12
+
+                                        CustomText {
+                                            Layout.preferredWidth: 110
+                                            content: drawer.shapedChip && chipRow.modelData.shapeLabel !== ""
+                                                     ? chipRow.modelData.shapeLabel : chipRow.modelData.label
+                                            size: 12
+                                        }
+                                        M3Slider {
+                                            Layout.fillWidth: true
+                                            Layout.preferredHeight: 30
+                                            stepCount: Math.round((chipRow.modelData.max - chipRow.modelData.min)
+                                                                  / chipRow.modelData.step) + 1 + chipRow.off
+                                            currentStep: chipRow.isAuto ? 0
+                                                : Math.round((chipRow.value - chipRow.modelData.min) / chipRow.modelData.step) + chipRow.off
+                                            valueText: chipRow.hasAuto && currentStep === 0 ? chipRow.modelData.auto
+                                                : String(chipRow.modelData.min + (currentStep - chipRow.off) * chipRow.modelData.step)
+                                            onStepChanged: st => {
+                                                const v = chipRow.hasAuto && st === 0 ? -1
+                                                    : chipRow.modelData.min + (st - chipRow.off) * chipRow.modelData.step
+                                                if (v !== chipRow.value)
+                                                    BarLayout.setItemStyle(drawer.selected, chipRow.modelData.key, v)
+                                            }
+                                        }
+                                        CustomText {
+                                            Layout.preferredWidth: 40
+                                            horizontalAlignment: Text.AlignRight
+                                            content: chipRow.isAuto ? chipRow.modelData.auto
+                                                   : (chipRow.value === 0 && !chipRow.hasAuto ? "Hug" : chipRow.value + "px")
+                                            size: 12
+                                            customColor: Colors.outline
+                                        }
+                                    }
+                                }
+    }
+}
+
+EditHeading {
+    Layout.fillWidth: true
+    Layout.topMargin: 10
+    visible: !drawer.chromeless
+    content: "Spacing"
+    size: 13
+    customColor: Colors.primary
+}
+ColumnLayout {
+    id: drawerGroup4
+    Layout.fillWidth: true
+    visible: !drawer.chromeless
+    spacing: 8
+    EditRow {
+        id: drawerBlock10
+        autoRadius: false
+        visible: true
+        topRadius: drawer.edgeRadius(drawerBlock10, -1)
+        bottomRadius: drawer.edgeRadius(drawerBlock10, 1)
+                                M3Button {
+                                    Layout.alignment: Qt.AlignRight
+                                    size: "xsmall"
+                                    variant: "text"
+                                    icon: "restart_alt"
+                                    label: "Reset margins"
+                                    enabledButton: selectedSection.margin[0] > 0 || selectedSection.margin[1] > 0
+                                    onClicked: BarLayout.clearMargins(drawer.selected)
+                                }
+                                Repeater {
+                                    model: [
+                                        { side: "left",  label: "Left",  at: 0 },
+                                        { side: "right", label: "Right", at: 1 }
+                                    ]
+
+                                    delegate: RowLayout {
+                                        id: marginRow
+                                        required property var modelData
+                                        readonly property int px: selectedSection.margin[marginRow.modelData.at]
+
+                                        Layout.fillWidth: true
+                                        visible: !drawer.chromeless
+                                        spacing: 12
+
+                                        CustomText {
+                                            Layout.preferredWidth: 110
+                                            content: marginRow.modelData.label + " margin"
+                                            size: 12
+                                        }
+                                        M3Slider {
+                                            Layout.fillWidth: true
+                                            Layout.preferredHeight: 30
+                                            stepCount: 21
+                                            currentStep: Math.round(marginRow.px / 2)
+                                            valueText: (currentStep * 2) + "px"
+                                            onStepChanged: step => {
+                                                if (step * 2 !== marginRow.px)
+                                                    BarLayout.setMargin(drawer.selected, marginRow.modelData.side, step * 2)
+                                            }
+                                        }
+                                        CustomText {
+                                            Layout.preferredWidth: 40
+                                            horizontalAlignment: Text.AlignRight
+                                            content: marginRow.px + "px"
+                                            size: 12
+                                            customColor: Colors.outline
+                                        }
+                                    }
+                                }
+    }
+}
+
+EditHeading {
+    Layout.fillWidth: true
+    Layout.topMargin: 10
+    visible: drawer.groupPage
+    content: "Group"
+    size: 13
+    customColor: Colors.primary
+}
+ColumnLayout {
+    id: drawerGroup5
+    Layout.fillWidth: true
+    visible: drawer.groupPage
+    spacing: 8
+    EditRow {
+        id: drawerBlock11
+        autoRadius: false
+        visible: drawer.groupPage
+        topRadius: drawer.edgeRadius(drawerBlock11, -1)
+        bottomRadius: drawer.edgeRadius(drawerBlock11, 1)
+                                CustomText {
+                                    Layout.fillWidth: true
+                                    Layout.topMargin: 4
+                                    visible: drawer.groupPage
+                                    content: "Items in this group"
+                                    size: 13
+                                    customColor: Colors.primary
+                                }
+    }
+    EditRow {
+        id: drawerBlock12
+        autoRadius: false
+        visible: drawer.groupPage
+        topRadius: drawer.edgeRadius(drawerBlock12, -1)
+        bottomRadius: drawer.edgeRadius(drawerBlock12, 1)
+                                Flow {
+                                    Layout.fillWidth: true
+                                    visible: drawer.groupPage
+                                    spacing: 6
+
+                                    Repeater {
+                                        model: drawer.groupMembers
+
+                                        delegate: MemberChip {
+                                            required property string modelData
+                                            required property int index
+                                            entry: BarLayout.entry(modelData)
+                                            canLeft: index > 0
+                                            canRight: index < drawer.groupMembers.length - 1
+                                            onMoveLeft: BarLayout.moveInGroup(drawer.selected, modelData, -1)
+                                            onMoveRight: BarLayout.moveInGroup(drawer.selected, modelData, 1)
+                                            onRemoved: BarLayout.removeFromGroup(drawer.selected, modelData)
+                                        }
+                                    }
+                                }
+    }
+    EditRow {
+        id: drawerBlock13
+        autoRadius: false
+        visible: drawer.groupPage && drawer.groupMembers.length === 0
+        topRadius: drawer.edgeRadius(drawerBlock13, -1)
+        bottomRadius: drawer.edgeRadius(drawerBlock13, 1)
+                                CustomText {
+                                    Layout.fillWidth: true
+                                    visible: drawer.groupPage && drawer.groupMembers.length === 0
+                                    wrapMode: Text.WordWrap
+                                    content: "Empty. Add items below, then give the group a tint."
+                                    size: 12
+                                    customColor: Colors.outline
+                                }
+    }
+    EditRow {
+        id: drawerBlock14
+        autoRadius: false
+        visible: drawer.groupPage
+        topRadius: drawer.edgeRadius(drawerBlock14, -1)
+        bottomRadius: drawer.edgeRadius(drawerBlock14, 1)
+                                CustomText {
+                                    Layout.fillWidth: true
+                                    Layout.topMargin: 4
+                                    visible: drawer.groupPage
+                                    content: "Add"
+                                    size: 13
+                                    customColor: Colors.primary
+                                }
+    }
+    EditRow {
+        id: drawerBlock15
+        autoRadius: false
+        visible: drawer.groupPage
+        topRadius: drawer.edgeRadius(drawerBlock15, -1)
+        bottomRadius: drawer.edgeRadius(drawerBlock15, 1)
+                                Flow {
+                                    Layout.fillWidth: true
+                                    visible: drawer.groupPage
+                                    spacing: 6
+
+                                    Repeater {
+                                        model: drawer.groupCandidates
+
+                                        delegate: Chip {
+                                            required property string modelData
+                                            entry: BarLayout.entry(modelData)
+                                            adding: true
+                                            onActivated: BarLayout.addToGroup(drawer.selected, modelData)
+                                        }
+                                    }
+                                }
+    }
+}
+
+EditHeading {
+    Layout.fillWidth: true
+    Layout.topMargin: 10
+    visible: drawer.selected !== "dashboard"
+    content: "Options"
+    size: 13
+    customColor: Colors.primary
+}
+ColumnLayout {
+    id: drawerGroup6
+    Layout.fillWidth: true
+    visible: drawer.selected !== "dashboard"
+    spacing: 8
+                                Repeater {
+                                    model: selectedSection.options
+
+                                    delegate: EditOptionRow {
+                                        required property var modelData
+                                        Layout.fillWidth: true
+                                        spec: modelData
+                                        getter: function(key) { return drawer.optValue(key) }
+                                        setter: function(key, v) { drawer.setOptValue(key, v) }
+                                        listGetter: function(key) { return DashLayout.itemList(drawer.dashKey, key) }
+                                        listAdd: function(key, v) { DashLayout.addItem(drawer.dashKey, key, v) }
+                                        listRemove: function(key, v) { DashLayout.removeItem(drawer.dashKey, key, v) }
+                                    }
+                                }
+    EditRow {
+        id: drawerBlockNote16
+        autoRadius: false
+        visible: selectedSection.options.length === 0 && drawer.selected !== "dashboard"
+        topRadius: drawer.edgeRadius(drawerBlockNote16, -1)
+        bottomRadius: drawer.edgeRadius(drawerBlockNote16, 1)
+    }
+    EditRow {
+        id: drawerBlock17
+        autoRadius: false
+        visible: selectedSection.options.length === 0 && drawer.selected !== "dashboard"
+        topRadius: drawer.edgeRadius(drawerBlock17, -1)
+        bottomRadius: drawer.edgeRadius(drawerBlock17, 1)
+                                CustomText {
+                                    Layout.fillWidth: true
+                                    visible: selectedSection.options.length === 0 && drawer.selected !== "dashboard"
+                                    wrapMode: Text.WordWrap
+                                    content: drawer.dashPage ? "This item has no options."
+                                                             : "This item has no options besides its margins."
+                                    size: 12
+                                    customColor: Colors.outline
+                                }
+    }
+}
                     }
 
                     ColumnLayout {
                         id: addPage
                         Layout.fillWidth: true
                         spacing: 10
-                        visible: !drawer.itemPage && drawer.tab === "add"
+                        visible: false
 
                         Repeater {
                             model: BarLayout.groups
@@ -1532,139 +1227,281 @@ Item {
                         id: barPage
                         Layout.fillWidth: true
                         spacing: 12
-                        visible: !drawer.itemPage && drawer.tab === "bar"
+                        visible: !drawer.itemPage && (drawer.tab === "bar" || drawer.tab === "add")
 
-                        RowLayout {
-                            Layout.fillWidth: true
-                            spacing: 10
-                            enabled: drawer.barMode !== "pill"
-                            opacity: enabled ? 1 : 0.5
-
-                            ColumnLayout {
-                                Layout.fillWidth: true
-                                spacing: 1
-
-                                CustomText { content: "SDF renderer"; size: 13 }
-                                CustomText {
-                                    content: "Experimental — draws the bar as a distance field"
-                                    size: 11
-                                    customColor: Colors.outline
-                                }
-                            }
-
-                            CustomToogle {
-                                isToggleOn: BarLayout.barSdf
-                                onToggled: state => SettingsConfig.general =
-                                    Object.assign({}, SettingsConfig.general, { barSdf: state })
-                            }
-                        }
-
-                        RowLayout {
-                            Layout.fillWidth: true
-                            spacing: 10
-
-                            CustomText { Layout.preferredWidth: 96; content: "Style"; size: 12 }
-                            Item { Layout.fillWidth: true }
-                            M3ButtonGroup {
-                                model: [
-                                    { value: "stepped", label: "Stepped", icon: "view_agenda" },
-                                    { value: "flat",    label: "Flat",    icon: "remove" },
-                                    { value: "pill",    label: "Pill",    icon: "circle" }
-                                ]
-                                activeCheck: function(value) { return drawer.barMode === value }
-                                onSegmentClicked: function(value) {
-                                    SettingsConfig.general = Object.assign({}, SettingsConfig.general, { barMode: value })
-                                }
-                            }
-                        }
-
-                        Repeater {
-                            model: [
-                                { key: "height",   label: "Height",        min: 32, max: 56,  step: 2, def: 40, auto: false },
-                                { key: "itemGap",  label: "Item gap",      min: 0,  max: 16,  step: 1, def: 6,  auto: false },
-                                { key: "blockGap", label: "Block gap",     min: 16, max: 120, step: 8, def: -1, auto: true },
-                                { key: "radius",   label: "Corner radius", min: 8,  max: 24,  step: 1, def: 18, auto: false }
-                            ]
-
-                            delegate: RowLayout {
-                                id: sizeRow
-                                required property var modelData
-                                readonly property real value: BarLayout.sizeValue(sizeRow.modelData.key, sizeRow.modelData.def)
-                                readonly property int offset: sizeRow.modelData.auto ? 1 : 0
-                                readonly property bool isAuto: sizeRow.modelData.auto && sizeRow.value < 0
-
-                                Layout.fillWidth: true
-                                spacing: 12
-
-                                CustomText {
-                                    Layout.preferredWidth: 96
-                                    content: sizeRow.modelData.label
-                                    size: 12
-                                }
-                                M3Slider {
+EditHeading {
+    Layout.fillWidth: true
+    Layout.topMargin: 10
+    visible: true
+    content: "Style"
+    size: 13
+    customColor: Colors.primary
+}
+ColumnLayout {
+    id: drawerGroup7
+    Layout.fillWidth: true
+    visible: true
+    spacing: 8
+    EditRow {
+        id: drawerBlockDayLine
+        autoRadius: false
+        visible: true
+        topRadius: drawer.edgeRadius(drawerBlockDayLine, -1)
+        bottomRadius: drawer.edgeRadius(drawerBlockDayLine, 1)
+                                RowLayout {
                                     Layout.fillWidth: true
-                                    Layout.preferredHeight: 30
-                                    stepCount: Math.round((sizeRow.modelData.max - sizeRow.modelData.min) / sizeRow.modelData.step) + 1 + sizeRow.offset
-                                    currentStep: sizeRow.isAuto ? 0
-                                        : Math.round((sizeRow.value - sizeRow.modelData.min) / sizeRow.modelData.step) + sizeRow.offset
-                                    valueText: sizeRow.modelData.auto && currentStep === 0 ? "Auto"
-                                        : String(sizeRow.modelData.min + (currentStep - sizeRow.offset) * sizeRow.modelData.step)
-                                    onStepChanged: s => {
-                                        const v = sizeRow.modelData.auto && s === 0 ? -1
-                                            : sizeRow.modelData.min + (s - sizeRow.offset) * sizeRow.modelData.step
-                                        if (v !== sizeRow.value)
-                                            BarLayout.setSize(sizeRow.modelData.key, v)
+                                    spacing: 10
+
+                                    ColumnLayout {
+                                        Layout.fillWidth: true
+                                        Layout.maximumWidth: 100000
+                                        spacing: 1
+
+                                        CustomText { content: "Day progress line"; size: 13 }
+                                        CustomText {
+                                            content: "A thin line along the bar's bottom edge fills as the day passes"
+                                            size: 11
+                                            customColor: Colors.outline
+                                        }
+                                    }
+
+                                    CustomToogle {
+                                        isToggleOn: (SettingsConfig.general.barDayLine ?? false)
+                                        onToggled: state => SettingsConfig.general =
+                                            Object.assign({}, SettingsConfig.general, { barDayLine: state })
                                     }
                                 }
-                                CustomText {
-                                    Layout.preferredWidth: 40
-                                    horizontalAlignment: Text.AlignRight
-                                    content: sizeRow.isAuto ? "Auto" : sizeRow.value + "px"
-                                    size: 12
-                                    customColor: Colors.outline
+    }
+    EditRow {
+        id: drawerBlockRecEdge
+        autoRadius: false
+        visible: true
+        topRadius: drawer.edgeRadius(drawerBlockRecEdge, -1)
+        bottomRadius: drawer.edgeRadius(drawerBlockRecEdge, 1)
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 10
+
+                                    ColumnLayout {
+                                        Layout.fillWidth: true
+                                        Layout.maximumWidth: 100000
+                                        spacing: 1
+
+                                        CustomText { content: "Recording outline"; size: 13 }
+                                        CustomText {
+                                            content: "Outline the bar in red while the screen is being recorded"
+                                            size: 11
+                                            customColor: Colors.outline
+                                        }
+                                    }
+
+                                    CustomToogle {
+                                        isToggleOn: (SettingsConfig.general.barRecordEdge ?? true)
+                                        onToggled: state => SettingsConfig.general =
+                                            Object.assign({}, SettingsConfig.general, { barRecordEdge: state })
+                                    }
                                 }
-                            }
-                        }
+    }
+    EditRow {
+        id: drawerBlock19
+        autoRadius: false
+        visible: true
+        topRadius: drawer.edgeRadius(drawerBlock19, -1)
+        bottomRadius: drawer.edgeRadius(drawerBlock19, 1)
+                                ColumnLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 8
 
-                        CustomText {
-                            Layout.fillWidth: true
-                            Layout.topMargin: 4
-                            content: "Block tint"
-                            size: 13
-                            customColor: Colors.primary
-                        }
-
-                        Repeater {
-                            model: BarLayout.blocks
-
-                            delegate: BlockTintRow {
-                                required property var modelData
-                                Layout.fillWidth: true
-                                blockId: modelData.id
-                            }
-                        }
-
-                        RowLayout {
-                            Layout.fillWidth: true
-                            spacing: 8
-
-                            CustomText { Layout.preferredWidth: 96; content: "Add block"; size: 12 }
-                            Item { Layout.fillWidth: true }
-                            Repeater {
-                                model: [
-                                    { side: "left",   label: "Left" },
-                                    { side: "center", label: "Centre" },
-                                    { side: "right",  label: "Right" }
-                                ]
-                                delegate: M3Button {
-                                    required property var modelData
-                                    variant: "tonal"
-                                    icon: "add"
-                                    label: modelData.label
-                                    onClicked: BarLayout.addBlock(modelData.side)
+                                    CustomText { Layout.fillWidth: true; content: "Style"; size: 13; weight: 600; customColor: Colors.surfaceVariantText }
+                                    M3ButtonGroup {
+                                        Layout.fillWidth: true
+                                        Layout.preferredHeight: 38
+                                        fillWidth: true
+                                        iconSize: 16
+                                        textSize: 12
+                                        activeColor: Colors.secondaryContainer
+                                        activeTextColor: Colors.secondaryContainerText
+                                        model: [
+                                            { value: "stepped", label: "Stepped", icon: "view_agenda" },
+                                            { value: "flat",    label: "Flat",    icon: "remove" },
+                                            { value: "pill",    label: "Pill",    icon: "circle" }
+                                        ]
+                                        activeCheck: function(value) { return drawer.barMode === value }
+                                        onSegmentClicked: function(value) {
+                                            SettingsConfig.general = Object.assign({}, SettingsConfig.general, { barMode: value })
+                                        }
+                                    }
                                 }
-                            }
-                        }
+    }
+    EditRow {
+        id: drawerBlockBarSide
+        autoRadius: false
+        visible: true
+        topRadius: drawer.edgeRadius(drawerBlockBarSide, -1)
+        bottomRadius: drawer.edgeRadius(drawerBlockBarSide, 1)
+                                ColumnLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 8
+
+                                    CustomText { Layout.fillWidth: true; content: "Position"; size: 13; weight: 600; customColor: Colors.surfaceVariantText }
+                                    M3ButtonGroup {
+                                        Layout.fillWidth: true
+                                        Layout.preferredHeight: 38
+                                        fillWidth: true
+                                        iconSize: 16
+                                        textSize: 12
+                                        activeColor: Colors.secondaryContainer
+                                        activeTextColor: Colors.secondaryContainerText
+                                        model: [
+                                            { value: "top",    label: "Top",    icon: "vertical_align_top" },
+                                            { value: "bottom", label: "Bottom", icon: "vertical_align_bottom" },
+                                            { value: "left",   label: "Left",   icon: "align_horizontal_left" },
+                                            { value: "right",  label: "Right",  icon: "align_horizontal_right" }
+                                        ]
+                                        activeCheck: function(value) { return BarLayout.barSide === value }
+                                        onSegmentClicked: function(value) { BarLayout.setSide("bar", value) }
+                                    }
+                                }
+    }
+}
+
+EditHeading {
+    Layout.fillWidth: true
+    Layout.topMargin: 10
+    visible: true
+    content: "Size"
+    size: 13
+    customColor: Colors.primary
+}
+ColumnLayout {
+    id: drawerGroup8
+    Layout.fillWidth: true
+    visible: true
+    spacing: 8
+    EditRow {
+        id: drawerBlock20
+        autoRadius: false
+        visible: true
+        topRadius: drawer.edgeRadius(drawerBlock20, -1)
+        bottomRadius: drawer.edgeRadius(drawerBlock20, 1)
+                                Repeater {
+                                    model: [
+                                        { key: "height",   label: "Height",        min: 32, max: 56,  step: 2, def: 40, auto: false },
+                                        { key: "itemGap",  label: "Item gap",      min: 0,  max: 16,  step: 1, def: 6,  auto: false },
+                                        { key: "blockGap", label: "Block gap",     min: 16, max: 120, step: 8, def: -1, auto: true },
+                                        { key: "radius",   label: "Corner radius", min: 8,  max: 24,  step: 1, def: 18, auto: false }
+                                    ]
+
+                                    delegate: RowLayout {
+                                        id: sizeRow
+                                        required property var modelData
+                                        readonly property real value: BarLayout.sizeValue(sizeRow.modelData.key, sizeRow.modelData.def)
+                                        readonly property int offset: sizeRow.modelData.auto ? 1 : 0
+                                        readonly property bool isAuto: sizeRow.modelData.auto && sizeRow.value < 0
+
+                                        Layout.fillWidth: true
+                                        spacing: 12
+
+                                        CustomText {
+                                            Layout.preferredWidth: 110
+                                            content: sizeRow.modelData.label
+                                            size: 12
+                                        }
+                                        M3Slider {
+                                            Layout.fillWidth: true
+                                            Layout.preferredHeight: 30
+                                            stepCount: Math.round((sizeRow.modelData.max - sizeRow.modelData.min) / sizeRow.modelData.step) + 1 + sizeRow.offset
+                                            currentStep: sizeRow.isAuto ? 0
+                                                : Math.round((sizeRow.value - sizeRow.modelData.min) / sizeRow.modelData.step) + sizeRow.offset
+                                            valueText: sizeRow.modelData.auto && currentStep === 0 ? "Auto"
+                                                : String(sizeRow.modelData.min + (currentStep - sizeRow.offset) * sizeRow.modelData.step)
+                                            onStepChanged: s => {
+                                                const v = sizeRow.modelData.auto && s === 0 ? -1
+                                                    : sizeRow.modelData.min + (s - sizeRow.offset) * sizeRow.modelData.step
+                                                if (v !== sizeRow.value)
+                                                    BarLayout.setSize(sizeRow.modelData.key, v)
+                                            }
+                                        }
+                                        CustomText {
+                                            Layout.preferredWidth: 40
+                                            horizontalAlignment: Text.AlignRight
+                                            content: sizeRow.isAuto ? "Auto" : sizeRow.value + "px"
+                                            size: 12
+                                            customColor: Colors.outline
+                                        }
+                                    }
+                                }
+    }
+}
+
+EditHeading {
+    Layout.fillWidth: true
+    Layout.topMargin: 10
+    visible: true
+    content: "Block tint"
+    size: 13
+    customColor: Colors.primary
+}
+ColumnLayout {
+    id: drawerGroup9
+    Layout.fillWidth: true
+    visible: true
+    spacing: 8
+    EditRow {
+        id: drawerBlock21
+        autoRadius: false
+        visible: true
+        topRadius: drawer.edgeRadius(drawerBlock21, -1)
+        bottomRadius: drawer.edgeRadius(drawerBlock21, 1)
+                                Repeater {
+                                    model: BarLayout.blocks
+
+                                    delegate: BlockTintRow {
+                                        required property var modelData
+                                        Layout.fillWidth: true
+                                        blockId: modelData.id
+                                    }
+                                }
+    }
+}
+
+EditHeading {
+    Layout.fillWidth: true
+    Layout.topMargin: 10
+    visible: true
+    content: "Blocks"
+    size: 13
+    customColor: Colors.primary
+}
+ColumnLayout {
+    id: drawerGroup10
+    Layout.fillWidth: true
+    visible: true
+    spacing: 8
+    EditRow {
+        id: drawerBlock22
+        autoRadius: false
+        visible: true
+        topRadius: drawer.edgeRadius(drawerBlock22, -1)
+        bottomRadius: drawer.edgeRadius(drawerBlock22, 1)
+                                ColumnLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 8
+
+                                    CustomText { Layout.fillWidth: true; content: "Add block"; size: 13; weight: 600; customColor: Colors.surfaceVariantText }
+                                    M3ButtonGroup {
+                                        Layout.fillWidth: true
+                                        Layout.preferredHeight: 38
+                                        fillWidth: true
+                                        iconSize: 16
+                                        textSize: 12
+                                        model: [{ value: "left", label: "Left", icon: "add" }, { value: "center", label: "Centre", icon: "add" }, { value: "right", label: "Right", icon: "add" }]
+                                        activeCheck: function(v) { return false }
+                                        onSegmentClicked: function(v) { BarLayout.addBlock(v) }
+                                    }
+                                }
+    }
+}
                     }
 
                     ColumnLayout {
@@ -1673,305 +1510,421 @@ Item {
                         spacing: 12
                         visible: !drawer.itemPage && drawer.tab === "dock"
 
-                        RowLayout {
-                            Layout.fillWidth: true
-                            spacing: 10
-
-                            ColumnLayout {
-                                Layout.fillWidth: true
-                                spacing: 1
-
-                                CustomText { content: "Show dock"; size: 13 }
-                                CustomText {
-                                    content: BarLayout.dockOn ? "Turn off to hide the dock entirely"
-                                                              : "The dock is hidden."
-                                    size: 11
-                                    customColor: Colors.outline
-                                }
-                            }
-
-                            CustomToogle {
-                                isToggleOn: BarLayout.dockOn
-                                onToggled: state => SettingsConfig.general =
-                                    Object.assign({}, SettingsConfig.general, { dock: state })
-                            }
-                        }
-
-                        RowLayout {
-                            Layout.fillWidth: true
-                            spacing: 10
-                            visible: BarLayout.dockOn
-                            enabled: BarLayout.dockStyle !== "flat"
-                            opacity: enabled ? 1 : 0.5
-
-                            ColumnLayout {
-                                Layout.fillWidth: true
-                                spacing: 1
-
-                                CustomText { content: "Auto-hide"; size: 13 }
-                                CustomText {
-                                    content: BarLayout.dockStyle === "flat"
-                                        ? "Not available while the dock is full width"
-                                        : "Slide away until the pointer reaches the edge"
-                                    size: 11
-                                    customColor: Colors.outline
-                                }
-                            }
-
-                            CustomToogle {
-                                isToggleOn: (SettingsConfig.general.dockAutoHide ?? true)
-                                            && BarLayout.dockStyle !== "flat"
-                                onToggled: state => SettingsConfig.general =
-                                    Object.assign({}, SettingsConfig.general, { dockAutoHide: state })
-                            }
-                        }
-
-                        RowLayout {
-                            Layout.fillWidth: true
-                            spacing: 10
-                            visible: BarLayout.dockOn
-                            enabled: BarLayout.dockStyle !== "pill"
-                            opacity: enabled ? 1 : 0.5
-
-                            ColumnLayout {
-                                Layout.fillWidth: true
-                                spacing: 1
-
-                                CustomText { content: "SDF renderer"; size: 13 }
-                                CustomText {
-                                    content: "Experimental — draws the dock as a distance field"
-                                    size: 11
-                                    customColor: Colors.outline
-                                }
-                            }
-
-                            CustomToogle {
-                                isToggleOn: BarLayout.dockSdf
-                                onToggled: state => SettingsConfig.general =
-                                    Object.assign({}, SettingsConfig.general, { dockSdf: state })
-                            }
-                        }
-
-                        RowLayout {
-                            Layout.fillWidth: true
-                            spacing: 10
-                            visible: BarLayout.dockOn
-
-                            CustomText { Layout.preferredWidth: 96; content: "Style"; size: 12 }
-                            Item { Layout.fillWidth: true }
-                            M3ButtonGroup {
-                                model: [
-                                    { value: "match",   label: "Match bar" },
-                                    { value: "stepped", label: "Stepped" },
-                                    { value: "flat",    label: "Full" },
-                                    { value: "pill",    label: "Pill" }
-                                ]
-                                activeCheck: function(value) { return BarLayout.dockStyleSetting === value }
-                                onSegmentClicked: function(value) { BarLayout.setDockSize("style", value) }
-                            }
-                        }
-
-                        Repeater {
-                            model: BarLayout.dockOn ? [
-                                { key: "height",   label: "Height",        min: 48, max: 80, step: 2, def: 60 },
-                                { key: "iconSize", label: "Icon size",     min: 24, max: 48, step: 2, def: 32 },
-                                { key: "itemGap",  label: "Item gap",      min: 0,  max: 16, step: 1, def: 2 },
-                                { key: "blockGap", label: "Block gap",     min: 16, max: 120, step: 8, def: -1, auto: true },
-                                { key: "radius",   label: "Corner radius", min: 8,  max: 28, step: 1, def: 18 }
-                            ].concat(BarLayout.dockStyle === "pill"
-                                ? [{ key: "pillGap", label: "Bottom gap", min: 0, max: 40, step: 1, def: BarLayout.dockPillGap }]
-                                : []) : []
-
-                            delegate: RowLayout {
-                                id: dockRow
-                                required property var modelData
-                                readonly property real value: BarLayout.dockSize(dockRow.modelData.key, dockRow.modelData.def)
-                                readonly property int offset: dockRow.modelData.auto ? 1 : 0
-                                readonly property bool isAuto: !!dockRow.modelData.auto && dockRow.value < 0
-
-                                Layout.fillWidth: true
-                                spacing: 12
-
-                                CustomText {
-                                    Layout.preferredWidth: 96
-                                    content: dockRow.modelData.label
-                                    size: 12
-                                }
-                                M3Slider {
-                                    Layout.fillWidth: true
-                                    Layout.preferredHeight: 30
-                                    stepCount: Math.round((dockRow.modelData.max - dockRow.modelData.min) / dockRow.modelData.step) + 1 + dockRow.offset
-                                    currentStep: dockRow.isAuto ? 0
-                                        : Math.round((dockRow.value - dockRow.modelData.min) / dockRow.modelData.step) + dockRow.offset
-                                    valueText: dockRow.modelData.auto && currentStep === 0 ? "Auto"
-                                        : String(dockRow.modelData.min + (currentStep - dockRow.offset) * dockRow.modelData.step)
-                                    onStepChanged: s => {
-                                        const v = dockRow.modelData.auto && s === 0 ? -1
-                                            : dockRow.modelData.min + (s - dockRow.offset) * dockRow.modelData.step
-                                        if (v !== dockRow.value)
-                                            BarLayout.setDockSize(dockRow.modelData.key, v)
-                                    }
-                                }
-                                CustomText {
-                                    Layout.preferredWidth: 40
-                                    horizontalAlignment: Text.AlignRight
-                                    content: dockRow.isAuto ? "Auto" : dockRow.value + "px"
-                                    size: 12
-                                    customColor: Colors.outline
-                                }
-                            }
-                        }
-
-                        CustomText {
-                            Layout.fillWidth: true
-                            Layout.topMargin: 4
-                            content: "Block tint"
-                            size: 13
-                            customColor: Colors.primary
-                        }
-
-                        Repeater {
-                            model: BarLayout.bottomBlocks
-
-                            delegate: BlockTintRow {
-                                required property var modelData
-                                Layout.fillWidth: true
-                                blockId: modelData.id
-                            }
-                        }
-
-                        RowLayout {
-                            Layout.fillWidth: true
-                            spacing: 8
-                            visible: BarLayout.dockOn
-
-                            CustomText { Layout.preferredWidth: 96; content: "Add block"; size: 12 }
-                            Item { Layout.fillWidth: true }
-                            Repeater {
-                                model: [
-                                    { side: "left",   label: "Left" },
-                                    { side: "center", label: "Centre" },
-                                    { side: "right",  label: "Right" }
-                                ]
-                                delegate: M3Button {
-                                    required property var modelData
-                                    variant: "tonal"
-                                    icon: "add"
-                                    label: modelData.label
-                                    onClicked: BarLayout.addBlock(modelData.side, "bottom")
-                                }
-                            }
-                        }
-
-                        ColumnLayout {
-                            id: pinSection
-                            Layout.fillWidth: true
-                            Layout.topMargin: 6
-                            spacing: 8
-                            visible: BarLayout.dockOn
-
-                            property string query: ""
-                            readonly property var results: pinSection.query.trim().length === 0 ? []
-                                : ServiceApps.fuzzyQuery(pinSection.query.trim()).slice(0, 8)
-
-                            CustomText { content: "Pinned apps"; size: 13; customColor: Colors.primary }
-
-                            CustomText {
-                                content: "Drag icons in the dock to reorder them, or onto this card to unpin."
-                                Layout.fillWidth: true
-                                wrapMode: Text.WordWrap
-                                size: 12
-                                customColor: Colors.outline
-                            }
-
-                            Rectangle {
-                                Layout.fillWidth: true
-                                Layout.preferredHeight: 36
-                                radius: 18
-                                color: Colors.surfaceContainerHigh
-                                border.width: pinInput.activeFocus ? 2 : 0
-                                border.color: Colors.primary
-
-                                MaterialIconSymbol {
-                                    id: pinSearchIcon
-                                    anchors.left: parent.left
-                                    anchors.leftMargin: 12
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    content: "search"
-                                    iconSize: 16
-                                    customColor: Colors.outline
-                                }
-
-                                TextInput {
-                                    id: pinInput
-                                    anchors.left: pinSearchIcon.right
-                                    anchors.leftMargin: 8
-                                    anchors.right: parent.right
-                                    anchors.rightMargin: 12
-                                    anchors.top: parent.top
-                                    anchors.bottom: parent.bottom
-                                    verticalAlignment: TextInput.AlignVCenter
-                                    clip: true
-                                    selectByMouse: true
-                                    color: Colors.surfaceText
-                                    selectionColor: Qt.alpha(Colors.primary, 0.35)
-                                    font.pixelSize: 13
-                                    font.family: SettingsConfig.general.defaultFont ?? "Rubik"
-                                    onTextChanged: pinSection.query = pinInput.text
-                                    Keys.onEscapePressed: event => {
-                                        if (pinInput.text !== "") {
-                                            pinInput.text = ""
-                                            event.accepted = true
-                                        } else {
-                                            event.accepted = false
-                                        }
-                                    }
-
-                                    CustomText {
-                                        anchors.verticalCenter: parent.verticalCenter
-                                        visible: pinInput.text === ""
-                                        content: "Search apps to pin"
-                                        size: 13
-                                        customColor: Colors.outline
-                                    }
-                                }
-                            }
-
-                            Repeater {
-                                model: pinSection.results
-
-                                delegate: RowLayout {
-                                    id: pinRow
-                                    required property var modelData
-                                    readonly property bool pinned: ServiceApps.isPinnedById(pinRow.modelData.id)
-
+EditHeading {
+    Layout.fillWidth: true
+    Layout.topMargin: 10
+    visible: true
+    content: "Dock"
+    size: 13
+    customColor: Colors.primary
+}
+ColumnLayout {
+    id: drawerGroup11
+    Layout.fillWidth: true
+    visible: true
+    spacing: 8
+    EditRow {
+        id: drawerBlock23
+        autoRadius: false
+        visible: true
+        topRadius: drawer.edgeRadius(drawerBlock23, -1)
+        bottomRadius: drawer.edgeRadius(drawerBlock23, 1)
+                                RowLayout {
                                     Layout.fillWidth: true
                                     spacing: 10
 
-                                    Image {
-                                        Layout.preferredWidth: 22
-                                        Layout.preferredHeight: 22
-                                        source: Quickshell.iconPath(pinRow.modelData.icon, "image-missing")
-                                        sourceSize.width: 44
-                                        sourceSize.height: 44
-                                        asynchronous: true
-                                        fillMode: Image.PreserveAspectFit
-                                    }
-                                    CustomText {
+                                    ColumnLayout {
                                         Layout.fillWidth: true
-                                        content: pinRow.modelData.name
-                                        elide: Text.ElideRight
-                                        size: 13
+                                        Layout.maximumWidth: 100000
+                                        spacing: 1
+
+                                        CustomText { content: "Show dock"; size: 13 }
+                                        CustomText {
+                                            content: BarLayout.dockOn ? "Turn off to hide the dock entirely"
+                                                                      : "The dock is hidden."
+                                            size: 11
+                                            customColor: Colors.outline
+                                        }
                                     }
-                                    M3Button {
-                                        variant: pinRow.pinned ? "text" : "tonal"
-                                        icon: pinRow.pinned ? "check" : "push_pin"
-                                        label: pinRow.pinned ? "Pinned" : "Pin"
-                                        onClicked: ServiceApps.togglePinById(pinRow.modelData.id)
+
+                                    CustomToogle {
+                                        isToggleOn: BarLayout.dockOn
+                                        onToggled: state => SettingsConfig.general =
+                                            Object.assign({}, SettingsConfig.general, { dock: state })
                                     }
                                 }
-                            }
-                        }
+    }
+    EditRow {
+        id: drawerBlock24
+        autoRadius: false
+        visible: BarLayout.dockOn
+        topRadius: drawer.edgeRadius(drawerBlock24, -1)
+        bottomRadius: drawer.edgeRadius(drawerBlock24, 1)
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 10
+                                    visible: BarLayout.dockOn
+                                    enabled: BarLayout.dockStyle !== "flat"
+                                    opacity: enabled ? 1 : 0.5
+
+                                    ColumnLayout {
+                                        Layout.fillWidth: true
+                                        Layout.maximumWidth: 100000
+                                        spacing: 1
+
+                                        CustomText { content: "Auto-hide"; size: 13 }
+                                        CustomText {
+                                            content: BarLayout.dockStyle === "flat"
+                                                ? "Not available while the dock is full width"
+                                                : "Slide away until the pointer reaches the edge"
+                                            size: 11
+                                            customColor: Colors.outline
+                                        }
+                                    }
+
+                                    CustomToogle {
+                                        isToggleOn: (SettingsConfig.general.dockAutoHide ?? true)
+                                                    && BarLayout.dockStyle !== "flat"
+                                        onToggled: state => SettingsConfig.general =
+                                            Object.assign({}, SettingsConfig.general, { dockAutoHide: state })
+                                    }
+                                }
+    }
+    EditRow {
+        id: drawerBlock26
+        autoRadius: false
+        visible: BarLayout.dockOn
+        topRadius: drawer.edgeRadius(drawerBlock26, -1)
+        bottomRadius: drawer.edgeRadius(drawerBlock26, 1)
+                                ColumnLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 8
+                                    visible: BarLayout.dockOn
+
+                                    CustomText { Layout.fillWidth: true; content: "Style"; size: 13; weight: 600; customColor: Colors.surfaceVariantText }
+                                    M3ButtonGroup {
+                                        Layout.fillWidth: true
+                                        Layout.preferredHeight: 38
+                                        fillWidth: true
+                                        iconSize: 16
+                                        textSize: 12
+                                        activeColor: Colors.secondaryContainer
+                                        activeTextColor: Colors.secondaryContainerText
+                                        model: [
+                                            { value: "match",   label: "Match bar" },
+                                            { value: "stepped", label: "Stepped" },
+                                            { value: "flat",    label: "Full" },
+                                            { value: "pill",    label: "Pill" }
+                                        ]
+                                        activeCheck: function(value) { return BarLayout.dockStyleSetting === value }
+                                        onSegmentClicked: function(value) { BarLayout.setDockSize("style", value) }
+                                    }
+                                }
+    }
+    EditRow {
+        id: drawerBlockDockSide
+        autoRadius: false
+        visible: BarLayout.dockOn
+        topRadius: drawer.edgeRadius(drawerBlockDockSide, -1)
+        bottomRadius: drawer.edgeRadius(drawerBlockDockSide, 1)
+                                ColumnLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 8
+
+                                    CustomText { Layout.fillWidth: true; content: "Position"; size: 13; weight: 600; customColor: Colors.surfaceVariantText }
+                                    M3ButtonGroup {
+                                        Layout.fillWidth: true
+                                        Layout.preferredHeight: 38
+                                        fillWidth: true
+                                        iconSize: 16
+                                        textSize: 12
+                                        activeColor: Colors.secondaryContainer
+                                        activeTextColor: Colors.secondaryContainerText
+                                        model: [
+                                            { value: "top",    label: "Top",    icon: "vertical_align_top" },
+                                            { value: "bottom", label: "Bottom", icon: "vertical_align_bottom" },
+                                            { value: "left",   label: "Left",   icon: "align_horizontal_left" },
+                                            { value: "right",  label: "Right",  icon: "align_horizontal_right" }
+                                        ]
+                                        activeCheck: function(value) { return BarLayout.dockSide === value }
+                                        onSegmentClicked: function(value) { BarLayout.setSide("dock", value) }
+                                    }
+                                }
+    }
+}
+
+EditHeading {
+    Layout.fillWidth: true
+    Layout.topMargin: 10
+    visible: BarLayout.dockOn
+    content: "Size"
+    size: 13
+    customColor: Colors.primary
+}
+ColumnLayout {
+    id: drawerGroup12
+    Layout.fillWidth: true
+    visible: BarLayout.dockOn
+    spacing: 8
+    EditRow {
+        id: drawerBlock27
+        autoRadius: false
+        visible: true
+        topRadius: drawer.edgeRadius(drawerBlock27, -1)
+        bottomRadius: drawer.edgeRadius(drawerBlock27, 1)
+                                Repeater {
+                                    model: BarLayout.dockOn ? [
+                                        { key: "height",   label: "Height",        min: 48, max: 80, step: 2, def: 60 },
+                                        { key: "iconSize", label: "Icon size",     min: 24, max: 48, step: 2, def: 32 },
+                                        { key: "itemGap",  label: "Item gap",      min: 0,  max: 16, step: 1, def: 2 },
+                                        { key: "blockGap", label: "Block gap",     min: 16, max: 120, step: 8, def: -1, auto: true },
+                                        { key: "radius",   label: "Corner radius", min: 8,  max: 28, step: 1, def: 18 }
+                                    ].concat(BarLayout.dockStyle === "pill"
+                                        ? [{ key: "pillGap", label: "Bottom gap", min: 0, max: 40, step: 1, def: BarLayout.dockPillGap }]
+                                        : []) : []
+
+                                    delegate: RowLayout {
+                                        id: dockRow
+                                        required property var modelData
+                                        readonly property real value: BarLayout.dockSize(dockRow.modelData.key, dockRow.modelData.def)
+                                        readonly property int offset: dockRow.modelData.auto ? 1 : 0
+                                        readonly property bool isAuto: !!dockRow.modelData.auto && dockRow.value < 0
+
+                                        Layout.fillWidth: true
+                                        spacing: 12
+
+                                        CustomText {
+                                            Layout.preferredWidth: 110
+                                            content: dockRow.modelData.label
+                                            size: 12
+                                        }
+                                        M3Slider {
+                                            Layout.fillWidth: true
+                                            Layout.preferredHeight: 30
+                                            stepCount: Math.round((dockRow.modelData.max - dockRow.modelData.min) / dockRow.modelData.step) + 1 + dockRow.offset
+                                            currentStep: dockRow.isAuto ? 0
+                                                : Math.round((dockRow.value - dockRow.modelData.min) / dockRow.modelData.step) + dockRow.offset
+                                            valueText: dockRow.modelData.auto && currentStep === 0 ? "Auto"
+                                                : String(dockRow.modelData.min + (currentStep - dockRow.offset) * dockRow.modelData.step)
+                                            onStepChanged: s => {
+                                                const v = dockRow.modelData.auto && s === 0 ? -1
+                                                    : dockRow.modelData.min + (s - dockRow.offset) * dockRow.modelData.step
+                                                if (v !== dockRow.value)
+                                                    BarLayout.setDockSize(dockRow.modelData.key, v)
+                                            }
+                                        }
+                                        CustomText {
+                                            Layout.preferredWidth: 40
+                                            horizontalAlignment: Text.AlignRight
+                                            content: dockRow.isAuto ? "Auto" : dockRow.value + "px"
+                                            size: 12
+                                            customColor: Colors.outline
+                                        }
+                                    }
+                                }
+    }
+}
+
+EditHeading {
+    Layout.fillWidth: true
+    Layout.topMargin: 10
+    visible: BarLayout.dockOn
+    content: "Block tint"
+    size: 13
+    customColor: Colors.primary
+}
+ColumnLayout {
+    id: drawerGroup13
+    Layout.fillWidth: true
+    visible: BarLayout.dockOn
+    spacing: 8
+    EditRow {
+        id: drawerBlock28
+        autoRadius: false
+        visible: true
+        topRadius: drawer.edgeRadius(drawerBlock28, -1)
+        bottomRadius: drawer.edgeRadius(drawerBlock28, 1)
+                                Repeater {
+                                    model: BarLayout.bottomBlocks
+
+                                    delegate: BlockTintRow {
+                                        required property var modelData
+                                        Layout.fillWidth: true
+                                        blockId: modelData.id
+                                    }
+                                }
+    }
+}
+
+EditHeading {
+    Layout.fillWidth: true
+    Layout.topMargin: 10
+    visible: BarLayout.dockOn
+    content: "Blocks"
+    size: 13
+    customColor: Colors.primary
+}
+ColumnLayout {
+    id: drawerGroup14
+    Layout.fillWidth: true
+    visible: BarLayout.dockOn
+    spacing: 8
+    EditRow {
+        id: drawerBlock29
+        autoRadius: false
+        visible: BarLayout.dockOn
+        topRadius: drawer.edgeRadius(drawerBlock29, -1)
+        bottomRadius: drawer.edgeRadius(drawerBlock29, 1)
+                                ColumnLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 8
+                                    visible: BarLayout.dockOn
+
+                                    CustomText { Layout.fillWidth: true; content: "Add block"; size: 13; weight: 600; customColor: Colors.surfaceVariantText }
+                                    M3ButtonGroup {
+                                        Layout.fillWidth: true
+                                        Layout.preferredHeight: 38
+                                        fillWidth: true
+                                        iconSize: 16
+                                        textSize: 12
+                                        model: [{ value: "left", label: "Left", icon: "add" }, { value: "center", label: "Centre", icon: "add" }, { value: "right", label: "Right", icon: "add" }]
+                                        activeCheck: function(v) { return false }
+                                        onSegmentClicked: function(v) { BarLayout.addBlock(v, "bottom") }
+                                    }
+                                }
+    }
+}
+
+EditHeading {
+    Layout.fillWidth: true
+    Layout.topMargin: 10
+    visible: BarLayout.dockOn
+    content: "Pinned apps"
+    size: 13
+    customColor: Colors.primary
+}
+ColumnLayout {
+    id: drawerGroup15
+    Layout.fillWidth: true
+    visible: BarLayout.dockOn
+    spacing: 8
+    EditRow {
+        id: drawerBlock30
+        autoRadius: false
+        visible: BarLayout.dockOn
+        topRadius: drawer.edgeRadius(drawerBlock30, -1)
+        bottomRadius: drawer.edgeRadius(drawerBlock30, 1)
+                                ColumnLayout {
+                                    id: pinSection
+                                    Layout.fillWidth: true
+                                    Layout.topMargin: 6
+                                    spacing: 8
+                                    visible: BarLayout.dockOn
+
+                                    property string query: ""
+                                    readonly property var results: pinSection.query.trim().length === 0 ? []
+                                        : ServiceApps.fuzzyQuery(pinSection.query.trim()).slice(0, 8)
+
+                                    CustomText { content: "Pinned apps"; size: 13; customColor: Colors.primary }
+
+                                    CustomText {
+                                        content: "Drag icons in the dock to reorder them, or onto this card to unpin."
+                                        Layout.fillWidth: true
+                                        wrapMode: Text.WordWrap
+                                        size: 12
+                                        customColor: Colors.outline
+                                    }
+
+                                    Rectangle {
+                                        Layout.fillWidth: true
+                                        Layout.preferredHeight: 36
+                                        radius: 18
+                                        color: Colors.surfaceContainerHigh
+                                        border.width: pinInput.activeFocus ? 2 : 0
+                                        border.color: Colors.primary
+
+                                        MaterialIconSymbol {
+                                            id: pinSearchIcon
+                                            anchors.left: parent.left
+                                            anchors.leftMargin: 12
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            content: "search"
+                                            iconSize: 16
+                                            customColor: Colors.outline
+                                        }
+
+                                        TextInput {
+                                            id: pinInput
+                                            anchors.left: pinSearchIcon.right
+                                            anchors.leftMargin: 8
+                                            anchors.right: parent.right
+                                            anchors.rightMargin: 12
+                                            anchors.top: parent.top
+                                            anchors.bottom: parent.bottom
+                                            verticalAlignment: TextInput.AlignVCenter
+                                            clip: true
+                                            selectByMouse: true
+                                            color: Colors.surfaceText
+                                            selectionColor: Qt.alpha(Colors.primary, 0.35)
+                                            font.pixelSize: 13
+                                            font.family: SettingsConfig.general.defaultFont ?? "Rubik"
+                                            onTextChanged: pinSection.query = pinInput.text
+                                            Keys.onEscapePressed: event => {
+                                                if (pinInput.text !== "") {
+                                                    pinInput.text = ""
+                                                    event.accepted = true
+                                                } else {
+                                                    event.accepted = false
+                                                }
+                                            }
+
+                                            CustomText {
+                                                anchors.verticalCenter: parent.verticalCenter
+                                                visible: pinInput.text === ""
+                                                content: "Search apps to pin"
+                                                size: 13
+                                                customColor: Colors.outline
+                                            }
+                                        }
+                                    }
+
+                                    Repeater {
+                                        model: pinSection.results
+
+                                        delegate: RowLayout {
+                                            id: pinRow
+                                            required property var modelData
+                                            readonly property bool pinned: ServiceApps.isPinnedById(pinRow.modelData.id)
+
+                                            Layout.fillWidth: true
+                                            spacing: 10
+
+                                            Image {
+                                                Layout.preferredWidth: 22
+                                                Layout.preferredHeight: 22
+                                                source: Quickshell.iconPath(pinRow.modelData.icon, "image-missing")
+                                                sourceSize.width: 44
+                                                sourceSize.height: 44
+                                                asynchronous: true
+                                                fillMode: Image.PreserveAspectFit
+                                            }
+                                            CustomText {
+                                                Layout.fillWidth: true
+                                                content: pinRow.modelData.name
+                                                elide: Text.ElideRight
+                                                size: 13
+                                            }
+                                            M3Button {
+                                                variant: pinRow.pinned ? "text" : "tonal"
+                                                icon: pinRow.pinned ? "check" : "push_pin"
+                                                label: pinRow.pinned ? "Pinned" : "Pin"
+                                                onClicked: ServiceApps.togglePinById(pinRow.modelData.id)
+                                            }
+                                        }
+                                    }
+                                }
+    }
+}
                     }
                 }
             }
@@ -1999,12 +1952,11 @@ Item {
 
                     Rectangle {
                         Layout.alignment: Qt.AlignHCenter
-                        Layout.preferredWidth: 64
-                        Layout.preferredHeight: 64
-                        radius: 32
+                        Layout.preferredWidth: drawer.hiding ? 70 : 64
+                        Layout.preferredHeight: Layout.preferredWidth
+                        radius: Layout.preferredWidth / 2
                         color: drawer.hiding ? Colors.primary : Colors.surfaceContainerHighest
-                        scale: drawer.hiding ? 1.1 : 1
-                        Behavior on scale {
+                        Behavior on Layout.preferredWidth {
                             SpatialAnim { speed: "fast" }
                         }
                         Behavior on color {
@@ -2014,7 +1966,8 @@ Item {
                         MaterialIconSymbol {
                             anchors.centerIn: parent
                             content: drawer.editor && drawer.editor.mode === "app" ? "keep_off" : "delete"
-                            iconSize: 28
+                            iconSize: drawer.hiding ? 31 : 28
+                            Behavior on iconSize { SpatialAnim { speed: "fast" } }
                             customColor: drawer.hiding ? Colors.primaryText : Colors.surfaceText
                         }
                     }

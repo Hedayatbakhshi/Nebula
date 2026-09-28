@@ -80,6 +80,7 @@ Item {
         CustomText {
             content: root.greeter ? "Sign in, " + LockSession.user : LockSession.greeting + ", " + LockSession.user
             size: Math.round(30 * root.u)
+            renderType: Text.QtRendering
             weight: 500
             customColor: Colors.surfaceVariantText
         }
@@ -133,6 +134,7 @@ Item {
         CustomText {
             content: LockSession.weekday + ", " + LockSession.month + " " + LockSession.dayNum
             size: Math.round(40 * root.u)
+            renderType: Text.QtRendering
             weight: 600
         }
     }

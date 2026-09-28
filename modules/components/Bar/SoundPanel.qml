@@ -200,8 +200,6 @@ PopupWindow {
         property real _dragVal: 0
         readonly property real _shown: _drag ? _dragVal : value
 
-        scale: sliderArea.pressed ? 0.985 : 1
-        Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutQuad } }
 
         Rectangle {
             id: track
@@ -272,12 +270,11 @@ PopupWindow {
         MaterialIconSymbol {
             anchors.centerIn: parent
             content: mb.icon
-            iconSize: 19
+            iconSize: hov.pressed ? 16 : 19
+            Behavior on iconSize { SpatialAnim { speed: "fast" } }
             customColor: mb.active ? Colors.error
                        : hov.containsMouse ? Colors.primaryContainerText
                                            : Colors.outline
-            scale: hov.pressed ? 0.85 : 1
-            Behavior on scale { NumberAnimation { duration: 130; easing.type: Easing.OutBack; easing.overshoot: 2 } }
         }
 
         MouseArea {

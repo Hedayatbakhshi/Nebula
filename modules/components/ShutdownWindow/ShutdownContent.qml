@@ -46,7 +46,7 @@ Item {
     // ── Blurred wallpaper background ─────────────────────────────────────────
     Image {
         anchors.fill: parent
-        source: WallpaperTheme.wallpaper
+        source: WallpaperTheme.wallpaperScreen
         fillMode: Image.PreserveAspectCrop
         layer.enabled: true
         layer.effect: MultiEffect {

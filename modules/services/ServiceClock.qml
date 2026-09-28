@@ -61,7 +61,7 @@ Singleton{
         if (root.holidayLoadAttempted)
             return;
         root.holidayLoadAttempted = true;
-        holidayProcess.command = ["python3", Quickshell.env("HOME") + "/.config/quickshell/scripts/holidays.py", root.currentHolidayYear.toString(), root.holidayCountry];
+        holidayProcess.command = [Quickshell.shellDir + "/bin/nebula", "holidays", root.currentHolidayYear.toString(), root.holidayCountry];
         holidayProcess.running = true;
     }
 

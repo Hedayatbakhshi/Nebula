@@ -138,11 +138,10 @@ ColumnLayout {
 
             Rectangle {
                 anchors.centerIn: parent
-                width: 46; height: 46; radius: 23
+                width: stopMa.pressed ? 42 : 46; height: width; radius: width / 2
+                Behavior on width { SpatialAnim { speed: "fast" } }
                 color: stopMa.containsMouse ? Colors.errorContainer : Colors.error
                 Behavior on color { EffectsColorAnim { speed: "fast" } }
-                scale: stopMa.pressed ? 0.9 : 1.0
-                Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutQuad } }
 
                 Rectangle {
                     anchors.centerIn: parent
@@ -285,13 +284,12 @@ ColumnLayout {
         signal activated()
 
         Behavior on color { EffectsColorAnim { speed: "fast" } }
-        scale: cbMa.pressed ? 0.92 : 1.0
-        Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutQuad } }
 
         MaterialIconSymbol {
             anchors.centerIn: parent
             content: cb.icon
-            iconSize: 20
+            iconSize: cbMa.pressed ? 17 : 20
+            Behavior on iconSize { SpatialAnim { speed: "fast" } }
             color: Colors.surfaceText
         }
 

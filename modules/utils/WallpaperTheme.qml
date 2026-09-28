@@ -49,14 +49,63 @@ Singleton {
     property string surfaceContainerHigh: "#382526"
     property string surfaceContainerHighest: "#443031"
 
-    property string wallpaper: Quickshell.env("HOME") + "/wallpaper/sunset-lookout.jpg"
+    property string wallpaper: Quickshell.shellDir + "/assets/wallpapers/nebula-default.jpg"
 
     // The untouched file the palette came from. Differs from `wallpaper` only
     // when gowall recolored the image — everything that re-applies or matches a
     // wallpaper by path must use this, never the recolored copy in the cache.
-    property string sourceWallpaper: Quickshell.env("HOME") + "/wallpaper/sunset-lookout.jpg"
+    property string sourceWallpaper: Quickshell.shellDir + "/assets/wallpapers/nebula-default.jpg"
 
     property double _reloadRequestedAt: 0
+
+    property string _scaled: ""
+    property string _scaledFor: ""
+    readonly property string wallpaperScreen: root._scaledFor === root.wallpaper ? root._scaled : ""
+    readonly property string _cli: Quickshell.shellDir + "/bin/nebula"
+    readonly property string _scaleDir: Quickshell.env("HOME") + "/.cache/quickshell/wallpaper-screen"
+    readonly property size _coverSize: {
+        let w = 0, h = 0
+        for (const s of Quickshell.screens) {
+            w = Math.max(w, Math.ceil(s.width * s.devicePixelRatio))
+            h = Math.max(h, Math.ceil(s.height * s.devicePixelRatio))
+        }
+        return Qt.size(w || 1920, h || 1080)
+    }
+
+    onWallpaperChanged: Qt.callLater(root._rescale)
+    on_CoverSizeChanged: Qt.callLater(root._rescale)
+    function _rescale() {
+        if (root.wallpaper === "")
+            return
+        if (scaleProc.running) {
+            scaleProc.pending = true
+            scaleProc.running = false
+            return
+        }
+        const w = root._coverSize.width, h = root._coverSize.height
+        scaleProc.target = root.wallpaper
+        scaleProc.command = [root._cli, "wallpaper", "screen", root.wallpaper,
+            root._scaleDir + "/" + Qt.md5(root.wallpaper) + "-" + w + "x" + h + ".jpg", String(w), String(h)]
+        scaleProc.running = true
+    }
+
+    Process {
+        id: scaleProc
+        property string target: ""
+        property bool pending: false
+        stdout: StdioCollector { id: scaleOut }
+        onExited: code => {
+            const out = scaleOut.text.trim()
+            if (scaleProc.target === root.wallpaper) {
+                root._scaled = code === 0 && out !== "" ? out : root.wallpaper
+                root._scaledFor = scaleProc.target
+            }
+            if (scaleProc.pending) {
+                scaleProc.pending = false
+                Qt.callLater(root._rescale)
+            }
+        }
+    }
 
     function _apply(json) {
         const elapsed = _reloadRequestedAt > 0
@@ -112,6 +161,7 @@ Singleton {
     Component.onCompleted: {
         console.log("[WallpaperTheme] Initialized — loading colors.json")
         _forceReopen()
+        Qt.callLater(root._rescale)
     }
 
     // reload() re-reads from the same open FD, which points to the OLD inode after

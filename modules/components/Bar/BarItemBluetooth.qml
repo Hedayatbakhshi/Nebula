@@ -41,7 +41,8 @@ Rectangle {
     }
 
     CustomToolTip {
-        content: ServiceBluetooth.connectedDevices + " connected"
+        content: ServiceBluetooth.state ? ServiceBluetooth.connectedDevices + " connected" : "Bluetooth off"
+        detail: "Click to manage devices"
         visible: hov.containsMouse && !(root.host && root.host.panelKind === "bluetooth")
     }
 }

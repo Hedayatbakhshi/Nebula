@@ -1,0 +1,10 @@
+#!/bin/sh
+here=$(dirname "$(readlink -f "$0")")
+if [ -n "$NEBULA_PYTHON" ]; then
+    py="$NEBULA_PYTHON"
+elif [ -n "$NEBULA_VENV" ] && [ -x "$NEBULA_VENV/bin/python" ]; then
+    py="$NEBULA_VENV/bin/python"
+else
+    py=python3
+fi
+PYTHONPATH="$here/../cli${PYTHONPATH:+:$PYTHONPATH}" exec "$py" -m nebula "$@"

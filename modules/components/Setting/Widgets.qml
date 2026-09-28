@@ -43,23 +43,49 @@ Item {
         { name: "90 fps" }, { name: "120 fps" }
     ]
 
-    function isActive(item) {
-        if (!(SettingsConfig.widgets[item.show] ?? false)) return false
-        if (!item.styleKey) return true
-        return WM.WidgetCatalog.styleValue(item) === item.style
+    readonly property int placedCount: {
+        let n = 0
+        const cat = WM.WidgetCatalog.catalog
+        for (let i = 0; i < cat.length; i++)
+            for (let j = 0; j < cat[i].items.length; j++)
+                if (WM.WidgetCatalog.isActive(cat[i].items[j]))
+                    n++
+        return n
     }
 
-    // One click both enables the family and picks the variant; clicking the
-    // active card switches the family off.
-    function selectItem(item) {
-        var patch = {}
-        if (root.isActive(item)) {
-            patch[item.show] = false
-        } else {
-            patch[item.show] = true
-            if (item.styleKey) patch[item.styleKey] = item.style
+    function openStudio(add) {
+        GlobalStates.settingsOpen = false
+        GlobalStates.widgetOpenAdd = add
+        GlobalStates.widgetEditMode = true
+    }
+
+    component StudioButton: Rectangle {
+        id: sb
+        property string icon: ""
+        property string label: ""
+        property bool filled: true
+        signal clicked()
+        implicitWidth: sbRow.implicitWidth + 32
+        implicitHeight: 40
+        radius: 20
+        opacity: root.panelOn ? 1 : 0.4
+        color: sb.filled ? Colors.primary : Colors.surfaceContainerHighest
+        Behavior on opacity { EffectsAnim { speed: "fast" } }
+
+        RowLayout {
+            id: sbRow
+            anchors.centerIn: parent
+            spacing: 8
+            MaterialIconSymbol { content: sb.icon; iconSize: 18; customColor: sb.filled ? Colors.primaryText : Colors.surfaceText }
+            CustomText { content: sb.label; size: 13; weight: 700; customColor: sb.filled ? Colors.primaryText : Colors.surfaceText }
         }
-        SettingsConfig.widgets = Object.assign({}, SettingsConfig.widgets, patch)
+
+        RippleEffect {
+            anchors.fill: parent
+            radius: 20
+            enabled: root.panelOn
+            onClicked: sb.clicked()
+        }
     }
 
     Flickable {
@@ -92,46 +118,75 @@ Item {
                         SettingsConfig.widgets = Object.assign({}, SettingsConfig.widgets, { showWidgets: state })
                     }
                 }
-
-                Rectangle {
-                    implicitWidth: arrangeRow.implicitWidth + 26
-                    implicitHeight: 34
-                    radius: 17
-                    opacity: root.panelOn ? 1 : 0.4
-                    Behavior on opacity { EffectsAnim { speed: "fast" } }
-                    color: Colors.primary
-
-                    RowLayout {
-                        id: arrangeRow
-                        anchors.centerIn: parent
-                        spacing: 7
-                        MaterialIconSymbol { content: "drag_pan"; iconSize: 16; customColor: Colors.primaryText }
-                        CustomText { content: "Arrange"; size: 13; customColor: Colors.primaryText }
-                    }
-
-                    RippleEffect {
-                        anchors.fill: parent
-                        radius: 17
-                        enabled: root.panelOn
-                        hoverColor: Qt.alpha(Colors.primaryText, 0.10)
-                        rippleColor: Qt.alpha(Colors.primaryText, 0.24)
-                        // Settings is a separate window sitting over the desktop —
-                        // it has to get out of the way of what you're arranging.
-                        onClicked: {
-                            GlobalStates.settingsOpen = false
-                            GlobalStates.widgetEditMode = true
-                        }
-                    }
-                }
             }
 
             CustomText {
                 Layout.topMargin: 6
                 content: root.panelOn
-                    ? "Click a widget to place it on the desktop. Click it again to remove it."
-                    : "The desktop panel is off. Widgets you pick here appear when you switch it back on."
+                    ? "Widgets are added, arranged and styled on the desktop itself, in the widget studio."
+                    : "The desktop panel is off. Switch it on to add and arrange widgets."
                 size: 12
                 customColor: Colors.outline
+            }
+
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.topMargin: 14
+                Layout.preferredHeight: studioRow.implicitHeight + 28
+                radius: 20
+                color: Colors.surfaceContainer
+
+                RowLayout {
+                    id: studioRow
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.verticalCenter: parent.verticalCenter
+                    anchors.leftMargin: 18
+                    anchors.rightMargin: 14
+                    spacing: 14
+
+                    Rectangle {
+                        implicitWidth: 48
+                        implicitHeight: 48
+                        radius: 16
+                        color: Colors.primaryContainer
+                        MaterialIconSymbol { anchors.centerIn: parent; content: "dashboard_customize"; iconSize: 24; customColor: Colors.primaryContainerText }
+                    }
+
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        spacing: 2
+                        CustomText {
+                            content: root.placedCount === 0 ? "No widgets on the desktop"
+                                : root.placedCount === 1 ? "1 widget on the desktop"
+                                : root.placedCount + " widgets on the desktop"
+                            size: 16
+                            weight: 700
+                            customColor: Colors.primary
+                        }
+                        CustomText {
+                            Layout.fillWidth: true
+                            content: "Browse every widget with live previews, drop it where you want it, then resize and style it in place."
+                            size: 12
+                            customColor: Colors.outline
+                            wrapMode: Text.WordWrap
+                            elide: Text.ElideNone
+                        }
+                    }
+
+                    StudioButton {
+                        icon: "drag_pan"
+                        label: "Arrange"
+                        filled: false
+                        onClicked: root.openStudio(false)
+                    }
+
+                    StudioButton {
+                        icon: "add"
+                        label: "Add widgets"
+                        onClicked: root.openStudio(true)
+                    }
+                }
             }
 
             SectionLabel { content: "Appearance" }
@@ -160,50 +215,11 @@ Item {
                         M3ButtonGroup {
                             model: [
                                 { value: "flat",    label: "Solid",  icon: "square" },
-                                { value: "frosted", label: "Frost",  icon: "blur_on" },
-                                { value: "liquid",  label: "Glass",  icon: "water_drop" }
+                                { value: "frosted", label: "Frost",  icon: "blur_on" }
                             ]
                             activeCheck: function(v) { return WidgetSizes.cardStyle === v }
                             onSegmentClicked: function(v) {
                                 SettingsConfig.widgets = Object.assign({}, SettingsConfig.widgets, { cardStyle: v })
-                            }
-                        }
-                    }
-                }
-
-                CustomCard {
-                    autoRadius: false
-                    topRadius: 5
-                    bottomRadius: 5
-                    visible: WidgetSizes.liquidGlass
-                    RowLayout {
-                        Layout.fillWidth: true
-                        ColumnLayout {
-                            spacing: 2
-                            CustomText { content: "Glass Strength"; size: 14 }
-                            CustomText {
-                                content: "How much the edges bend the wallpaper"
-                                size: 12
-                                customColor: Colors.outline
-                            }
-                        }
-                        Item { Layout.fillWidth: true }
-                        M3Slider {
-                            Layout.preferredWidth: 160
-                            Layout.preferredHeight: 30
-                            stepCount: 5
-                            stepLabels: ["flat", "subtle", "normal", "thick", "heavy"]
-                            currentStep: {
-                                const vals = [0.35, 0.7, 1.0, 1.5, 2.2]
-                                const cur = SettingsConfig.widgets.glassStrength ?? 1.0
-                                let best = 0
-                                for (var i = 1; i < vals.length; i++)
-                                    if (Math.abs(vals[i] - cur) < Math.abs(vals[best] - cur)) best = i
-                                return best
-                            }
-                            onStepChanged: step => {
-                                const vals = [0.35, 0.7, 1.0, 1.5, 2.2]
-                                SettingsConfig.widgets = Object.assign({}, SettingsConfig.widgets, { glassStrength: vals[step] })
                             }
                         }
                     }
@@ -220,9 +236,7 @@ Item {
                             spacing: 2
                             CustomText { content: "Card Opacity"; size: 14 }
                             CustomText {
-                                content: WidgetSizes.liquidGlass
-                                    ? "How much the glass is tinted toward the surface"
-                                    : "How much wallpaper shows through"
+                                content: "How much wallpaper shows through"
                                 size: 12
                                 customColor: Colors.outline
                             }
@@ -232,7 +246,7 @@ Item {
                             Layout.preferredWidth: 160
                             Layout.preferredHeight: 30
                             stepCount: 5
-                            stepLabels: ["glass", "frosted", "hazy", "light", "solid"]
+                            stepLabels: ["clear", "frosted", "hazy", "light", "solid"]
                             currentStep: {
                                 const vals = [0.30, 0.45, 0.60, 0.75, 0.90]
                                 const cur = SettingsConfig.widgets.cardOpacity ?? 0.60
@@ -244,112 +258,6 @@ Item {
                             onStepChanged: step => {
                                 const vals = [0.30, 0.45, 0.60, 0.75, 0.90]
                                 SettingsConfig.widgets = Object.assign({}, SettingsConfig.widgets, { cardOpacity: vals[step] })
-                            }
-                        }
-                    }
-                }
-            }
-
-            // ── Gallery ──────────────────────────────────────────────────
-            Repeater {
-                model: WM.WidgetCatalog.catalog
-
-                delegate: ColumnLayout {
-                    id: sectionDelegate
-                    required property var modelData
-                    Layout.fillWidth: true
-                    spacing: 0
-
-                    SectionLabel { content: sectionDelegate.modelData.section }
-
-                    Flow {
-                        Layout.fillWidth: true
-                        Layout.topMargin: 8
-                        spacing: 10
-
-                        Repeater {
-                            model: sectionDelegate.modelData.items
-
-                            delegate: Rectangle {
-                                id: card
-                                required property var modelData
-
-                                readonly property bool active: root.isActive(modelData)
-
-                                width: 184
-                                height: 158
-                                radius: 18
-                                color: active ? Qt.alpha(Colors.primary, 0.13)
-                                              : Colors.surfaceContainerHigh
-                                border.width: active ? 2 : 0
-                                border.color: Colors.primary
-
-                                Behavior on color { ColorAnimation { duration: 150 } }
-
-                                // ── Preview ──────────────────────────────
-                                Item {
-                                    id: box
-                                    anchors.top: parent.top
-                                    anchors.left: parent.left
-                                    anchors.right: parent.right
-                                    anchors.margins: 10
-                                    height: 110
-                                    clip: true
-
-                                    Loader {
-                                        id: pv
-                                        sourceComponent: card.modelData.comp
-
-                                        // Only build previews near the viewport — 28 live
-                                        // widgets with their own timers is a real cost.
-                                        active: {
-                                            const y = card.mapToItem(flick.contentItem, 0, 0).y
-                                            return y + card.height > flick.contentY - 300
-                                                && y < flick.contentY + flick.height + 300
-                                        }
-
-                                        transformOrigin: Item.TopLeft
-                                        scale: (item && item.implicitWidth > 0 && item.implicitHeight > 0)
-                                            ? Math.min(box.width / item.implicitWidth,
-                                                       box.height / item.implicitHeight, 1)
-                                            : 1
-                                        x: (box.width  - width  * scale) / 2
-                                        y: (box.height - height * scale) / 2
-                                    }
-                                }
-
-                                // ── Label ────────────────────────────────
-                                RowLayout {
-                                    anchors.left: parent.left
-                                    anchors.right: parent.right
-                                    anchors.bottom: parent.bottom
-                                    anchors.leftMargin: 12
-                                    anchors.rightMargin: 12
-                                    anchors.bottomMargin: 10
-                                    spacing: 5
-
-                                    CustomText {
-                                        Layout.fillWidth: true
-                                        content: card.modelData.label
-                                        size: 12
-                                        weight: card.active ? 700 : 500
-                                        customColor: card.active ? Colors.primary : Colors.surfaceText
-                                    }
-
-                                    MaterialIconSymbol {
-                                        visible: card.active
-                                        content: "check_circle"
-                                        iconSize: 15
-                                        fill: 1
-                                        customColor: Colors.primary
-                                    }
-                                }
-
-                                RippleEffect {
-                                    anchors.fill: parent
-                                    radius: 18
-                                    onClicked: root.selectItem(card.modelData)
-                                }
                             }
                         }
                     }

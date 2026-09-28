@@ -99,17 +99,21 @@ Item {
                         MaterialShapes.ShapeCanvas {
                             id: shape
                             anchors.horizontalCenter: parent.horizontalCenter
-                            width: 76
-                            height: 76
+                            y: (76 - height) / 2
+                            width: favArea.containsMouse ? 82 : 76
+                            height: width
+                            Behavior on width { SpatialAnim { speed: "fast" } }
                             roundedPolygon: root.shapes[fav.index % root.shapes.length]
                             color: root.fills[fav.index % root.fills.length]
-                            scale: favArea.containsMouse ? 1.06 : 1
-                            Behavior on scale { SpatialAnim { speed: "fast" } }
                         }
                         LauncherIcon {
                             anchors.centerIn: shape
                             app: fav.modelData
-                            size: 40
+                            size: 48
+                            width: favArea.containsMouse ? 44 : 40
+                            height: width
+                            mipmap: true
+                            Behavior on width { SpatialAnim { speed: "fast" } }
                         }
                         CustomText {
                             anchors.horizontalCenter: parent.horizontalCenter

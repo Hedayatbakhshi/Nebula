@@ -2,6 +2,7 @@ pragma Singleton
 pragma ComponentBehavior: Bound
 
 import Quickshell
+import Quickshell.Hyprland
 import QtQuick
 import qs.modules.utils
 import qs.modules.settings
@@ -19,21 +20,42 @@ Singleton {
     // otherwise a fullscreen game keeps a dead strip along the top.
     readonly property bool zeroed: ServiceGameMode.hideBar
 
-    // topGap: bar height + pill floating margin + 10px breathing room (pill only)
-    readonly property int topAuto:  Appearance.size.barHeight + (isPill ? Math.round(pillMargin) + 10 : 0)
-    readonly property int topExtra: SettingsConfig.general.gapTop    ?? 0
-    readonly property int topFinal: zeroed ? 0 : topAuto + topExtra
+    readonly property var sides: BarOps.sidesOf(SettingsConfig.bar)
+    readonly property string barSide: root.sides.bar
+    readonly property string dockSide: root.sides.dock
 
-    readonly property int rightGap:  zeroed ? 0 : (SettingsConfig.general.gapRight  ?? 5)
+    readonly property int topAuto:  Appearance.size.barHeight + (isPill ? Math.round(pillMargin) + 10 : 0)
+    readonly property int barReserve: zeroed ? 0 : root.topAuto
     readonly property int dockReserve: BarOps.dockReserve(SettingsConfig.bar?.dock, SettingsConfig.general,
                                                           ServiceGameMode.hideWidgets, GlobalStates.dockPresent)
-    readonly property int bottomGap: zeroed ? 0 : root.dockReserve + (SettingsConfig.general.gapBottom ?? 5)
-    readonly property int leftGap:   zeroed ? 0 : (SettingsConfig.general.gapLeft   ?? 5)
+
+    function extraFor(side) {
+        const g = SettingsConfig.general ?? {}
+        const key = side === "top" ? "gapTop" : side === "bottom" ? "gapBottom" : side === "left" ? "gapLeft" : "gapRight"
+        return g[key] ?? (side === "top" && root.barSide === "top" ? 0 : 5)
+    }
+
+    function reserveFor(side) {
+        if (root.zeroed)
+            return 0
+        return (root.barSide === side ? root.barReserve : 0)
+             + (root.dockSide === side ? root.dockReserve : 0)
+             + root.extraFor(side)
+    }
+
+    readonly property int topFinal: root.reserveFor("top")
+    readonly property int rightGap: root.reserveFor("right")
+    readonly property int bottomGap: root.reserveFor("bottom")
+    readonly property int leftGap: root.reserveFor("left")
+    readonly property int barGap: root.reserveFor(root.barSide)
 
     // ── Apply ───────────────────────────────────────────────────────────
+    property double lastExec: 0
+
     function exec() {
         if (!SettingsConfig.settingsReady)
             return
+        root.lastExec = Date.now()
         Quickshell.execDetached(["hyprctl", "eval",
             "hl.config({ general = { gaps_out = { top = "    + root.topFinal  +
             ", right = "  + root.rightGap  +
@@ -77,6 +99,14 @@ Singleton {
                 return
             root.exec()
             startupRetry.start()
+        }
+    }
+
+    Connections {
+        target: Hyprland
+        function onRawEvent(event) {
+            if (event.name === "configreloaded" && Date.now() - root.lastExec > 1000)
+                debounce.restart()
         }
     }
 

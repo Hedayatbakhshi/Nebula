@@ -1,8 +1,5 @@
 .pragma library
 
-const CW = 1
-const CCW = 0
-
 function clamp(v, lo, hi) {
     return Math.max(lo, Math.min(hi, v))
 }
@@ -10,160 +7,6 @@ function clamp(v, lo, hi) {
 function smooth(t) {
     const c = clamp(t, 0, 1)
     return c * c * (3 - 2 * c)
-}
-
-function num(v) {
-    return Math.round(v * 100) / 100
-}
-
-function pen() {
-    let path = ""
-    let cx = NaN
-    let cy = NaN
-    const at = (x, y) => Math.abs(x - cx) < 0.01 && Math.abs(y - cy) < 0.01
-    return {
-        M(x, y) { path += `M ${num(x)} ${num(y)} `; cx = num(x); cy = num(y) },
-        L(x, y) {
-            if (at(num(x), num(y)))
-                return
-            path += `L ${num(x)} ${num(y)} `
-            cx = num(x); cy = num(y)
-        },
-        A(r, sw, x, y) {
-            if (at(num(x), num(y)))
-                return
-            if (r < 0.01) {
-                this.L(x, y)
-                return
-            }
-            path += `A ${num(r)} ${num(r)} 0 0 ${sw} ${num(x)} ${num(y)} `
-            cx = num(x); cy = num(y)
-        },
-        Z() { path += "Z "; cx = NaN; cy = NaN },
-        get d() { return path }
-    }
-}
-
-function shape(bs, o) {
-    const rMax = o.rMax
-    const T = o.top
-    const B = o.top + o.bridge
-    const L = o.left
-    const R = o.right
-    const n = bs.length
-    const edgeFlare = clamp(-o.endR / rMax, 0, 1)
-    const e = clamp(o.endR, -rMax, Math.max(0, (B - T) / 2))
-    const ec = Math.max(0, e)
-
-    const P = pen()
-    const A = (r, sw, x, y) => P.A(r, sw, x, y)
-    const Ln = (x, y) => P.L(x, y)
-
-    const bot = i => Math.max(B, bs[i].bot)
-    const gaps = []
-    const lines = []
-    const reach = []
-    for (let k = 0; k <= n; k++) {
-        const leftX = k === 0 ? L : bs[k - 1].x + bs[k - 1].w
-        const rightX = k === n ? R : bs[k].x
-        const g = Math.max(0, rightX - leftX)
-        const inner = k > 0 && k < n
-        const m = inner ? smooth((o.needGap - g) / 24) : 0
-        gaps.push(g)
-        lines.push(inner ? B + (Math.min(bot(k - 1), bot(k)) - B) * m : B)
-        reach.push(g / 2 + m * rMax)
-    }
-
-    const endFactor = (gap, h) => {
-        const g = clamp(gap / (2 * rMax), 0, 1)
-        return e >= 0 ? Math.max(g, clamp(1 - h / rMax, 0, 1)) : g
-    }
-    const es = n ? e * endFactor(gaps[0], bot(0) - B) : e
-    const ee = n ? e * endFactor(gaps[n], bot(n - 1) - B) : e
-    const esA = Math.abs(es)
-    const eeA = Math.abs(ee)
-
-    const sideTouch = px => Math.max(clamp(1 - px / rMax, 0, 1),
-                                     clamp(1 - (o.screenW - px) / rMax, 0, 1))
-
-    const cornerFactor = (edgeTouch, b, px, melt) => {
-        const fE = edgeFlare * edgeTouch
-        const fB = o.bottomFlare * clamp(1 - (o.screenH - b) / rMax, 0, 1)
-            * (melt ? 1 : sideTouch(px))
-        return { s: 1 - 2 * Math.max(fE, fB), vertical: fE >= fB }
-    }
-
-    const share = []
-    for (let k = 0; k <= n; k++) {
-        const prevW = k > 0 ? bs[k - 1].w : Infinity
-        const nextW = k < n ? bs[k].w : Infinity
-        share.push(Math.min(prevW, nextW) / 2)
-    }
-
-    const lefts = []
-    const entry = []
-    for (let i = 0; i < n; i++) {
-        lefts.push(i === 0 ? Math.max(bs[i].x, L + esA) : bs[i].x)
-        entry.push(Math.min(rMax, Math.max(0, bot(i) - lines[i]) / 2, reach[i], share[i]))
-    }
-
-    P.M(L, B - es)
-    A(esA, es < 0 ? CW : CCW, L + esA, B)
-    let curX = L + esA
-
-    for (let i = 0; i < n; i++) {
-        const b = bs[i]
-        const y = bot(i)
-        const x = lefts[i]
-        const limit = i === n - 1 ? R - eeA : lefts[i + 1] - entry[i + 1]
-        const X = Math.max(x, Math.min(b.x + b.w, limit))
-        const w = Math.max(0, X - x)
-        const lineL = lines[i]
-        const lineR = lines[i + 1]
-        const hL = Math.max(0, y - lineL)
-        const hR = Math.max(0, y - lineR)
-        const raL = Math.max(0, Math.min(entry[i], x - curX))
-        const raR = Math.min(rMax, hR / 2, reach[i + 1], share[i + 1])
-
-        const cl = cornerFactor(i === 0 ? clamp(1 - gaps[0] / rMax, 0, 1) : 0, y, x, b.melt === true)
-        let blOx, blOy, blR, blSw
-        if (cl.s >= 0) {
-            blR = Math.min(rMax, hL - raL, w / 2) * cl.s
-            blOx = blR; blOy = -blR; blSw = CCW
-        } else if (cl.vertical) {
-            blR = Math.min(rMax * -cl.s, w)
-            blOx = blR; blOy = blR; blSw = CW
-        } else {
-            blR = Math.min(rMax, hL - raL) * -cl.s
-            blOx = -blR; blOy = -blR; blSw = CW
-        }
-
-        const cr = cornerFactor(i === n - 1 ? clamp(1 - gaps[n] / rMax, 0, 1) : 0, y, X, b.melt === true)
-        let brOx, brOy, brR, brSw
-        if (cr.s >= 0) {
-            brR = Math.min(rMax, hR - raR, w / 2) * cr.s
-            brOx = -brR; brOy = -brR; brSw = CCW
-        } else if (cr.vertical) {
-            brR = Math.min(rMax * -cr.s, w)
-            brOx = -brR; brOy = brR; brSw = CW
-        } else {
-            brR = Math.min(rMax, hR - raR) * -cr.s
-            brOx = brR; brOy = -brR; brSw = CW
-        }
-
-        Ln(Math.max(curX, x - raL), lineL); A(raL, CW, x, lineL + raL)
-        Ln(x, y + blOy); A(blR, blSw, x + blOx, y)
-        Ln(X + brOx, y); A(brR, brSw, X, y + brOy)
-        Ln(X, lineR + raR); A(raR, CW, X + raR, lineR)
-        curX = X + raR
-    }
-
-    Ln(Math.max(curX, R - eeA), B); A(eeA, ee < 0 ? CW : CCW, R, B - ee)
-    Ln(R, T + ec); A(ec, CCW, R - ec, T)
-    Ln(L + ec, T); A(ec, CCW, L, T + ec)
-    Ln(L, B - es)
-    P.Z()
-    return P.d
 }
 
 function sdfEmpty() {
@@ -210,9 +53,10 @@ function sdfShape(bs, o, out) {
     const esA = Math.abs(es)
     const eeA = Math.abs(ee)
 
-    out.pills.push({ l: L, r: R, bot: B,
-                     rtl: ec, rtr: ec,
-                     rbl: Math.max(0, es), rbr: Math.max(0, ee) })
+    if (B - T > 0.5)
+        out.pills.push({ l: L, r: R, bot: B,
+                         rtl: ec, rtr: ec,
+                         rbl: Math.max(0, es), rbr: Math.max(0, ee) })
     if (es < -0.01)
         out.flares.push({ x: L, y: B, r: esA, mode: 1 })
     if (ee < -0.01)
@@ -323,49 +167,4 @@ function sdfIslands(groups, o) {
         sdfShape(g, Object.assign({}, o, { left: L, right: R }), out)
     }
     return out
-}
-
-function card(seg, o) {
-    const L = seg.x
-    const R = seg.x + seg.w
-    const T = o.top
-    const B = o.top + o.bridge
-    const bot = Math.max(B, seg.bot)
-    const e = clamp(o.endR, 0, (B - T) / 2)
-    const t = clamp((bot - B) / o.rMax, 0, 1)
-    const half = (R - L) / 2
-    const rTop = Math.min(e, half)
-    const rBot = Math.max(0, Math.min(e + (o.rMax - e) * t, half, (bot - T) - rTop))
-    const P = pen()
-    P.M(L, T + rTop)
-    P.A(rTop, CW, L + rTop, T)
-    P.L(R - rTop, T)
-    P.A(rTop, CW, R, T + rTop)
-    P.L(R, bot - rBot)
-    P.A(rBot, CW, R - rBot, bot)
-    P.L(L + rBot, bot)
-    P.A(rBot, CW, L, bot - rBot)
-    P.Z()
-    return P.d
-}
-
-function islands(groups, o) {
-    let p = ""
-    for (const g of groups) {
-        if (!g || !g.length)
-            continue
-        let L = Infinity
-        let R = -Infinity
-        for (const s of g) {
-            L = Math.min(L, s.x)
-            R = Math.max(R, s.x + s.w)
-        }
-        if (R - L < 0.5)
-            continue
-        if (g.length === 1 && g[0].bot > o.top + o.bridge + 0.01)
-            p += card(g[0], o)
-        else
-            p += shape(g, Object.assign({}, o, { left: L, right: R }))
-    }
-    return p
 }

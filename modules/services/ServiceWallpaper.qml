@@ -25,7 +25,7 @@ Singleton {
     }
     property string cacheDir: StandardPaths.writableLocation(StandardPaths.CacheLocation).toString().replace("file://", "") + "/wallpaper-thumbs"
     property int thumbSize: 256
-    property string wallpaperScript: Quickshell.env("HOME") + "/.config/quickshell/scripts/wallpaper.sh"
+    readonly property string cli: Quickshell.shellDir + "/bin/nebula"
     property string scheme: SettingsConfig.theme.matugenScheme
     property string theme: SettingsConfig.theme.matugenTheme
     property string transitionType: SettingsConfig.theme.transitionType ?? "fade"
@@ -33,7 +33,6 @@ Singleton {
     property bool gowallIcons: SettingsConfig.theme.gowallIcons ?? false
     property bool gowallInvert: SettingsConfig.theme.gowallInvert ?? false
     property bool gowallShell: SettingsConfig.theme.gowallShell ?? false
-    property string iconsScript: Quickshell.env("HOME") + "/.config/quickshell/scripts/gowall_icons.py"
     readonly property bool gowallActive: {
         const t = (root.gowallTheme ?? "").toLowerCase()
         return t !== "" && t !== "off"
@@ -68,8 +67,8 @@ Singleton {
         root.iconProgress = 0
         root.iconStatus = "Recoloring icons…"
         iconProc.command = force
-            ? ["python3", root.iconsScript, root.gowallTheme, "--apply", "--force"]
-            : ["python3", root.iconsScript, root.gowallTheme, "--apply"]
+            ? [root.cli, "gowall-icons", root.gowallTheme, "--apply", "--force"]
+            : [root.cli, "gowall-icons", root.gowallTheme, "--apply"]
         iconProc.running = true
     }
 
@@ -77,7 +76,7 @@ Singleton {
         if (iconProc.running) return
         root.iconProgress = 0
         root.iconStatus = "Restoring icon theme…"
-        iconProc.command = ["python3", root.iconsScript, "--restore"]
+        iconProc.command = [root.cli, "gowall-icons", "--restore"]
         iconProc.running = true
     }
 
@@ -128,7 +127,7 @@ Singleton {
         if (root.iconPreviewTheme === theme && root.iconPreview.length > 0) return
         previewProc.found = []
         previewProc.wanted = theme
-        previewProc.command = ["python3", root.iconsScript, theme, "--preview"]
+        previewProc.command = [root.cli, "gowall-icons", theme, "--preview"]
         previewProc.running = true
     }
 
@@ -218,10 +217,13 @@ Singleton {
         _pendingPath = ""
         _applyStartedAt = Date.now()
         console.log("[ServiceWallpaper] _startApply →", path, "| mode:", root.theme, "| t=0ms")
-        Quickshell.execDetached([wallpaperScript, path, root.scheme, root.theme, root.transitionType,
-                                 root.gowallTheme, root.gowallIcons ? "on" : "off",
-                                 root.gowallInvert ? "on" : "off",
-                                 root.gowallShell ? "on" : "off"])
+        Quickshell.execDetached([root.cli, "wallpaper", "set", path,
+                                 "--scheme", root.scheme, "--mode", root.theme,
+                                 "--transition", root.transitionType,
+                                 "--gowall", root.gowallTheme,
+                                 "--gowall-icons", root.gowallIcons ? "on" : "off",
+                                 "--invert", root.gowallInvert ? "on" : "off",
+                                 "--gowall-shell", root.gowallShell ? "on" : "off"])
         applyTimer.restart()
     }
 
@@ -235,7 +237,6 @@ Singleton {
         }
     }
 
-    property string colorsScript: Quickshell.env("HOME") + "/.config/quickshell/scripts/gen_colors.py"
     // The untouched wallpaper — with gowall on, WallpaperTheme.wallpaper is the
     // recolored copy in the cache, and feeding that back in would convert a
     // converted image.
@@ -269,7 +270,7 @@ Singleton {
             return
         }
         console.log("[ServiceWallpaper] applyTheme → mode:", root.theme, "wallpaper:", wp)
-        Quickshell.execDetached(["python3", colorsScript, wp, root.scheme, root.theme])
+        Quickshell.execDetached([root.cli, "scheme", "generate", wp, root.scheme, root.theme])
         themeTimer.restart()
         console.log("[ServiceWallpaper] execDetached done, timer started (fires in 2000ms)")
     }
@@ -882,4 +883,72 @@ Singleton {
         }
     }
     // ── End File management ──────────────────────────────────────────────────
+
+    readonly property var panelStyles: [
+        { value: "classic", label: "Classic",     icon: "grid_view",     height: 520 },
+        { value: "hearth",  label: "Hearth",      icon: "fireplace",     height: 520 },
+        { value: "seat",    label: "Window seat", icon: "view_carousel", height: 400 }
+    ]
+    readonly property string panelStyle: {
+        const s = SettingsConfig.general.wallpaperStyle ?? "classic"
+        return root.panelStyles.some(x => x.value === s) ? s : "classic"
+    }
+    readonly property int panelHeight: root.panelStyles.find(x => x.value === root.panelStyle).height
+
+    readonly property string currentCachePath: root.currentSource
+        ? root.cacheDir + "/" + Qt.md5(root.currentSource) + ".jpg" : ""
+
+    readonly property bool previewUsable: !(root.gowallActive && root.gowallShell
+                                            && (root.gowallTheme ?? "").toLowerCase() !== "match")
+    property var previewColors: ({})
+    property var _previewQueue: []
+
+    function _previewKey(cachePath) {
+        return cachePath + "|" + root.scheme + "|" + root.theme
+    }
+
+    function previewFor(cachePath) {
+        if (!cachePath || !root.previewUsable) return null
+        return root.previewColors[root._previewKey(cachePath)] ?? null
+    }
+
+    function requestPreview(cachePath) {
+        if (!cachePath || !root.previewUsable) return
+        if (root.previewColors[root._previewKey(cachePath)]) return
+        root._previewQueue = [cachePath].concat(root._previewQueue.filter(p => p !== cachePath)).slice(0, 4)
+        root._nextPreview()
+    }
+
+    function _nextPreview() {
+        if (paletteProc.running || root._previewQueue.length === 0) return
+        const cp = root._previewQueue[0]
+        root._previewQueue = root._previewQueue.slice(1)
+        if (root.previewColors[root._previewKey(cp)]) { root._nextPreview(); return }
+        paletteProc._key = root._previewKey(cp)
+        paletteProc._buf = ""
+        paletteProc.command = [root.cli, "wallpaper", "preview", root.getOriginalPath(cp), cp, root.scheme, root.theme]
+        paletteProc.running = true
+    }
+
+    Process {
+        id: paletteProc
+        property string _key: ""
+        property string _buf: ""
+        stdout: SplitParser {
+            onRead: line => paletteProc._buf += line
+        }
+        onExited: exitCode => {
+            if (exitCode === 0 && paletteProc._buf.length > 0) {
+                try {
+                    const next = Object.assign({}, root.previewColors)
+                    next[paletteProc._key] = JSON.parse(paletteProc._buf)
+                    root.previewColors = next
+                } catch (e) {
+                    console.warn("[ServiceWallpaper] preview parse failed:", e)
+                }
+            }
+            paletteProc._buf = ""
+            Qt.callLater(root._nextPreview)
+        }
+    }
 }

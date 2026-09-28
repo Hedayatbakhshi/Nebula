@@ -20,14 +20,12 @@ WidgetHost {
     minSpan: Qt.size(3, 2)
     maxSpan: Qt.size(5, 2)
 
-    Rectangle {
+    WidgetCard {
         anchors.fill: parent
-        radius: 24
-        color: WidgetSizes.cardColor
 
         ColumnLayout {
             anchors.fill: parent
-            anchors.margins: 16
+            anchors.margins: parent.pad
             spacing: 8
 
             // ── Header ────────────────────────────────────────────────

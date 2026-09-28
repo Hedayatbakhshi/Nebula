@@ -48,11 +48,19 @@ Item {
     readonly property bool showOtherIndicator: perMonitorMode && monitorCount > 1
 
     readonly property string style: BarLayout.opt(root.itemId, "style") ?? "pill"
+    readonly property string screenName: layout.screen.name
+    readonly property real screenW: layout.screen.width
+    readonly property real screenH: layout.screen.height
+    readonly property var cozyStyles: ["lanterns", "books", "house", "moons", "stars", "map", "dial", "candles"]
+    readonly property var quietStyles: ["ruler", "ring", "viewfinder", "focus", "cards"]
     readonly property var wsIds: Array.from({ length: root.wsCount }, (_, i) => i + 1)
     readonly property var shapeCycle: ["cookie4", "clover4", "sunny", "cookie6", "softBurst", "cookie9", "flower", "cookie7"]
 
+    readonly property bool vertical: !!root.host && root.host.vertical === true
+    readonly property bool verticalReady: root.vertical && root.cozyStyles.indexOf(root.style) < 0
+
     implicitWidth: face.item ? face.item.implicitWidth : 0
-    implicitHeight: 30
+    implicitHeight: root.verticalReady && face.item ? face.item.implicitHeight : 30
 
     function focusWs(id, ws) {
         if (ws)
@@ -73,8 +81,14 @@ Item {
 
     Loader {
         id: face
-        anchors.verticalCenter: parent.verticalCenter
+        anchors.centerIn: parent
         sourceComponent: {
+            if (root.verticalReady)
+                return columnComp
+            if (root.cozyStyles.indexOf(root.style) >= 0)
+                return cozyComp
+            if (root.quietStyles.indexOf(root.style) >= 0)
+                return quietComp
             switch (root.style) {
             case "shapes":  return shapesComp
             case "worm":    return wormComp
@@ -83,6 +97,79 @@ Item {
             case "kanji":   return kanjiComp
             }
             return pillComp
+        }
+    }
+
+    Component {
+        id: columnComp
+        Rectangle {
+            implicitWidth: 30
+            implicitHeight: col.implicitHeight + 6
+            radius: 15
+            color: Colors.surfaceContainer
+
+            Column {
+                id: col
+                anchors.centerIn: parent
+                spacing: 4
+
+                Repeater {
+                    model: root.wsIds
+                    delegate: Rectangle {
+                        id: wsCell
+                        required property int modelData
+                        WsState { id: st; wsId: wsCell.modelData }
+                        width: 24
+                        height: st.active ? 34 : 24
+                        radius: 12
+                        color: st.active ? Colors.primary : st.occupied ? Colors.surfaceContainerHighest : "transparent"
+                        border.width: st.onOther ? 1 : 0
+                        border.color: Qt.alpha(Colors.outline, 0.35)
+                        Behavior on height { SpatialAnim { speed: "fast" } }
+                        Behavior on color { EffectsColorAnim {} }
+
+                        Rectangle {
+                            visible: !st.active && !st.occupied
+                            anchors.centerIn: parent
+                            width: 5
+                            height: 5
+                            radius: 2.5
+                            color: st.onOther ? Qt.alpha(Colors.outline, 0.45) : Colors.outline
+                        }
+
+                        CustomText {
+                            anchors.centerIn: parent
+                            visible: st.active || st.occupied
+                            content: wsCell.modelData.toString()
+                            size: 10
+                            weight: st.active ? 800 : 600
+                            customColor: st.active ? Colors.primaryText : Colors.surfaceText
+                        }
+
+                        MouseArea {
+                            anchors.fill: parent
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: root.focusWs(wsCell.modelData, st.ws)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    Component {
+        id: cozyComp
+        BarWsCozy {
+            owner: root
+            style: root.style
+        }
+    }
+
+    Component {
+        id: quietComp
+        BarWsQuiet {
+            owner: root
+            style: root.style
         }
     }
 

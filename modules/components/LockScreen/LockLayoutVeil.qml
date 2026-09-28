@@ -102,6 +102,7 @@ Item {
             CustomText {
                 content: (LockSession.weekday + ", " + LockSession.dayNum + " " + LockSession.month).toUpperCase()
                 size: Math.round(30 * root.u)
+                renderType: Text.QtRendering
                 weight: 500
                 font.letterSpacing: 4 * root.u
                 customColor: Colors.surfaceVariantText
@@ -210,6 +211,7 @@ Item {
                         Layout.alignment: Qt.AlignRight
                         content: LockSession.user
                         size: Math.round(32 * root.u)
+                        renderType: Text.QtRendering
                         weight: 600
                     }
                     CustomText {

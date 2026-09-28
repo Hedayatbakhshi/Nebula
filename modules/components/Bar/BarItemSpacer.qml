@@ -7,6 +7,7 @@ Item {
     property Item host: null
     property string itemId: ""
     readonly property bool shown: true
+    readonly property bool rotatesWithBar: true
 
     implicitWidth: BarLayout.opt(root.itemId, "width") ?? 16
     implicitHeight: 24

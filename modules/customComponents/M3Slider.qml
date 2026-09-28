@@ -151,10 +151,10 @@ Item {
         }
 
         Repeater {
-            model: root.stepCount > 1 ? root.stepCount : 0
+            model: root.stepCount > 1 && root.stepCount <= 24 ? root.stepCount : 0
             delegate: Rectangle {
                 readonly property real p: index / (root.stepCount - 1)
-                anchors.verticalCenter: parent.verticalCenter
+                anchors.verticalCenter: parent ? parent.verticalCenter : undefined
                 x: root._inset + root._travel * p - root.stopSize / 2
                 width: root.stopSize; height: root.stopSize
                 radius: width / 2
