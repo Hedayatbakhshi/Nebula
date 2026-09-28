@@ -28,7 +28,6 @@ Singleton {
     readonly property string cli: Quickshell.shellDir + "/bin/nebula"
     property string scheme: SettingsConfig.theme.matugenScheme
     property string theme: SettingsConfig.theme.matugenTheme
-    property string transitionType: SettingsConfig.theme.transitionType ?? "fade"
     property string gowallTheme: SettingsConfig.theme.gowallTheme ?? "off"
     property bool gowallIcons: SettingsConfig.theme.gowallIcons ?? false
     property bool gowallInvert: SettingsConfig.theme.gowallInvert ?? false
@@ -184,14 +183,12 @@ Singleton {
     }
 
     // ── Wallpaper application queue ────────────────────────────────────────
-    // awww (~0.16s) + matugen (~0.3s) = wallpaper.sh finishes in < 1s.
     // We use execDetached (fire-and-forget) and reload colors after a fixed
     // 1.5s window — no Process re-use state to get stuck.
     // Rapid clicks: only the latest path within the 1.5s window is applied.
     property string _pendingPath: ""
     property bool   _applying: false
 
-    // Fired 3s after _startApply — awww (~0.16s) + gen_colors cold (~615ms) = well within 3s
     Timer {
         id: applyTimer
         interval: 3000
@@ -219,7 +216,6 @@ Singleton {
         console.log("[ServiceWallpaper] _startApply →", path, "| mode:", root.theme, "| t=0ms")
         Quickshell.execDetached([root.cli, "wallpaper", "set", path,
                                  "--scheme", root.scheme, "--mode", root.theme,
-                                 "--transition", root.transitionType,
                                  "--gowall", root.gowallTheme,
                                  "--gowall-icons", root.gowallIcons ? "on" : "off",
                                  "--invert", root.gowallInvert ? "on" : "off",
@@ -254,7 +250,6 @@ Singleton {
     }
 
     // Re-generates colors for the current wallpaper in the new mode.
-    // No awww — wallpaper image isn't changing, only the color scheme.
     // gen_colors.py: ~615ms cold, ~44ms score-cached, ~2ms fully-cached.
     // A gowall palette is the exception: the recolor depends on the mode, so
     // the full pipeline has to run and repaint the desktop.

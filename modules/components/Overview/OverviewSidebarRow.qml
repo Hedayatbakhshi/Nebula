@@ -101,7 +101,6 @@ Rectangle {
                         source: modelData
                         sourceSize: Qt.size(18, 18)
                         fillMode: Image.PreserveAspectFit
-                        asynchronous: true
                     }
                 }
 

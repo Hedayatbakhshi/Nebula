@@ -307,7 +307,6 @@ Item {
                         source: shelfIcon.symbol !== ""
                             ? "" : IconUtil.getIconPath(shelfIcon.modelData.appIcon ?? "")
                         sourceSize: Qt.size(14, 14)
-                        asynchronous: true
                         fillMode: Image.PreserveAspectFit
                         visible: shelfIcon.symbol === "" && status === Image.Ready
                     }

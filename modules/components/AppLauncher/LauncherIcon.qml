@@ -16,5 +16,4 @@ Image {
     sourceSize.height: root.size
     source: IconUtil.getIconPath(root.app?.icon ?? "")
     fillMode: Image.PreserveAspectFit
-    asynchronous: true
 }

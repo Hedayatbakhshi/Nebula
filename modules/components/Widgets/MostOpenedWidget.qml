@@ -71,7 +71,6 @@ WidgetHost {
                                     source: IconUtil.getIconPath(step.modelData.app.icon ?? "")
                                     sourceSize.width: 64
                                     sourceSize.height: 64
-                                    asynchronous: true
                                 }
                                 CustomText {
                                     anchors.horizontalCenter: parent.horizontalCenter

@@ -188,7 +188,6 @@ Item {
                                         source: IconUtil.getIconPath(parent.modelData?.appIcon ?? "")
                                         sourceSize.width: 28
                                         sourceSize.height: 28
-                                        asynchronous: true
                                     }
                                 }
                             }

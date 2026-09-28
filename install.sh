@@ -14,7 +14,7 @@ BOLD='\033[1m'; DIM='\033[2m'; RESET='\033[0m'
 RULE='──────────────────────────────────────────────────────────────'
 
 STEP_N=0
-TOTAL_STEPS=19
+TOTAL_STEPS=18
 WARNINGS=()
 START_TS=$SECONDS
 
@@ -257,7 +257,7 @@ ok "uv: $(uv --version 2>/dev/null || echo 'installed')"
 # ── AUR packages ──────────────────────────────────────────────────────────────
 step "AUR packages"
 AUR_PKGS=(
-  quickshell-git grimblast-git cliphist awww-git
+  quickshell-git grimblast-git cliphist
   matugen-bin
   ttf-material-symbols-variable-git
 )
@@ -274,16 +274,6 @@ if $ask; then
   for pkg in "${AUR_PKGS_OPT[@]}"; do v "$AUR_HELPER" -S --needed "$pkg" || true; done
 else
   "$AUR_HELPER" -S --needed --noconfirm "${AUR_PKGS_OPT[@]}" || warn "Optional AUR package failed (gowall)"
-fi
-
-# awww-git is a Rust crate — limit parallel jobs to avoid OOM in low-RAM systems
-step "awww-git (Rust — limited parallelism)"
-info "Building awww-git with CARGO_BUILD_JOBS=2 to avoid OOM..."
-if $ask; then
-  v env CARGO_BUILD_JOBS=2 "$AUR_HELPER" -S --needed awww-git
-else
-  env CARGO_BUILD_JOBS=2 "$AUR_HELPER" -S --needed --noconfirm awww-git \
-    || warn "awww-git failed — retry manually: CARGO_BUILD_JOBS=1 $AUR_HELPER -S awww-git"
 fi
 
 # Rubik (UI) and Titan One (display) straight from the Google Fonts repo;

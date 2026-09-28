@@ -6,5 +6,9 @@ elif [ -n "$NEBULA_VENV" ] && [ -x "$NEBULA_VENV/bin/python" ]; then
     py="$NEBULA_VENV/bin/python"
 else
     py=python3
+    venv="${XDG_STATE_HOME:-$HOME/.local/state}/quickshell/.venv/bin/python"
+    if [ -x "$venv" ] && ! python3 -c "import importlib.util,sys; sys.exit(importlib.util.find_spec('materialyoucolor') is None)" 2>/dev/null; then
+        py="$venv"
+    fi
 fi
 PYTHONPATH="$here/../cli${PYTHONPATH:+:$PYTHONPATH}" exec "$py" -m nebula "$@"

@@ -23,6 +23,7 @@ import qs.modules.components.Overview
 import qs.modules.components.PieMenu
 import qs.modules.components.EdgeLight
 import qs.modules.components.Ripple
+import qs.modules.components.Wallpaper
 import qs.modules.components.EdgeNotes
 import qs.modules.components.Tuck
 import qs.modules.components.Spotlight
@@ -129,7 +130,9 @@ ShellRoot{
 
     EdgeLight {}
 
-    DesktopRipple {}
+    DesktopRipple { id: desktopRipple }
+
+    WallpaperLayer { ripple: desktopRipple }
 
     EdgeNotes {}
 

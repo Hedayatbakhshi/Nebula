@@ -159,7 +159,6 @@ Item {
                 sourceSize.height: 96
                 smooth: true
                 mipmap: true
-                asynchronous: true
                 fillMode: Image.PreserveAspectFit
                 opacity: dockItem.offer ? 0.5 : 1
                 Behavior on opacity { EffectsAnim { speed: "fast" } }

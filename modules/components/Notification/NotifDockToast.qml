@@ -180,7 +180,6 @@ Item {
                                     source: IconUtil.getIconPath(chip.modelData?.appIcon ?? "")
                                     sourceSize.width: 32
                                     sourceSize.height: 32
-                                    asynchronous: true
                                 }
                                 CustomText {
                                     anchors.verticalCenter: parent.verticalCenter

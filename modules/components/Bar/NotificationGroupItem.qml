@@ -327,7 +327,6 @@ Item {
                             anchors.margins: 6
                             source: root.usesSymbol ? "" : IconUtil.getIconPath(root.group?.appIcon ?? "")
                             sourceSize: Qt.size(24, 24)
-                            asynchronous: true
                             fillMode: Image.PreserveAspectFit
                             visible: !root.usesSymbol && status === Image.Ready
                         }

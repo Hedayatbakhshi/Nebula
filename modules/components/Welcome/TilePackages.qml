@@ -16,7 +16,6 @@ WelcomeTile {
                                        : section.missing.length + " missing"
 
     readonly property var tools: [
-        { cmd: "awww",          pkg: "awww-git",      label: "Wallpapers"  },
         { cmd: "cliphist",      pkg: "cliphist",      label: "Clipboard"   },
         { cmd: "wl-copy",       pkg: "wl-clipboard",  label: "Copy paste"  },
         { cmd: "brightnessctl", pkg: "brightnessctl", label: "Brightness"  },

@@ -208,7 +208,6 @@ Item {
                                         source: entryIcon.src
                                         sourceSize.width: 32
                                         sourceSize.height: 32
-                                        asynchronous: true
                                         fillMode: Image.PreserveAspectFit
                                     }
 

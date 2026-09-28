@@ -32,20 +32,11 @@ def _scheme(args) -> None:
         sys.argv = saved
 
 
-def _show(image: str, transition: str) -> None:
-    try:
-        subprocess.run(["awww", "img", image, "--transition-type", transition,
-                        "--transition-duration", "4"])
-    except FileNotFoundError:
-        print("[nebula] awww not found, colours only", file=sys.stderr)
-
-
 def defaults() -> dict:
     t = settings.section("theme")
     return {
         "scheme": t.get("matugenScheme", "scheme-content"),
         "mode": t.get("matugenTheme", "dark"),
-        "transition": t.get("transitionType", "fade"),
         "gowall": t.get("gowallTheme", "off"),
         "icons": "on" if t.get("gowallIcons") else "off",
         "invert": "on" if t.get("gowallInvert") else "off",
@@ -53,7 +44,7 @@ def defaults() -> dict:
     }
 
 
-def apply(wallpaper, scheme, mode, transition="fade", gowall="off",
+def apply(wallpaper, scheme, mode, gowall="off",
           icons="off", invert="off", shell="off") -> int:
     if not os.path.isfile(wallpaper):
         print(f"[nebula] no such image: {wallpaper}", file=sys.stderr)
@@ -80,16 +71,13 @@ def apply(wallpaper, scheme, mode, transition="fade", gowall="off",
         converted = _self(["gowall", wallpaper, "match", *inv])
         if converted and os.path.isfile(converted):
             display = converted
-        _show(display, transition)
         _scheme([wallpaper, scheme, mode, "--display", display, *keep])
     elif palette_on or invert_on:
         converted = _self(["gowall", wallpaper, gowall, *inv])
         if converted and os.path.isfile(converted):
             display = converted
-        _show(display, transition)
         _scheme([display, scheme, mode, "--source", wallpaper, *keep, *pal])
     else:
-        _show(display, transition)
         _scheme([wallpaper, scheme, mode])
 
     if icons_on:

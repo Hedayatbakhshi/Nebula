@@ -79,7 +79,6 @@ ColumnLayout {
                 sourceSize.width: 88
                 sourceSize.height: 88
                 fillMode: Image.PreserveAspectFit
-                asynchronous: true
                 visible: iconRect.symbol === "" && status === Image.Ready
             }
         }

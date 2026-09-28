@@ -135,7 +135,6 @@ Item {
                                     : ""
                                 sourceSize.width: 96
                                 sourceSize.height: 96
-                                asynchronous: true
                                 fillMode: Image.PreserveAspectFit
 
                             }

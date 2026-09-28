@@ -21,6 +21,7 @@ Scope {
     property string monitorName: ""
     property bool alive: false
     property double now: 0
+    readonly property bool moving: root.alive && root.ripples.some(r => root.now - r.t0 < root.lifeMs)
 
     function spawn(screenName, x, y, amp) {
         if (!root.on || ServiceGameMode.active)
@@ -75,56 +76,8 @@ Scope {
         }
     }
 
-    Loader {
-        active: root.alive
-        visible: active
-
-        sourceComponent: PanelWindow {
-            id: win
-            screen: Quickshell.screens.find(s => s.name === root.monitorName) ?? Quickshell.screens[0]
-            anchors { top: true; left: true; right: true; bottom: true }
-            color: "transparent"
-            exclusionMode: ExclusionMode.Ignore
-            mask: Region {}
-            WlrLayershell.layer: WlrLayer.Background
-            WlrLayershell.namespace: "quickshell:ripple"
-            WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
-
-            readonly property bool moving: root.ripples.some(r => root.now - r.t0 < root.lifeMs)
-
-            FrameAnimation {
-                running: win.moving
-                onTriggered: root.now = Date.now()
-            }
-
-            Image {
-                id: wall
-                anchors.fill: parent
-                visible: false
-                source: WallpaperTheme.wallpaperScreen !== "" ? "file://" + WallpaperTheme.wallpaperScreen : ""
-                fillMode: Image.PreserveAspectCrop
-                asynchronous: true
-            }
-
-            ShaderEffect {
-                anchors.fill: parent
-                visible: win.moving && wall.status === Image.Ready
-                property vector2d itemSize: Qt.vector2d(width, height)
-                property vector4d r0: root.uniformFor(0)
-                property vector4d r1: root.uniformFor(1)
-                property vector4d r2: root.uniformFor(2)
-                property vector4d r3: root.uniformFor(3)
-                property vector4d r4: root.uniformFor(4)
-                property vector4d r5: root.uniformFor(5)
-                property vector4d r6: root.uniformFor(6)
-                property vector4d r7: root.uniformFor(7)
-                property vector4d r8: root.uniformFor(8)
-                property vector4d r9: root.uniformFor(9)
-                property color tint: Colors.primary
-                property real strength: root.strength
-                property var source: wall
-                fragmentShader: Qt.resolvedUrl("../../../shaders/qsb/ripple.frag.qsb")
-            }
-        }
+    FrameAnimation {
+        running: root.moving
+        onTriggered: root.now = Date.now()
     }
 }

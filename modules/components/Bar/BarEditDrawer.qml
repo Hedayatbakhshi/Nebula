@@ -1905,7 +1905,6 @@ ColumnLayout {
                                                 source: Quickshell.iconPath(pinRow.modelData.icon, "image-missing")
                                                 sourceSize.width: 44
                                                 sourceSize.height: 44
-                                                asynchronous: true
                                                 fillMode: Image.PreserveAspectFit
                                             }
                                             CustomText {

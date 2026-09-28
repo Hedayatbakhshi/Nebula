@@ -43,7 +43,7 @@ Colours and wallpaper
   nebula apps reset                go back to theming every detected app
 
 Shell
-  nebula start [--foreground]      start the shell (plus awww-daemon and the clipboard watcher)
+  nebula start [--foreground]      start the shell (plus the clipboard watcher)
   nebula stop | restart            stop or restart the shell
   nebula setup [--close]           open the setup window (wallpaper, colours, apps, shortcuts)
   nebula doctor                    check packages Nebula needs
@@ -123,7 +123,7 @@ def cmd_wallpaper(a) -> int:
         image = os.path.abspath(os.path.expanduser(a.image))
     return wp.apply(image,
                     a.scheme or d["scheme"], a.mode or d["mode"],
-                    a.transition or d["transition"], a.gowall or d["gowall"],
+                    a.gowall or d["gowall"],
                     a.gowall_icons or d["icons"], a.invert or d["invert"], a.gowall_shell or d["shell"])
 
 
@@ -166,7 +166,7 @@ def cmd_scheme(a) -> int:
             print("nebula: saved; no wallpaper to recolour yet", file=sys.stderr)
             return 0
         d = wp.defaults()
-        return wp.apply(image, d["scheme"], d["mode"], d["transition"], d["gowall"],
+        return wp.apply(image, d["scheme"], d["mode"], d["gowall"],
                         d["icons"], d["invert"], d["shell"])
     return 2
 
@@ -287,7 +287,6 @@ def _spawn(argv: list, env=None) -> None:
                      stderr=subprocess.DEVNULL, start_new_session=True)
 
 
-MESA_DRIVERS = {"amdgpu", "radeon", "i915", "xe", "nouveau"}
 MESA_EGL = "/usr/share/glvnd/egl_vendor.d/50_mesa.json"
 TCMALLOC = "/usr/lib/libtcmalloc_minimal.so.4"
 
@@ -315,7 +314,7 @@ def _shell_env() -> dict:
         env["QML_IMPORT_PATH"] = ":".join([qml, *paths])
     drivers = _display_drivers()
     if ("__EGL_VENDOR_LIBRARY_FILENAMES" not in env and os.path.exists(MESA_EGL)
-            and drivers and drivers <= MESA_DRIVERS):
+            and drivers and "nvidia" not in drivers):
         env["__EGL_VENDOR_LIBRARY_FILENAMES"] = MESA_EGL
     preload = [p for p in env.get("LD_PRELOAD", "").split() if p]
     if os.path.exists(TCMALLOC) and not any("tcmalloc" in p for p in preload):
@@ -333,8 +332,6 @@ def cmd_start(a) -> int:
     qs = _qs_bin()
     if not qs:
         return 1
-    if shutil.which("awww-daemon") and not _running("^awww-daemon"):
-        _spawn(["awww-daemon"])
     if shutil.which("wl-paste") and shutil.which("cliphist") and not _running("wl-paste --watch cliphist"):
         _spawn(["wl-paste", "--watch", "cliphist", "store"])
     config = str(SHELL_DIR / "shell.qml")
@@ -390,7 +387,6 @@ def build_parser() -> argparse.ArgumentParser:
             s.add_argument("--dir")
         s.add_argument("--scheme")
         s.add_argument("--mode", choices=["dark", "light"])
-        s.add_argument("--transition")
         s.add_argument("--gowall")
         s.add_argument("--gowall-icons", choices=["on", "off"])
         s.add_argument("--invert", choices=["on", "off"])

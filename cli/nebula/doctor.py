@@ -2,7 +2,6 @@ import importlib.util
 import json
 import os
 import shutil
-import subprocess
 import sys
 
 from nebula.paths import HOME
@@ -11,7 +10,6 @@ TOOLS = [
     ("quickshell",    "quickshell-git", "The shell itself"),
     ("hyprctl",       "hyprland",       "Compositor"),
     ("hypridle",      "hypridle",       "Idle and sleep timeouts"),
-    ("awww",          "awww-git",       "Wallpapers"),
     ("matugen",       "matugen-bin",    "Album-art colours"),
     ("cliphist",      "cliphist",       "Clipboard"),
     ("wl-copy",       "wl-clipboard",   "Copy and paste"),
@@ -59,9 +57,6 @@ def check():
     templates = HOME / ".config" / "matugen" / "templates"
     rows.append({"kind": "file", "name": str(templates).replace(str(HOME), "~", 1),
                  "package": "", "what": "App colour templates", "ok": templates.is_dir()})
-    daemon = subprocess.run(["pgrep", "-x", "awww-daemon"], capture_output=True).returncode == 0
-    rows.append({"kind": "process", "name": "awww-daemon", "package": "", "what": "Wallpaper daemon running",
-                 "ok": daemon})
     return rows
 
 

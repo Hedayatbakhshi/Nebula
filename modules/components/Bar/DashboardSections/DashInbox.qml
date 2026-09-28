@@ -82,7 +82,6 @@ DashItem {
             sourceSize.width: 64
             sourceSize.height: 64
             fillMode: Image.PreserveAspectFit
-            asynchronous: true
         }
     }
 

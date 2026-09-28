@@ -67,7 +67,6 @@ ListView {
                         ? IconUtil.getIconPath(item.modelData.iconName)
                         : ""
                     fillMode: Image.PreserveAspectFit
-                    asynchronous: true
                     visible: status === Image.Ready
                 }
 

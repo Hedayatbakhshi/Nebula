@@ -150,7 +150,6 @@ Item {
                             anchors.margins: 6
                             source: row.usesSymbol ? "" : IconUtil.getIconPath(row.notifData?.appIcon ?? "")
                             sourceSize: Qt.size(24, 24)
-                            asynchronous: true
                             fillMode: Image.PreserveAspectFit
                             visible: !row.usesSymbol && status === Image.Ready
                         }
