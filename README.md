@@ -12,12 +12,13 @@ A Material You desktop shell for Hyprland, built with [Quickshell](https://quick
 [![Stars](https://img.shields.io/github/stars/iamSt3el/Nebula?style=flat-square&color=9ed49d&labelColor=1a1c19)](https://github.com/iamSt3el/Nebula/stargazers)
 [![License](https://img.shields.io/badge/license-GPL%20v3-9ed49d?style=flat-square&labelColor=1a1c19)](LICENSE)
 [![Tour](https://img.shields.io/badge/watch-the%20tour-9ed49d?style=flat-square&logo=youtube&logoColor=white&labelColor=1a1c19)](https://youtu.be/bYuwrP-WTCs)
+[![Website](https://img.shields.io/badge/website-iamst3el.github.io%2FNebula-9ed49d?style=flat-square&labelColor=1a1c19)](https://iamst3el.github.io/Nebula/)
 
-[Install](#install) · [Command line](#command-line) · [Theming apps](#theming-other-apps)
+**[Website](https://iamst3el.github.io/Nebula/)** · [Install](#install) · [Command line](#command-line) · [Theming apps](#theming-other-apps)
 
 <br>
 
-<img src="assets/showcase/dashboard.png" alt="Nebula on Hyprland: the bar, desktop widgets and the dashboard" width="100%">
+<img src="assets/showcase/desktop.jpg" alt="Nebula on Hyprland: the top bar and desktop widgets for a clock, system load, the moon, the weather and the music player, over a green willow wallpaper" width="100%">
 
 </div>
 
