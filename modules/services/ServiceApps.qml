@@ -195,7 +195,17 @@ Singleton{
         next[entry.id] = { count: prev.count + 1, last: Date.now() }
         root.usage = next
         usageWrite.restart()
-        entry.execute()
+        root.spawn(entry.command, entry.workingDirectory)
+    }
+
+    function spawn(command, workingDirectory): void {
+        if (!command || command.length === 0)
+            return
+        Quickshell.execDetached({
+            command: Array.from(command),
+            environment: { LD_PRELOAD: null },
+            workingDirectory: workingDirectory ?? ""
+        })
     }
 
     function byUsage(apps): var {

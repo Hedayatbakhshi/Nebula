@@ -284,14 +284,14 @@ Singleton {
             return true
 
         case "run":
-            Quickshell.execDetached(["bash", "-lc", result.payload])
+            ServiceApps.spawn(["bash", "-lc", result.payload], "")
             return true
 
         case "run-term":
-            Quickshell.execDetached([
+            ServiceApps.spawn([
                 root.terminal, "-e", "bash", "-lc",
                 result.payload + "; echo; read -n1 -r -p 'press any key…'"
-            ])
+            ], "")
             return true
 
         case "focus":
