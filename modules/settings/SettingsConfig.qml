@@ -158,7 +158,8 @@ Singleton {
                 gowallTheme: "off",
                 gowallIcons: false,
                 gowallInvert: false,
-                gowallShell: false
+                gowallShell: false,
+                wallpaperFill: "crop"
             })
 
             property var theme: ({
@@ -171,7 +172,8 @@ Singleton {
                 gowallTheme: "off",
                 gowallIcons: false,
                 gowallInvert: false,
-                gowallShell: false
+                gowallShell: false,
+                wallpaperFill: "crop"
             })
 
             onThemeChanged: {
@@ -196,6 +198,14 @@ Singleton {
                 const legacy = ["colorEngine"]
                 for (const k of legacy) {
                     if (k in cur) { delete cur[k]; dirty = true }
+                }
+
+                // normalize wallpaperFill to a known mode
+                const fillModes = ["crop", "fit", "stretch", "tile"]
+                const fill = cur.wallpaperFill ?? "crop"
+                if (!fillModes.includes(fill)) {
+                    cur = Object.assign({}, cur, { wallpaperFill: "crop" })
+                    dirty = true
                 }
 
                 if (dirty) theme = cur
