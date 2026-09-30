@@ -85,7 +85,8 @@ PanelWindow{
     WlrLayershell.namespace: "quickshell:bar"
     exclusionMode: ExclusionMode.Ignore
     WlrLayershell.keyboardFocus: layout.barEditing ? WlrKeyboardFocus.Exclusive
-                               : isPrimary && (GlobalStates.clipboardOpen || GlobalStates.wallpaperOpen
+                               : isPrimary && ((GlobalStates.clipboardOpen && (SettingsConfig.general.clipboardPanelMode ?? "dock") !== "center")
+                                               || (GlobalStates.wallpaperOpen && (SettingsConfig.general.wallpaperPanelMode ?? "dock") !== "center")
                                                || GlobalStates.fileDropOpen
                                                || GlobalStates.powerPanelOpen
                                                || GlobalStates.scenesPanelOpen
@@ -711,6 +712,47 @@ PanelWindow{
                         barEditor.selectedItem = ""
                     else if (!root.surfaceAt(mouse.x, mouse.y))
                         GlobalStates.barEditMode = false
+                }
+            }
+        }
+
+        Shape {
+            id: screenBorder
+            anchors.fill: parent
+            visible: ServiceGaps.borderOn
+            preferredRendererType: Shape.CurveRenderer
+
+            function base(s, side) {
+                if (!s || !s.visible || s.barMode === "pill" || s.side !== side)
+                    return 0
+                return s.sdfBot * (s.isDock ? s.reveal : 1)
+            }
+            function inset(side) {
+                return Math.max(ServiceGaps.borderFor(side),
+                                screenBorder.base(topSurface, side), screenBorder.base(bottomSurface, side))
+            }
+            readonly property real insetT: screenBorder.inset("top")
+            readonly property real insetR: screenBorder.inset("right")
+            readonly property real insetB: screenBorder.inset("bottom")
+            readonly property real insetL: screenBorder.inset("left")
+            readonly property real holeW: Math.max(0, width - insetL - insetR)
+            readonly property real holeH: Math.max(0, height - insetT - insetB)
+            readonly property real cornerR: Math.min(ServiceGaps.borderRadius, holeW / 2, holeH / 2)
+
+            ShapePath {
+                fillColor: Colors.surface
+                strokeWidth: -1
+                fillRule: ShapePath.OddEvenFill
+                PathRectangle { x: 0; y: 0; width: screenBorder.width; height: screenBorder.height }
+                PathRectangle {
+                    x: screenBorder.insetL
+                    y: screenBorder.insetT
+                    width: screenBorder.holeW
+                    height: screenBorder.holeH
+                    topLeftRadius: screenBorder.insetT > 0 && screenBorder.insetL > 0 ? screenBorder.cornerR : 0
+                    topRightRadius: screenBorder.insetT > 0 && screenBorder.insetR > 0 ? screenBorder.cornerR : 0
+                    bottomLeftRadius: screenBorder.insetB > 0 && screenBorder.insetL > 0 ? screenBorder.cornerR : 0
+                    bottomRightRadius: screenBorder.insetB > 0 && screenBorder.insetR > 0 ? screenBorder.cornerR : 0
                 }
             }
         }

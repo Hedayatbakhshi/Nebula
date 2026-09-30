@@ -179,12 +179,6 @@ Item {
             spacing: 0
 
             // ── Page header ──────────────────────────────────────
-            RowLayout {
-                spacing: 10
-                MaterialIconSymbol { content: "android_wifi_4_bar"; iconSize: 20 }
-                CustomText { content: "Networking"; size: 20; customColor: Colors.primary }
-            }
-
             // ── Available Nodes ──────────────────────────────────
             CustomText { Layout.topMargin: 24; content: "Available Nodes"; size: 13; customColor: Colors.primary }
 

@@ -23,13 +23,6 @@ Scope {
         }
     }
 
-    Connections {
-        target: ServiceTools
-        function onOcrCaptureReady(path) {
-            GlobalStates.liveTextOpen = true
-        }
-    }
-
     Loader {
         active: GlobalStates.liveTextOpen
         visible: active
@@ -37,6 +30,7 @@ Scope {
         sourceComponent: PanelWindow {
             id: overlay
 
+            screen: Quickshell.screens.find(s => s.name === ServiceTools.liveTextOutput) ?? null
             anchors { top: true; left: true; right: true; bottom: true }
             color: "transparent"
             WlrLayershell.namespace:     "quickshell:livetext"
@@ -47,8 +41,10 @@ Scope {
             readonly property var  lines:    ServiceTools.ocrLines
             readonly property bool scanning: ServiceTools.ocrScanning
 
+            property bool captured: false
+
             readonly property real scaleF:
-                (frozen.status === Image.Ready && frozen.width > 0)
+                (frozen.hasContent && frozen.width > 0 && frozen.sourceSize.width > 0)
                     ? frozen.sourceSize.width / frozen.width : 1
 
             onLinesChanged: hoveredIdx = lineAt(curX, curY)
@@ -105,18 +101,31 @@ Scope {
 
                 Keys.onEscapePressed: overlay.close()
 
-                Image {
+                ScreencopyView {
                     id: frozen
                     anchors.fill: parent
-                    fillMode: Image.Stretch
-                    cache: false
-                    asynchronous: false
-                    source: ServiceTools.ocrImage !== ""
-                        ? "file://" + ServiceTools.ocrImage : ""
+                    captureSource: overlay.screen
+                    live: false
+                    paintCursor: false
+                    onHasContentChanged: if (hasContent) saveTimer.start()
+                }
+
+                Timer {
+                    id: saveTimer
+                    interval: 16
+                    onTriggered: {
+                        const size = frozen.sourceSize.width > 0 ? frozen.sourceSize : Qt.size(frozen.width, frozen.height)
+                        const ok = frozen.grabToImage(result => {
+                            overlay.captured = true
+                            ServiceTools.ocrFrameSaved(result.saveToFile(ServiceTools.ocrImage))
+                        }, size)
+                        if (!ok) ServiceTools.ocrFrameSaved(false)
+                    }
                 }
 
                 Rectangle {
                     anchors.fill: parent
+                    visible: overlay.captured
                     color: "#59000000"
                 }
 
@@ -162,7 +171,7 @@ Scope {
                 }
 
                 Rectangle {
-                    visible: overlay.scanning
+                    visible: overlay.captured && overlay.scanning
                     anchors.centerIn: parent
                     width: scanRow.implicitWidth + 32
                     height: 56
@@ -189,7 +198,7 @@ Scope {
 
                 Rectangle {
                     id: hintPill
-                    visible: !overlay.scanning && !overlay.dragging
+                    visible: overlay.captured && !overlay.scanning && !overlay.dragging
 
                     readonly property real offsetX: 18
                     readonly property real offsetY: 18
@@ -231,6 +240,7 @@ Scope {
 
                 MouseArea {
                     anchors.fill: parent
+                    enabled: overlay.captured
                     cursorShape: overlay.hoveredIdx >= 0 ? Qt.PointingHandCursor : Qt.CrossCursor
                     hoverEnabled: true
                     acceptedButtons: Qt.LeftButton | Qt.RightButton

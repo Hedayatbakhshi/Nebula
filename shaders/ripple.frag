@@ -19,6 +19,7 @@ layout(std140, binding = 0) uniform buf {
     vec4 r9;
     vec4 tint;
     float strength;
+    vec4 view;
 };
 
 layout(binding = 1) uniform sampler2D source;
@@ -87,9 +88,9 @@ void main() {
     vec2 off = -slope * 14.0;
     vec2 uv = p / itemSize;
     vec2 px = 1.0 / itemSize;
-    float cr = texture(source, uv + off * px * 1.10).r;
-    float cg = texture(source, uv + off * px).g;
-    float cb = texture(source, uv + off * px * 0.90).b;
+    float cr = texture(source, view.xy + (uv + off * px * 1.10) * view.zw).r;
+    float cg = texture(source, view.xy + (uv + off * px) * view.zw).g;
+    float cb = texture(source, view.xy + (uv + off * px * 0.90) * view.zw).b;
     vec3 col = vec3(cr, cg, cb);
 
     vec3 n = normalize(vec3(-slope, 1.0));

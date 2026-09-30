@@ -41,7 +41,7 @@ Item {
             if (cam) ServiceTools.takeScreenshot("Screen")
             else     ServiceTools.startDelayed("Screen", "")
         } else if (act === "livetext") {
-            if (mon !== "") ServiceTools.startLiveText(mon)
+            if (mon !== "") ServiceTools.startLiveText(mon, M3Motion.panel.closeDuration + 80)
         }
     }
 

@@ -15,14 +15,20 @@ def main() -> None:
     variant = sys.argv[3].removeprefix("scheme-")
     mode = sys.argv[4].lower()
 
+    primary = None
     if os.path.isfile(original):
-        cached = g.CACHE_DIR / "color_cache" / g._image_hash(original) / f"{variant}_{mode}.json"
+        img_hash = g._image_hash(original)
+        idx = g._chosen_seed(img_hash)
+        name = f"{variant}_{mode}_s{idx}.json" if idx else f"{variant}_{mode}.json"
+        cached = g.CACHE_DIR / "color_cache" / img_hash / name
         if cached.exists():
             print(json.dumps(json.loads(cached.read_text())))
             return
+        primary = g.seed_primary(original, img_hash, idx)
 
-    source = thumb if os.path.isfile(thumb) else original
-    primary = g._quantize_and_score(source)
+    if primary is None:
+        source = thumb if os.path.isfile(thumb) else original
+        primary = g._quantize_and_score(source)
     print(json.dumps(g._build_scheme(primary, variant, mode != "light")))
 
 

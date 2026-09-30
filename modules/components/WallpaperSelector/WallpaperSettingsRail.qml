@@ -197,10 +197,7 @@ Item {
                         trailing: M3ButtonGroup {
                             model: Settings.themeModes.map(m => ({ value: m.name.toLowerCase(), label: m.name, icon: m.icon }))
                             activeCheck: v => SettingsConfig.theme.matugenTheme === v
-                            onSegmentClicked: v => {
-                                root.setTheme({ matugenTheme: v })
-                                ServiceWallpaper.applyTheme()
-                            }
+                            onSegmentClicked: v => ServiceWallpaper.flipMode(v)
                         }
                     }
 
@@ -224,7 +221,7 @@ Item {
                     }
 
                     SettingCard {
-                        bottomRadius: 20
+                        bottomRadius: 5
                         title: "Transition"
                         sub: "Animation when the wallpaper changes"
 
@@ -233,10 +230,22 @@ Item {
                             Layout.preferredHeight: 30
                             color: Colors.surfaceContainerHighest
                             list: Settings.transitionTypes
-                            Component.onCompleted: currentVal = SettingsConfig.theme.transitionType ?? "fade"
+                            Component.onCompleted: currentVal = Settings.transitionOrDefault(SettingsConfig.theme.transitionType)
                             onCurrentValChanged: {
                                 if (currentVal && currentVal !== SettingsConfig.theme.transitionType)
                                     root.setTheme({ transitionType: currentVal })
+                            }
+                        }
+                    }
+
+                    SettingCard {
+                        bottomRadius: 20
+                        title: "Workspace glide"
+                        sub: "The wallpaper slides a little when you switch workspace"
+                        trailing: CustomToogle {
+                            isToggleOn: SettingsConfig.general.wallpaperGlide ?? true
+                            onToggled: state => {
+                                SettingsConfig.general = Object.assign({}, SettingsConfig.general, { wallpaperGlide: state })
                             }
                         }
                     }

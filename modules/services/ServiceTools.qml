@@ -261,20 +261,18 @@ Singleton{
     signal ocrCaptureReady(string path)
     signal ocrScanFinished(int count)
 
-    Process {
-        id: ocrCaptureProc
-        onExited: exitCode => {
-            if (exitCode !== 0) {
-                root.ocrImage = ""
-                ServiceNotification.sendNotification(
-                    "Live Text failed", "Could not capture the screen", "OCR", "dialog-error")
-                return
-            }
-            root.ocrCaptureReady(root.ocrImage)
-            ocrScanProc.command = ["sh", "-c",
-                "tesseract " + root._shq(root.ocrImage) + " - tsv --psm 11 2>/dev/null"]
-            ocrScanProc.running = true
+    function ocrFrameSaved(ok) {
+        if (!ok) {
+            root.ocrImage = ""
+            GlobalStates.liveTextOpen = false
+            ServiceNotification.sendNotification(
+                "Live Text failed", "Could not capture the screen", "OCR", "dialog-error")
+            return
         }
+        root.ocrCaptureReady(root.ocrImage)
+        ocrScanProc.command = ["sh", "-c",
+            "tesseract " + root._shq(root.ocrImage) + " - tsv --psm 11 2>/dev/null"]
+        ocrScanProc.running = true
     }
 
     Process {
@@ -288,22 +286,19 @@ Singleton{
         }
     }
 
-    property string _liveTextOutput: ""
+    property string liveTextOutput: ""
 
     Timer {
         id: liveTextSettle
-        interval: 80
-        onTriggered: {
-            ocrCaptureProc.command = ["grim", "-l", "0", "-o", root._liveTextOutput, root.ocrImage]
-            ocrCaptureProc.running = true
-        }
+        onTriggered: GlobalStates.liveTextOpen = true
     }
 
-    function startLiveText(outputName) {
-        if (ocrCaptureProc.running || ocrScanProc.running || liveTextSettle.running) return
+    function startLiveText(outputName, delayMs) {
+        if (GlobalStates.liveTextOpen || ocrScanProc.running || liveTextSettle.running) return
         root.ocrLines = []
-        root._liveTextOutput = outputName
+        root.liveTextOutput = outputName
         root.ocrImage = "/tmp/quickshell-livetext-" + Date.now() + ".png"
+        liveTextSettle.interval = Math.max(1, delayMs ?? 0)
         liveTextSettle.restart()
     }
 

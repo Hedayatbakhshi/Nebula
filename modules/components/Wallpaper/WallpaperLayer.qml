@@ -1,8 +1,10 @@
 import Quickshell
 import Quickshell.Wayland
+import Quickshell.Hyprland
 import QtQuick
 import qs.modules.utils
 import qs.modules.settings
+import qs.modules.services
 
 Scope {
     id: root
@@ -10,8 +12,32 @@ Scope {
     required property var ripple
 
     readonly property string source: WallpaperTheme.wallpaperScreen !== "" ? "file://" + WallpaperTheme.wallpaperScreen : ""
-    readonly property string transition: SettingsConfig.theme.transitionType ?? "fade"
-    readonly property var shaped: ["left", "right", "top", "bottom", "wipe", "wave", "grow", "center", "any", "outer"]
+    readonly property var effects: ({
+        ink: { mode: 0, duration: 1600 },
+        ember: { mode: 1, duration: 1900 },
+        shatter: { mode: 2, duration: 1700 },
+        hex: { mode: 3, duration: 1600 },
+        shockwave: { mode: 4, duration: 1300 },
+        vortex: { mode: 5, duration: 1500 },
+        light: { mode: 6, duration: 1800 },
+        melt: { mode: 7, duration: 1700 },
+        blinds: { mode: 8, duration: 1500 },
+        glitch: { mode: 9, duration: 900 },
+        mosaic: { mode: 10, duration: 1400 }
+    })
+    readonly property bool glideOn: (SettingsConfig.general.wallpaperGlide ?? true) && !ServiceGameMode.active
+    readonly property real overscan: root.glideOn ? 0.25 : 0
+    readonly property int glideSpan: {
+        let top = 1
+        for (const w of Hyprland.workspaces.values)
+            if (w.id > top) top = w.id
+        return Math.max(5, Math.min(10, top))
+    }
+
+    readonly property string transition: {
+        const t = SettingsConfig.theme.transitionType ?? ""
+        return t === "none" || t === "random" || root.effects[t] ? t : "ink"
+    }
 
     Variants {
         model: Quickshell.screens
@@ -37,10 +63,39 @@ Scope {
             property real progress: 0
             property real swapMode: 0
             property vector2d swapOrigin: Qt.vector2d(width / 2, height / 2)
-            property vector2d swapDir: Qt.vector2d(1, 0)
+            property real swapSeed: 0
+
+            readonly property var hmon: Hyprland.monitorFor(win.modelData)
+            readonly property int liveWs: win.hmon?.activeWorkspace?.id ?? 1
+            property int glideWs: 1
+            onLiveWsChanged: if (win.liveWs > 0) win.glideWs = win.liveWs
+            Component.onCompleted: {
+                if (win.liveWs > 0) win.glideWs = win.liveWs
+                win.load()
+            }
+
+            property real glide: (Math.min(win.glideWs, root.glideSpan) - 1) / (root.glideSpan - 1)
+            Behavior on glide {
+                NumberAnimation {
+                    duration: 700
+                    easing.type: Easing.BezierSpline
+                    easing.bezierCurve: [0.05, 0.7, 0.1, 1.0, 1, 1]
+                }
+            }
+            readonly property real imgWidth: win.width * (1 + root.overscan)
+            readonly property real imgX: -win.glide * win.width * root.overscan
+
+            function viewFor(img) {
+                const nw = img.implicitWidth, nh = img.implicitHeight
+                if (nw <= 0 || nh <= 0 || img.width <= 0 || img.height <= 0)
+                    return Qt.vector4d(0, 0, 1, 1)
+                const s = Math.max(img.width / nw, img.height / nh)
+                const cx = img.width / (nw * s), cy = img.height / (nh * s)
+                return Qt.vector4d((1 - cx) / 2 - img.x / img.width * cx, (1 - cy) / 2,
+                                   win.width / img.width * cx, win.height / img.height * cy)
+            }
 
             onWantedChanged: win.load()
-            Component.onCompleted: win.load()
 
             function load() {
                 if (win.wanted === "")
@@ -69,40 +124,19 @@ Scope {
 
             function begin() {
                 let t = root.transition
-                if (t === "random")
-                    t = root.shaped[Math.floor(Math.random() * root.shaped.length)]
-                const w = win.width, h = win.height
-                win.swapOrigin = Qt.vector2d(w / 2, h / 2)
-                win.swapMode = 1
                 if (t === "none") {
                     win.finish()
                     return
-                } else if (t === "left") {
-                    win.swapDir = Qt.vector2d(1, 0)
-                } else if (t === "right") {
-                    win.swapDir = Qt.vector2d(-1, 0)
-                } else if (t === "top") {
-                    win.swapDir = Qt.vector2d(0, 1)
-                } else if (t === "bottom") {
-                    win.swapDir = Qt.vector2d(0, -1)
-                } else if (t === "wipe") {
-                    win.swapDir = Qt.vector2d(0.7071, 0.7071)
-                } else if (t === "wave") {
-                    win.swapMode = 2
-                    win.swapDir = Qt.vector2d(0.866, 0.5)
-                } else if (t === "grow" || t === "center") {
-                    win.swapMode = 3
-                } else if (t === "any") {
-                    win.swapMode = 3
-                    win.swapOrigin = Qt.vector2d(w * (0.15 + Math.random() * 0.7), h * (0.15 + Math.random() * 0.7))
-                } else if (t === "outer") {
-                    win.swapMode = 4
-                } else {
-                    win.swapMode = 0
                 }
-                const fade = win.swapMode === 0
-                swap.duration = t === "simple" ? 350 : fade ? 900 : 1200
-                swap.easing.type = fade ? Easing.Linear : Easing.BezierSpline
+                if (t === "random") {
+                    const names = Object.keys(root.effects)
+                    t = names[Math.floor(Math.random() * names.length)]
+                }
+                const fx = root.effects[t]
+                win.swapMode = fx.mode
+                win.swapOrigin = Qt.vector2d(win.width * (0.2 + Math.random() * 0.6), win.height * (0.2 + Math.random() * 0.6))
+                win.swapSeed = Math.random() * 10
+                swap.duration = fx.duration
                 win.progress = 0
                 swap.start()
             }
@@ -119,13 +153,14 @@ Scope {
                 property: "progress"
                 from: 0
                 to: 1
-                easing.bezierCurve: M3Motion.emphasizedCurve
                 onFinished: win.finish()
             }
 
             Image {
                 id: imgA
-                anchors.fill: parent
+                x: win.imgX
+                width: win.imgWidth
+                height: win.height
                 visible: win.frontImg === imgA && !swap.running
                 fillMode: Image.PreserveAspectCrop
                 asynchronous: true
@@ -135,7 +170,9 @@ Scope {
 
             Image {
                 id: imgB
-                anchors.fill: parent
+                x: win.imgX
+                width: win.imgWidth
+                height: win.height
                 visible: win.frontImg === imgB && !swap.running
                 fillMode: Image.PreserveAspectCrop
                 asynchronous: true
@@ -150,7 +187,11 @@ Scope {
                 property real progress: win.progress
                 property real mode: win.swapMode
                 property vector2d origin: win.swapOrigin
-                property vector2d dir: win.swapDir
+                property real time: win.progress * swap.duration / 1000
+                property real seed: win.swapSeed
+                property color accent: Colors.primary
+                property vector4d fromView: win.viewFor(win.frontImg)
+                property vector4d toView: win.viewFor(win.backImg)
                 property var fromTex: win.frontImg
                 property var toTex: win.backImg
                 fragmentShader: Qt.resolvedUrl("../../../shaders/qsb/wallswap.frag.qsb")
@@ -173,6 +214,7 @@ Scope {
                 property vector4d r9: root.ripple.uniformFor(9)
                 property color tint: Colors.primary
                 property real strength: root.ripple.strength
+                property vector4d view: win.viewFor(win.frontImg)
                 property var source: win.frontImg
                 fragmentShader: Qt.resolvedUrl("../../../shaders/qsb/ripple.frag.qsb")
             }

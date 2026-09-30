@@ -44,12 +44,6 @@ Item {
             spacing: 0
 
             // ── Page header ──────────────────────────────────────────────
-            RowLayout {
-                spacing: 10
-                MaterialIconSymbol { content: "notifications"; iconSize: 20 }
-                CustomText { content: "Notifications"; size: 20; customColor: Colors.primary }
-            }
-
             // ── Focus ────────────────────────────────────────────────────
             CustomText { Layout.topMargin: 24; content: "Focus"; size: 13; customColor: Colors.primary }
 

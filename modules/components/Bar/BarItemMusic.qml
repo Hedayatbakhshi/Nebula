@@ -264,10 +264,20 @@ Item {
                 gap: 2
             }
             CustomText {
+                id: waveTime
+                Layout.preferredWidth: Math.ceil(waveTimeSlot.width) + 2
                 content: ServiceMusic.formatTime(ServiceMusic.activePlayer?.position ?? 0)
                 size: 11
                 weight: 500
                 customColor: Colors.outline
+                elide: Text.ElideNone
+                font.features: { "tnum": 1 }
+
+                TextMetrics {
+                    id: waveTimeSlot
+                    font: waveTime.font
+                    text: waveTime.text.replace(/[0-9]/g, "0")
+                }
             }
         }
     }

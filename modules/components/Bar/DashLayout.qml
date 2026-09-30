@@ -363,14 +363,17 @@ Singleton {
     }
 
     readonly property var defaultItems: [
-        { id: "profile", kind: "profile", x: 0, y: 0, w: 4, h: 1 },
-        { id: "clock",   kind: "clock",   x: 0, y: 1, w: 2, h: 2 },
-        { id: "weather", kind: "weather", x: 2, y: 1, w: 2, h: 2 },
-        { id: "tiles",   kind: "tiles",   x: 0, y: 3, w: 2, h: 3 },
-        { id: "player",  kind: "player",  x: 2, y: 3, w: 2, h: 3 },
-        { id: "slider",  kind: "slider",  x: 0, y: 6, w: 4, h: 1 },
-        { id: "month",   kind: "month",   x: 0, y: 7, w: 2, h: 4 },
-        { id: "nextUp",  kind: "nextUp",  x: 2, y: 7, w: 2, h: 4 }
+        { id: "profile",       kind: "profile",       x: 0, y: 0, w: 4, h: 1 },
+        { id: "slider",        kind: "slider",        x: 0, y: 1, w: 2, h: 1 },
+        { id: "slider-2",      kind: "slider",        x: 2, y: 1, w: 2, h: 1 },
+        { id: "toggle",        kind: "toggle",        x: 0, y: 2, w: 1, h: 1 },
+        { id: "toggle-2",      kind: "toggle",        x: 1, y: 2, w: 1, h: 1 },
+        { id: "toggle-6",      kind: "toggle",        x: 2, y: 2, w: 1, h: 1 },
+        { id: "toggle-3",      kind: "toggle",        x: 3, y: 2, w: 1, h: 1 },
+        { id: "toggle-5",      kind: "toggle",        x: 0, y: 3, w: 1, h: 1 },
+        { id: "power",         kind: "power",         x: 1, y: 3, w: 2, h: 1 },
+        { id: "toggle-4",      kind: "toggle",        x: 3, y: 3, w: 1, h: 1 },
+        { id: "notifications", kind: "notifications", x: 0, y: 4, w: 4, h: 14 }
     ]
 
     readonly property int gap: 10
@@ -380,7 +383,7 @@ Singleton {
         root._patch({ fitRows: on === true })
     }
 
-    readonly property int rowHeight: Math.max(32, Math.min(160, Number(root.cfg.rowHeight ?? 56) || 56))
+    readonly property int rowHeight: Math.max(32, Math.min(160, Number(root.cfg.rowHeight ?? 48) || 48))
     readonly property int columns: Math.max(1, Math.min(12, Number(root.cfg.gridColumns ?? 0) || root.autoColumns))
     readonly property int autoColumns: Math.max(1, Math.min(8, Math.round(BarLayout.panelW("dashboard") / 150)))
 
@@ -619,7 +622,7 @@ Singleton {
     }
 
     function reset() {
-        root._patch({ options: ({}), cards: false, items: undefined, gridColumns: undefined, rowHeight: undefined })
+        root._patch({ options: undefined, cards: false, items: undefined, gridColumns: undefined, rowHeight: undefined, fitRows: undefined })
     }
 
     IpcHandler {

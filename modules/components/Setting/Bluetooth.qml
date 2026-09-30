@@ -70,12 +70,6 @@ Item {
             spacing: 0
 
             // ── Page header ──────────────────────────────────────
-            RowLayout {
-                spacing: 10
-                MaterialIconSymbol { content: "bluetooth"; iconSize: 20 }
-                CustomText { content: "Bluetooth"; size: 20; customColor: Colors.primary }
-            }
-
             // ── Adapter ──────────────────────────────────────────
             CustomText { Layout.topMargin: 24; content: "Adapter"; size: 13; customColor: Colors.primary }
 

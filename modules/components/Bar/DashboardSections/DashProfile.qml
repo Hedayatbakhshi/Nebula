@@ -49,7 +49,7 @@ Rectangle{
             spacing: 0
             CustomText{
                 Layout.fillWidth: true
-                content: "St3el"
+                content: SettingsConfig.profileName
                 size: 15
                 weight: 700
                 elide: Text.ElideRight

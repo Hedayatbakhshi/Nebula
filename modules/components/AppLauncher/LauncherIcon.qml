@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Layouts
 import qs.modules.utils
+import qs.modules.services
 
 Image {
     id: root
@@ -16,4 +17,6 @@ Image {
     sourceSize.height: root.size
     source: IconUtil.getIconPath(root.app?.icon ?? "")
     fillMode: Image.PreserveAspectFit
+    onSizeChanged: ServiceLauncher.noteIconSize(root.size)
+    Component.onCompleted: ServiceLauncher.noteIconSize(root.size)
 }

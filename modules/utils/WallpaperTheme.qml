@@ -2,6 +2,7 @@ pragma Singleton
 import Quickshell
 import QtQuick
 import Quickshell.Io
+import qs.modules.settings
 
 Singleton {
     id: root
@@ -56,6 +57,8 @@ Singleton {
     // wallpaper by path must use this, never the recolored copy in the cache.
     property string sourceWallpaper: Quickshell.shellDir + "/assets/wallpapers/nebula-default.jpg"
 
+    signal applied()
+
     property double _reloadRequestedAt: 0
 
     property string _scaled: ""
@@ -69,7 +72,8 @@ Singleton {
             w = Math.max(w, Math.ceil(s.width * s.devicePixelRatio))
             h = Math.max(h, Math.ceil(s.height * s.devicePixelRatio))
         }
-        return Qt.size(w || 1920, h || 1080)
+        const over = (SettingsConfig.general.wallpaperGlide ?? true) ? 1.25 : 1
+        return Qt.size(Math.ceil((w || 1920) * over), h || 1080)
     }
 
     onWallpaperChanged: Qt.callLater(root._rescale)
@@ -150,6 +154,7 @@ Singleton {
             if (c.wallpaper)                root.wallpaper                = c.wallpaper
             root.sourceWallpaper = c.sourceWallpaper || c.wallpaper || root.sourceWallpaper
             console.log("[WallpaperTheme] Colors applied (" + elapsed + ") — primary:", root.primary, "wallpaper:", root.wallpaper)
+            root.applied()
         } catch (e) {
             console.error("[WallpaperTheme] Failed to parse colors.json (" + elapsed + "):", e)
         }
@@ -167,6 +172,13 @@ Singleton {
     // reload() re-reads from the same open FD, which points to the OLD inode after
     // matugen's atomic rename (rename changes the inode, FD stays on deleted file).
     // Resetting path forces FileView to close the stale FD and re-open by path.
+    function showNow(path) {
+        if (!path || path === root.wallpaper)
+            return
+        root.wallpaper = path
+        root.sourceWallpaper = path
+    }
+
     function reloadColors() {
         _reloadRequestedAt = Date.now()
         console.log("[WallpaperTheme] reloadColors() — forcing fresh open at", _reloadRequestedAt)

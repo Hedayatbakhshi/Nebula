@@ -273,293 +273,113 @@ Item {
         spacing: 20
 
         ColumnLayout {
-            Layout.preferredWidth: Math.min(600, root.width * 0.4)
-            Layout.maximumWidth: Math.min(600, root.width * 0.4)
+            Layout.preferredWidth: 200
+            Layout.maximumWidth: 200
             Layout.fillHeight: true
-            spacing: 14
+            spacing: 4
 
-            ClippingRectangle {
-                id: hero
-                Layout.fillWidth: true
-                Layout.fillHeight: true
-                radius: 24
-                color: pal.container
+            CustomText {
+                Layout.leftMargin: 14
+                Layout.bottomMargin: 6
+                content: "Browse"
+                size: 12
+                weight: 600
+                customColor: pal.subtext
+            }
 
-                Image {
-                    id: heroThumb
-                    anchors.fill: parent
-                    visible: root.online && root.pickedLocal === ""
-                    source: root.online && root.pickedLocal === "" ? root.thumbOf(root.picked) : ""
-                    sourceSize.width: 320
-                    sourceSize.height: 320
-                    asynchronous: true
-                    fillMode: Image.PreserveAspectCrop
-                }
-
-                Item {
-                    id: heroFull
-                    anchors.fill: parent
-                    visible: !root.online || root.pickedLocal !== ""
-
-                    readonly property string wanted: heroFull.visible && root.pickedFile !== "" ? "file://" + root.pickedFile : ""
-                    property Image front: null
-
-                    function other(img) {
-                        return img === fullA ? fullB : fullA
-                    }
-
-                    function show(img) {
-                        if (img === heroFull.front || img.source.toString() !== heroFull.wanted)
-                            return
-                        const old = heroFull.front
-                        img.z = 1
-                        if (old)
-                            old.z = 0
-                        heroFull.front = img
-                        heroFade.stop()
-                        img.opacity = 0
-                        heroFade.target = img
-                        heroFade.start()
-                    }
-
-                    function settle() {
-                        if (heroFull.front)
-                            heroFull.other(heroFull.front).opacity = 0
-                    }
-
-                    onWantedChanged: {
-                        if (heroFull.wanted === "") {
-                            heroFade.stop()
-                            fullA.source = ""
-                            fullB.source = ""
-                            fullA.opacity = 0
-                            fullB.opacity = 0
-                            heroFull.front = null
-                            return
-                        }
-                        if (heroFull.front && heroFull.front.source.toString() === heroFull.wanted) {
-                            heroFull.other(heroFull.front).source = ""
-                            return
-                        }
-                        if (heroFade.running) {
-                            heroFade.complete()
-                            heroFull.settle()
-                        }
-                        const back = heroFull.front ? heroFull.other(heroFull.front) : fullA
-                        back.source = heroFull.wanted
-                        if (back.status === Image.Ready)
-                            heroFull.show(back)
-                    }
-
-                    Component.onCompleted: if (heroFull.wanted !== "") fullA.source = heroFull.wanted
-
-                    EffectsAnim {
-                        id: heroFade
-                        property: "opacity"
-                        from: 0
-                        to: 1
-                        speed: "default"
-                        onFinished: heroFull.settle()
-                    }
-
-                    Image {
-                        id: fullA
-                        anchors.fill: parent
-                        sourceSize.width: 1280
-                        sourceSize.height: 720
-                        asynchronous: true
-                        fillMode: Image.PreserveAspectCrop
-                        opacity: 0
-                        onStatusChanged: if (status === Image.Ready) heroFull.show(fullA)
-                    }
-
-                    Image {
-                        id: fullB
-                        anchors.fill: parent
-                        sourceSize.width: 1280
-                        sourceSize.height: 720
-                        asynchronous: true
-                        fillMode: Image.PreserveAspectCrop
-                        opacity: 0
-                        onStatusChanged: if (status === Image.Ready) heroFull.show(fullB)
-                    }
-                }
+            Repeater {
+                model: [
+                    { key: "all", icon: "photo_library", label: "All" },
+                    { key: "favorites", icon: "favorite", label: "Favourites" },
+                    { key: "online", icon: "public", label: "Online" }
+                ]
 
                 Rectangle {
-                    anchors.left: parent.left
-                    anchors.top: parent.top
-                    anchors.margins: 14
-                    visible: root.picked !== null
-                    height: 32
-                    radius: 16
-                    width: badgeRow.implicitWidth + 24
-                    color: Qt.rgba(0, 0, 0, 0.55)
+                    id: railItem
+                    required property var modelData
+                    readonly property bool lit: railItem.modelData.key === "online" ? root.online
+                        : !root.online && root.tab === railItem.modelData.key
+                    Layout.fillWidth: true
+                    implicitHeight: 46
+                    radius: railArea.pressed ? 14 : 23
+                    color: railItem.lit ? pal.secondaryContainer : railArea.containsMouse ? pal.containerHigh : "transparent"
+                    Behavior on color { EffectsColorAnim { speed: "fast" } }
+                    Behavior on radius { SpatialAnim { speed: "fast" } }
+
                     RowLayout {
-                        id: badgeRow
-                        anchors.centerIn: parent
-                        spacing: 6
+                        anchors.fill: parent
+                        anchors.leftMargin: 14
+                        anchors.rightMargin: 14
+                        spacing: 12
+
                         MaterialIconSymbol {
-                            content: root.pickedIsCurrent ? "check_circle" : root.online ? "public" : "auto_awesome"
-                            iconSize: 16
-                            customColor: "white"
+                            content: railItem.modelData.icon
+                            iconSize: 20
+                            customColor: railItem.lit ? pal.secondaryContainerText : pal.subtext
                         }
+
                         CustomText {
-                            content: root.pickedIsCurrent ? "In use"
-                                : root.online ? "Wallhaven · " + (root.idOf(root.picked) !== "" ? root.picked.resolution : "")
-                                : "Previewing — nothing applied yet"
+                            Layout.fillWidth: true
+                            content: railItem.modelData.label
+                            size: 14
+                            weight: 500
+                            customColor: railItem.lit ? pal.secondaryContainerText : pal.text
+                        }
+
+                        CustomText {
+                            content: railItem.modelData.key === "all" ? String(ServiceWallpaper.wallpapers.length)
+                                : railItem.modelData.key === "favorites" ? String(ServiceWallpaper.favoritedWallpapers.length)
+                                : root.online ? String(root.itemCount) : ""
                             size: 12
                             weight: 500
-                            customColor: "white"
+                            customColor: railItem.lit ? pal.secondaryContainerText : pal.subtext
                         }
                     }
-                }
 
-                Rectangle {
-                    anchors.fill: parent
-                    visible: root.downloading
-                    color: Qt.rgba(0, 0, 0, 0.5)
-                    ColumnLayout {
-                        anchors.centerIn: parent
-                        spacing: 10
-                        CustomLoader {
-                            Layout.alignment: Qt.AlignHCenter
-                            size: 64
-                            color: "white"
-                        }
-                        CustomText {
-                            Layout.alignment: Qt.AlignHCenter
-                            content: Math.round(ServiceWallpaper.downloadProgress * 100) + "%"
-                            size: 13
-                            customColor: "white"
-                        }
-                    }
-                }
-
-                MouseArea {
-                    anchors.fill: parent
-                    acceptedButtons: Qt.RightButton
-                    onClicked: mouse => {
-                        const m = mapToItem(root, mouse.x, mouse.y)
-                        ctxMenu.show(m.x, m.y, root.picked, root.online)
-                    }
-                }
-            }
-
-            RowLayout {
-                Layout.fillWidth: true
-                spacing: 14
-
-                ColumnLayout {
-                    Layout.fillWidth: true
-                    spacing: 2
-                    CustomText {
-                        Layout.fillWidth: true
-                        content: root.nameOf(root.picked)
-                        size: 18
-                        weight: 600
-                        customColor: pal.text
-                    }
-                    CustomText {
-                        Layout.fillWidth: true
-                        visible: root.metaText !== ""
-                        content: root.metaText
-                        size: 12
-                        weight: 500
-                        customColor: pal.text
-                    }
-                    CustomText {
-                        Layout.fillWidth: true
-                        content: root.online ? (root.pickedLocal !== "" ? "Already in your wallpaper folder" : "Downloads to your wallpaper folder")
-                            : root.pickedIsCurrent ? "Your shell is wearing these colours"
-                            : root.preview ? "Your shell will take these colours"
-                            : "Reading colours…"
-                        size: 12
-                        weight: 400
-                        customColor: pal.subtext
-                    }
-                }
-
-                SeedSwatches {
-                    id: heroSeeds
-                    visible: !root.online && !ServiceWallpaper.gowallActive && heroSeeds.seeds.length > 1
-                    path: !root.online ? root.pickedFile : ""
-                    disc: 26
-                    ring: pal.primary
-                }
-
-                Row {
-                    spacing: 6
-                    visible: !root.online && !heroSeeds.visible
-                    Repeater {
-                        model: [pal.primary, pal.primaryContainer, pal.secondary, pal.secondaryContainer, pal.tertiary, pal.tertiaryContainer]
-                        Rectangle {
-                            required property color modelData
-                            width: 24
-                            height: 24
-                            radius: 12
-                            color: modelData
-                        }
-                    }
-                }
-            }
-
-            RowLayout {
-                Layout.fillWidth: true
-                spacing: 10
-
-                Rectangle {
-                    id: applyBtn
-                    readonly property bool usable: root.picked !== null && !root.pickedIsCurrent && !root.downloading
-                    implicitHeight: 48
-                    implicitWidth: applyRow.implicitWidth + 40
-                    radius: applyArea.pressed ? 14 : 24
-                    color: applyBtn.usable ? pal.primary : pal.containerHighest
-                    Behavior on radius { SpatialAnim { speed: "fast" } }
-                    RowLayout {
-                        id: applyRow
-                        anchors.centerIn: parent
-                        spacing: 8
-                        MaterialIconSymbol {
-                            content: root.online && root.pickedLocal === "" ? "download" : "check"
-                            iconSize: 20
-                            customColor: applyBtn.usable ? pal.primaryText : pal.subtext
-                        }
-                        CustomText {
-                            content: root.downloading ? "Downloading " + Math.round(ServiceWallpaper.downloadProgress * 100) + "%"
-                                : root.pickedIsCurrent ? "In use"
-                                : root.online && root.pickedLocal === "" ? "Download & apply" : "Apply wallpaper"
-                            size: 14
-                            weight: 600
-                            customColor: applyBtn.usable ? pal.primaryText : pal.subtext
-                        }
-                    }
                     CustomMouseArea {
-                        id: applyArea
-                        radius: applyBtn.radius
-                        enabled: applyBtn.usable
-                        onClicked: root.apply(root.picked)
+                        id: railArea
+                        radius: railItem.radius
+                        hoverEnabled: true
+                        onClicked: root.setTab(railItem.modelData.key)
                     }
                 }
+            }
 
-                Item { Layout.fillWidth: true }
+            Item { Layout.fillHeight: true }
 
-                PalIconButton {
+            CustomText {
+                Layout.leftMargin: 14
+                content: "Folder"
+                size: 12
+                weight: 600
+                customColor: pal.subtext
+            }
 
-                    tone: pal
-                    visible: !root.online && root.picked !== null
-                    icon: "favorite"
-                    box: 48
-                    lit: !root.online && root.picked !== null
-                        && ServiceWallpaper.favoritedWallpapers.indexOf(root.picked) >= 0
-                    onClicked: ServiceWallpaper.toggleFavorite(root.picked)
+            RowLayout {
+                Layout.fillWidth: true
+                Layout.leftMargin: 14
+                spacing: 8
+
+                MaterialIconSymbol {
+                    content: "folder"
+                    iconSize: 18
+                    customColor: pal.primary
+                }
+
+                CustomText {
+                    Layout.fillWidth: true
+                    content: ServiceWallpaper.wallpaperDir.replace(Quickshell.env("HOME"), "~")
+                    size: 13
+                    weight: 500
+                    elide: Text.ElideMiddle
+                    customColor: pal.text
                 }
 
                 PalIconButton {
-
                     tone: pal
-                    icon: "shuffle"
-                    box: 48
-                    onClicked: root.shuffle()
+                    icon: "refresh"
+                    box: 36
+                    onClicked: ServiceWallpaper.refresh()
                 }
             }
         }
@@ -574,8 +394,6 @@ Item {
                 spacing: 10
 
                 Rectangle {
-                    Layout.preferredWidth: 420
-                    Layout.maximumWidth: 420
                     Layout.fillWidth: true
                     implicitHeight: 44
                     radius: 22
@@ -646,22 +464,18 @@ Item {
                     }
                 }
 
-                Item { Layout.fillWidth: true }
-
-                PalIconButton {
-
-                    tone: pal
+                M3ButtonGroup {
                     visible: !root.online
-                    icon: ServiceWallpaper.localSortBy === "newest" ? "schedule" : "sort_by_alpha"
-                    onClicked: ServiceWallpaper.localSortBy = ServiceWallpaper.localSortBy === "newest" ? "name" : "newest"
-                }
-
-                PalIconButton {
-
-                    tone: pal
-                    visible: !root.online
-                    icon: "refresh"
-                    onClicked: ServiceWallpaper.refresh()
+                    Layout.preferredHeight: 40
+                    model: [{ value: "name", label: "Name", icon: "sort_by_alpha" }, { value: "newest", label: "Newest", icon: "schedule" }]
+                    activeCheck: v => ServiceWallpaper.localSortBy === v
+                    onSegmentClicked: v => ServiceWallpaper.localSortBy = v
+                    activeColor: pal.primary
+                    activeTextColor: pal.primaryText
+                    inactiveColor: pal.containerHigh
+                    inactiveTextColor: pal.text
+                    iconSize: 16
+                    textSize: 12
                 }
 
                 PalIconButton {
@@ -670,44 +484,6 @@ Item {
                     icon: "tune"
                     lit: root.railOpen
                     onClicked: root.railOpen = !root.railOpen
-                }
-            }
-
-            RowLayout {
-                Layout.fillWidth: true
-                spacing: 8
-
-                PalChip {
-
-                    tone: pal
-                    icon: "grid_view"
-                    label: "All"
-                    lit: !root.online && root.tab === "all"
-                    onClicked: root.setTab("all")
-                }
-                PalChip {
-                    tone: pal
-                    icon: "favorite"
-                    label: "Favourites"
-                    lit: !root.online && root.tab === "favorites"
-                    onClicked: root.setTab("favorites")
-                }
-                PalChip {
-                    tone: pal
-                    icon: "public"
-                    label: "Online"
-                    lit: root.online
-                    onClicked: root.setTab("online")
-                }
-
-                Item { Layout.fillWidth: true }
-
-                CustomText {
-                    content: root.online ? (ServiceWallpaper.isFetchingOnline ? "Fetching…" : root.itemCount + " found")
-                        : root.itemCount + (root.tab === "favorites" ? " favourites" : " wallpapers")
-                    size: 12
-                    weight: 400
-                    customColor: pal.subtext
                 }
             }
 
@@ -948,12 +724,383 @@ Item {
                     }
                 }
 
-                WallpaperSettingsRail {
-                    visible: root.railOpen
-                    Layout.fillHeight: true
-                    Layout.preferredWidth: 352
+            }
+        }
+        ColumnLayout {
+            visible: !root.railOpen
+            Layout.preferredWidth: 340
+            Layout.maximumWidth: 340
+            Layout.fillHeight: true
+            spacing: 12
+
+            ClippingRectangle {
+                id: hero
+                Layout.fillWidth: true
+                Layout.preferredHeight: Math.round(hero.width * 10 / 16)
+                radius: 24
+                color: pal.container
+
+                Image {
+                    id: heroThumb
+                    anchors.fill: parent
+                    visible: root.online && root.pickedLocal === ""
+                    source: root.online && root.pickedLocal === "" ? root.thumbOf(root.picked) : ""
+                    sourceSize.width: 320
+                    sourceSize.height: 320
+                    asynchronous: true
+                    fillMode: Image.PreserveAspectCrop
+                }
+
+                Item {
+                    id: heroFull
+                    anchors.fill: parent
+                    visible: !root.online || root.pickedLocal !== ""
+
+                    readonly property string wanted: heroFull.visible && root.pickedFile !== "" ? "file://" + root.pickedFile : ""
+                    property Image front: null
+
+                    function other(img) {
+                        return img === fullA ? fullB : fullA
+                    }
+
+                    function show(img) {
+                        if (img === heroFull.front || img.source.toString() !== heroFull.wanted)
+                            return
+                        const old = heroFull.front
+                        img.z = 1
+                        if (old)
+                            old.z = 0
+                        heroFull.front = img
+                        heroFade.stop()
+                        img.opacity = 0
+                        heroFade.target = img
+                        heroFade.start()
+                    }
+
+                    function settle() {
+                        if (heroFull.front)
+                            heroFull.other(heroFull.front).opacity = 0
+                    }
+
+                    onWantedChanged: {
+                        if (heroFull.wanted === "") {
+                            heroFade.stop()
+                            fullA.source = ""
+                            fullB.source = ""
+                            fullA.opacity = 0
+                            fullB.opacity = 0
+                            heroFull.front = null
+                            return
+                        }
+                        if (heroFull.front && heroFull.front.source.toString() === heroFull.wanted) {
+                            heroFull.other(heroFull.front).source = ""
+                            return
+                        }
+                        if (heroFade.running) {
+                            heroFade.complete()
+                            heroFull.settle()
+                        }
+                        const back = heroFull.front ? heroFull.other(heroFull.front) : fullA
+                        back.source = heroFull.wanted
+                        if (back.status === Image.Ready)
+                            heroFull.show(back)
+                    }
+
+                    Component.onCompleted: if (heroFull.wanted !== "") fullA.source = heroFull.wanted
+
+                    EffectsAnim {
+                        id: heroFade
+                        property: "opacity"
+                        from: 0
+                        to: 1
+                        speed: "default"
+                        onFinished: heroFull.settle()
+                    }
+
+                    Image {
+                        id: fullA
+                        anchors.fill: parent
+                        sourceSize.width: 1280
+                        sourceSize.height: 720
+                        asynchronous: true
+                        fillMode: Image.PreserveAspectCrop
+                        opacity: 0
+                        onStatusChanged: if (status === Image.Ready) heroFull.show(fullA)
+                    }
+
+                    Image {
+                        id: fullB
+                        anchors.fill: parent
+                        sourceSize.width: 1280
+                        sourceSize.height: 720
+                        asynchronous: true
+                        fillMode: Image.PreserveAspectCrop
+                        opacity: 0
+                        onStatusChanged: if (status === Image.Ready) heroFull.show(fullB)
+                    }
+                }
+
+                Rectangle {
+                    anchors.left: parent.left
+                    anchors.top: parent.top
+                    anchors.margins: 14
+                    visible: root.picked !== null
+                    height: 32
+                    radius: 16
+                    width: badgeRow.implicitWidth + 24
+                    color: Qt.rgba(0, 0, 0, 0.55)
+                    RowLayout {
+                        id: badgeRow
+                        anchors.centerIn: parent
+                        spacing: 6
+                        MaterialIconSymbol {
+                            content: root.pickedIsCurrent ? "check_circle" : root.online ? "public" : "auto_awesome"
+                            iconSize: 16
+                            customColor: "white"
+                        }
+                        CustomText {
+                            content: root.pickedIsCurrent ? "In use"
+                                : root.online ? "Wallhaven · " + (root.idOf(root.picked) !== "" ? root.picked.resolution : "")
+                                : "Previewing — nothing applied yet"
+                            size: 12
+                            weight: 500
+                            customColor: "white"
+                        }
+                    }
+                }
+
+                Rectangle {
+                    anchors.fill: parent
+                    visible: root.downloading
+                    color: Qt.rgba(0, 0, 0, 0.5)
+                    ColumnLayout {
+                        anchors.centerIn: parent
+                        spacing: 10
+                        CustomLoader {
+                            Layout.alignment: Qt.AlignHCenter
+                            size: 64
+                            color: "white"
+                        }
+                        CustomText {
+                            Layout.alignment: Qt.AlignHCenter
+                            content: Math.round(ServiceWallpaper.downloadProgress * 100) + "%"
+                            size: 13
+                            customColor: "white"
+                        }
+                    }
+                }
+
+                MouseArea {
+                    anchors.fill: parent
+                    acceptedButtons: Qt.RightButton
+                    onClicked: mouse => {
+                        const m = mapToItem(root, mouse.x, mouse.y)
+                        ctxMenu.show(m.x, m.y, root.picked, root.online)
+                    }
                 }
             }
+
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: 10
+
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    spacing: 2
+                    CustomText {
+                        Layout.fillWidth: true
+                        content: root.nameOf(root.picked)
+                        size: 18
+                        weight: 600
+                        customColor: pal.text
+                    }
+                    CustomText {
+                        Layout.fillWidth: true
+                        visible: root.metaText !== ""
+                        content: root.metaText
+                        size: 12
+                        weight: 500
+                        customColor: pal.text
+                    }
+                    CustomText {
+                        Layout.fillWidth: true
+                        content: root.online ? (root.pickedLocal !== "" ? "Already in your wallpaper folder" : "Downloads to your wallpaper folder")
+                            : root.pickedIsCurrent ? "Your shell is wearing these colours"
+                            : root.preview ? "Your shell will take these colours"
+                            : "Reading colours…"
+                        size: 12
+                        weight: 400
+                        customColor: pal.subtext
+                    }
+                }
+
+                SeedSwatches {
+                    id: heroSeeds
+                    visible: !root.online && !ServiceWallpaper.gowallActive && heroSeeds.seeds.length > 1
+                    path: !root.online ? root.pickedFile : ""
+                    disc: 26
+                    ring: pal.primary
+                }
+
+                Row {
+                    spacing: 6
+                    visible: !root.online && !heroSeeds.visible
+                    Repeater {
+                        model: [pal.primary, pal.primaryContainer, pal.secondary, pal.secondaryContainer, pal.tertiary, pal.tertiaryContainer]
+                        Rectangle {
+                            required property color modelData
+                            width: 24
+                            height: 24
+                            radius: 12
+                            color: modelData
+                        }
+                    }
+                }
+            }
+
+            ColumnLayout {
+                Layout.fillWidth: true
+                visible: !root.online
+                spacing: 3
+
+                Rectangle {
+                    Layout.fillWidth: true
+                    implicitHeight: 52
+                    topLeftRadius: 20
+                    topRightRadius: 20
+                    bottomLeftRadius: 5
+                    bottomRightRadius: 5
+                    color: pal.containerHigh
+
+                    RowLayout {
+                        anchors.fill: parent
+                        anchors.leftMargin: 16
+                        anchors.rightMargin: 10
+                        spacing: 10
+
+                        CustomText {
+                            Layout.fillWidth: true
+                            content: "Transition"
+                            size: 13
+                            weight: 500
+                            customColor: pal.text
+                        }
+
+                        CustomListNew {
+                            Layout.preferredWidth: 130
+                            Layout.preferredHeight: 30
+                            color: pal.containerHighest
+                            list: Settings.transitionTypes
+                            Component.onCompleted: currentVal = Settings.transitionOrDefault(SettingsConfig.theme.transitionType)
+                            onCurrentValChanged: {
+                                if (currentVal && currentVal !== SettingsConfig.theme.transitionType)
+                                    SettingsConfig.theme = Object.assign({}, SettingsConfig.theme, { transitionType: currentVal })
+                            }
+                        }
+                    }
+                }
+
+                Rectangle {
+                    Layout.fillWidth: true
+                    implicitHeight: 52
+                    topLeftRadius: 5
+                    topRightRadius: 5
+                    bottomLeftRadius: 20
+                    bottomRightRadius: 20
+                    color: pal.containerHigh
+
+                    RowLayout {
+                        anchors.fill: parent
+                        anchors.leftMargin: 16
+                        anchors.rightMargin: 12
+                        spacing: 10
+
+                        CustomText {
+                            Layout.fillWidth: true
+                            content: "Workspace glide"
+                            size: 13
+                            weight: 500
+                            customColor: pal.text
+                        }
+
+                        CustomToogle {
+                            isToggleOn: SettingsConfig.general.wallpaperGlide ?? true
+                            onToggled: state => {
+                                SettingsConfig.general = Object.assign({}, SettingsConfig.general, { wallpaperGlide: state })
+                            }
+                        }
+                    }
+                }
+            }
+
+            Item { Layout.fillHeight: true }
+
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 10
+
+                Rectangle {
+                    id: applyBtn
+                    readonly property bool usable: root.picked !== null && !root.pickedIsCurrent && !root.downloading
+                    implicitHeight: 48
+                    implicitWidth: applyRow.implicitWidth + 40
+                    radius: applyArea.pressed ? 14 : 24
+                    color: applyBtn.usable ? pal.primary : pal.containerHighest
+                    Behavior on radius { SpatialAnim { speed: "fast" } }
+                    RowLayout {
+                        id: applyRow
+                        anchors.centerIn: parent
+                        spacing: 8
+                        MaterialIconSymbol {
+                            content: root.online && root.pickedLocal === "" ? "download" : "check"
+                            iconSize: 20
+                            customColor: applyBtn.usable ? pal.primaryText : pal.subtext
+                        }
+                        CustomText {
+                            content: root.downloading ? "Downloading " + Math.round(ServiceWallpaper.downloadProgress * 100) + "%"
+                                : root.pickedIsCurrent ? "In use"
+                                : root.online && root.pickedLocal === "" ? "Download & apply" : "Apply wallpaper"
+                            size: 14
+                            weight: 600
+                            customColor: applyBtn.usable ? pal.primaryText : pal.subtext
+                        }
+                    }
+                    CustomMouseArea {
+                        id: applyArea
+                        radius: applyBtn.radius
+                        enabled: applyBtn.usable
+                        onClicked: root.apply(root.picked)
+                    }
+                }
+
+                Item { Layout.fillWidth: true }
+
+                PalIconButton {
+
+                    tone: pal
+                    visible: !root.online && root.picked !== null
+                    icon: "favorite"
+                    box: 48
+                    lit: !root.online && root.picked !== null
+                        && ServiceWallpaper.favoritedWallpapers.indexOf(root.picked) >= 0
+                    onClicked: ServiceWallpaper.toggleFavorite(root.picked)
+                }
+
+                PalIconButton {
+
+                    tone: pal
+                    icon: "shuffle"
+                    box: 48
+                    onClicked: root.shuffle()
+                }
+            }
+        }
+
+
+        WallpaperSettingsRail {
+            visible: root.railOpen
+            Layout.fillHeight: true
+            Layout.preferredWidth: 352
         }
     }
 

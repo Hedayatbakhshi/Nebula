@@ -144,12 +144,6 @@ Item {
             spacing: 0
 
             // ── Page header ──────────────────────────────────────────────
-            RowLayout {
-                spacing: 10
-                MaterialIconSymbol { content: "volume_up"; iconSize: 20 }
-                CustomText { content: "Sound"; size: 20; customColor: Colors.primary }
-            }
-
             // ── Output ───────────────────────────────────────────────────
             CustomText { Layout.topMargin: 24; content: "Output"; size: 13; customColor: Colors.primary }
 

@@ -27,7 +27,7 @@ Item {
     property var coverTabs: []
 
     function coveredAt(x0, w) {
-        if (GlobalStates.barEditMode)
+        if (GlobalStates.barEditMode || !barBlock.isPill)
             return false
         const l = barBlock.absX + x0
         const r = l + w
@@ -106,8 +106,8 @@ Item {
     readonly property bool hovering: blockHover.hovered || tabHover.hovered
     readonly property bool sysHost: barBlock.bottomEdge && layout.isPrimary && barBlock.blockId === BarLayout.sysHostId
     readonly property string sysKind: !barBlock.sysHost ? ""
-        : GlobalStates.clipboardOpen ? "clipboard"
-        : GlobalStates.wallpaperOpen ? "wallpaper"
+        : GlobalStates.clipboardOpen && (SettingsConfig.general.clipboardPanelMode ?? "dock") !== "center" ? "clipboard"
+        : GlobalStates.wallpaperOpen && (SettingsConfig.general.wallpaperPanelMode ?? "dock") !== "center" ? "wallpaper"
         : GlobalStates.fileDropOpen ? "filedrop"
         : GlobalStates.osdOpen ? "osd" : ""
     function isSys(k) {
@@ -130,11 +130,8 @@ Item {
         : barBlock.hovering ? barBlock.hoverKind : ""
 
     readonly property real openHeight: barBlock.frameH - (barBlock.isPill ? ServiceGaps.pillMargin * 2 : 0)
-    readonly property string ownSide: barBlock.frame ? barBlock.frame.side
-        : barBlock.bottomEdge ? ServiceGaps.dockSide : ServiceGaps.barSide
-    readonly property real facingGap: ServiceGaps.reserveFor(BarOps.oppositeSide(barBlock.ownSide))
-    readonly property real panelRoom: barBlock.openHeight - barBlock.barH - barBlock.facingGap
-    readonly property real heightRoom: barBlock.vertical ? barBlock.frameW - 16 : barBlock.panelRoom
+    readonly property real panelRoom: barBlock.openHeight - barBlock.barH - (barBlock.frame ? barBlock.frame.borderFar : 0)
+    readonly property real heightRoom: barBlock.vertical ? barBlock.spanR - barBlock.spanL : barBlock.panelRoom
     readonly property real widthRoom: barBlock.vertical ? barBlock.panelRoom : barBlock.frameW - 32
 
     function alongOf(k) {
@@ -191,6 +188,11 @@ Item {
     function checkSettled() {
         if (tabXAnim.running || tabWAnim.running || tabHAnim.running)
             return
+        if (barBlock.closing && barBlock.revealMode !== "") {
+            barBlock.tabSnap = true
+            barBlock.revealMode = ""
+            barBlock.tabSnap = false
+        }
         if (!barBlock.closing || barBlock.tabH > barBlock.barH + 0.5)
             return
         barBlock.lastKind = ""
@@ -332,14 +334,14 @@ Item {
     HyprlandFocusGrab {
         windows: [QsWindow.window]
         active: barBlock.panelKind === "trayMenu" || barBlock.panelKind === "dockMenu"
-            || (["sound", "network", "bluetooth", "brightness", "powerMode", "power", "battery", "soundscape", "scenes", "notifications"].indexOf(barBlock.panelKind) >= 0
+            || (["sound", "network", "bluetooth", "brightness", "powerMode", "power", "battery", "soundscape", "scenes", "notifications", "dashboard"].indexOf(barBlock.panelKind) >= 0
                 && barBlock.clickedKind === barBlock.panelKind
                 && !barBlock.panelHeld)
             || (barBlock.panelKind === "tray" && barBlock.clickedKind === "tray")
         onCleared: {
             if (barBlock.panelHeld)
                 return
-            if (["trayMenu", "dockMenu", "tray", "sound", "network", "bluetooth", "brightness", "powerMode", "power", "battery", "soundscape", "scenes", "notifications"].indexOf(barBlock.panelKind) >= 0)
+            if (["trayMenu", "dockMenu", "tray", "sound", "network", "bluetooth", "brightness", "powerMode", "power", "battery", "soundscape", "scenes", "notifications", "dashboard"].indexOf(barBlock.panelKind) >= 0)
                 barBlock.closePanel()
         }
     }
@@ -370,7 +372,7 @@ Item {
         case "dockPreview": return barBlock.dockPreviewWidth
         case "dockMenu":  return 210
         case "clipboard": return Appearance.size.wallpaperPanelWidth
-        case "wallpaper": return Math.min(Appearance.size.wallpaperSelectorWidth, barBlock.widthRoom)
+        case "wallpaper": return Math.min(ServiceWallpaper.panelWidth, barBlock.widthRoom)
         case "filedrop":  return 460
         case "osd":       return barBlock.vertical ? 60 : 300
         case "launcher":  return BarLayout.panelW("launcher")
@@ -444,9 +446,36 @@ Item {
     }
 
     readonly property real tabTargetX: barBlock.alignX(barBlock.tabTargetW, barBlock.srcX + barBlock.srcW / 2)
-    property real tabX: barBlock.shownKind !== "" ? barBlock.tabTargetX : barBlock.srcX
-    property real tabW: barBlock.shownKind !== "" ? barBlock.tabTargetW : barBlock.srcW
-    property real tabH: barBlock.shownKind !== "" ? barBlock.barH + barBlock.acrossOf(barBlock.shownKind) : barBlock.barH
+
+    property string revealMode: ""
+    property real revealX: 0
+    property real revealW: 0
+    property real revealH: 0
+
+    function revealFor(k) {
+        const w = barBlock.alongOf(k)
+        const x = barBlock.alignX(w, barBlock.srcX + barBlock.srcW / 2)
+        const sl = barBlock.spanL - barBlock.absX
+        const sr = barBlock.spanR - barBlock.absX
+        const atStart = Math.abs(x - sl) <= 0.5
+        const atEnd = Math.abs(x + w - sr) <= 0.5
+        const farEdge = barBlock.acrossOf(k) >= barBlock.panelRoom - 1
+        barBlock.revealX = x
+        barBlock.revealW = w
+        barBlock.revealH = barBlock.barH + barBlock.acrossOf(k)
+        if (barBlock.isPill)
+            return ""
+        return atStart && atEnd ? "across" : farEdge && atStart ? "start" : farEdge && atEnd ? "end" : ""
+    }
+
+    property real tabX: barBlock.shownKind !== "" ? barBlock.tabTargetX
+        : barBlock.revealMode === "" ? barBlock.srcX
+        : barBlock.revealMode === "end" ? barBlock.revealX + barBlock.revealW : barBlock.revealX
+    property real tabW: barBlock.shownKind !== "" ? barBlock.tabTargetW
+        : barBlock.revealMode === "" ? barBlock.srcW
+        : barBlock.revealMode === "across" ? barBlock.revealW : 0
+    property real tabH: barBlock.shownKind !== "" ? barBlock.barH + barBlock.acrossOf(barBlock.shownKind)
+        : barBlock.revealMode === "start" || barBlock.revealMode === "end" ? barBlock.revealH : barBlock.barH
     Behavior on tabX {
         enabled: !barBlock.tabSnap && !barBlock.resizing
         NumberAnimation {
@@ -665,6 +694,14 @@ Item {
         } else if (barBlock.isSys(k) && barBlock.tabH <= barBlock.barH + 0.5) {
             barBlock.snapSource(null, k)
             barBlock.openerId = ""
+        }
+        if (k !== "" && !barBlock.tabOpen) {
+            const mode = barBlock.revealFor(k)
+            barBlock.tabSnap = true
+            barBlock.revealMode = mode
+            barBlock.tabSnap = false
+        } else if (k !== "") {
+            barBlock.revealMode = ""
         }
         if (k !== "")
             barBlock.lastKind = k
@@ -1435,7 +1472,8 @@ Item {
             case "dockMenu":  return dockMenuComp
             case "weather":   return weatherComp
             case "dashboard": return dashboardComp
-            case "clipboard": return (SettingsConfig.general.clipboardStyle ?? "list") === "fan" ? clipFanComp : clipComp
+            case "clipboard": return (SettingsConfig.general.clipboardStyle ?? "list") === "fan" ? clipFanComp
+                : (SettingsConfig.general.clipboardStyle ?? "list") === "board" ? clipBoardComp : clipComp
             case "wallpaper": return wallComp
             case "filedrop":  return fileDropComp
             case "osd":       return osdComp
@@ -1566,6 +1604,14 @@ Item {
     Component {
         id: clipFanComp
         ClipboardFan {
+            bottomLeftRadius: barBlock.isPill ? 20 : 0
+            bottomRightRadius: barBlock.isPill ? 20 : 0
+            onClosed: GlobalStates.clipboardOpen = false
+        }
+    }
+    Component {
+        id: clipBoardComp
+        ClipboardBoard {
             bottomLeftRadius: barBlock.isPill ? 20 : 0
             bottomRightRadius: barBlock.isPill ? 20 : 0
             onClosed: GlobalStates.clipboardOpen = false

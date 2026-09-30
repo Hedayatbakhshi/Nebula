@@ -35,6 +35,10 @@ Item {
     readonly property bool vertical: BarOps.isVerticalSide(surface.side)
     readonly property bool far: BarOps.isFarSide(surface.side)
     readonly property real barH: surface.isDock ? BarLayout.dockHeight : Appearance.size.barHeight
+    readonly property real borderStart: surface.barMode === "pill" ? 0 : ServiceGaps.borderFor(surface.vertical ? "top" : "left")
+    readonly property real borderEnd: surface.barMode === "pill" ? 0 : ServiceGaps.borderFor(surface.vertical ? "bottom" : "right")
+    readonly property real borderFar: ServiceGaps.borderFor(BarOps.oppositeSide(surface.side))
+    readonly property real borderNear: surface.isDock ? ServiceGaps.borderFor(surface.side) : 0
     readonly property real edgeInset: surface.far
         ? surface.height - sectionsRow.y - sectionsRow.height : sectionsRow.y
     property Matrix4x4 transpose: Matrix4x4 { matrix: Qt.matrix4x4(0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1) }
@@ -173,13 +177,17 @@ Item {
             const tbot = bridge + (top + b.tabPathH - bridge) * p
             if (tx > ux + 0.01)
                 out.push({ x: ux, w: tx - ux, bot: bot, isl: isl })
-            out.push({ x: tx, w: b.tabW, bot: tbot, isl: isl })
+            out.push({ x: tx, w: b.tabW, bot: tbot, isl: isl, melt: true })
             if (uX > tX + 0.01)
                 out.push({ x: tX, w: uX - tX, bot: bot, isl: isl })
         }
         out.sort((p, q) => p.x - q.x)
         for (let i = 1; i < out.length; i++) {
-            const a = out[i - 1]
+            let a = out[i - 1]
+            for (let j = i - 2; j >= 0; j--) {
+                if (out[j].x + out[j].w > a.x + a.w)
+                    a = out[j]
+            }
             const b = out[i]
             const aR = a.x + a.w
             if (b.x >= aR - 0.01)
@@ -296,7 +304,7 @@ Item {
         endR: surface.endAnim,
         rMax: surface.disX,
         needGap: 2 * surface.disX + 24,
-        screenH: surface.height,
+        screenH: surface.height - surface.borderFar,
         screenW: surface.width,
         bottomFlare: surface.flareAnim
     })
@@ -377,50 +385,6 @@ Item {
             hideTimer.restart()
     }
 
-    readonly property bool recEdgeOn: !surface.isDock && surface.isPrimary && ServiceTools.isRecording
-        && ((SettingsConfig.general ?? {}).barRecordEdge ?? true)
-
-    Item {
-        id: dayLine
-        anchors.fill: parent
-        readonly property bool on: !surface.isDock && ((SettingsConfig.general ?? {}).barDayLine ?? false)
-        readonly property real frac: (parseInt(ServiceClock.hour) * 60 + parseInt(ServiceClock.minute)) / 1440
-        readonly property real inset: surface.barMode === "pill" ? surface.barH / 2 : surface.disX
-        readonly property real lineY: surface.edgeInset + (surface.barMode === "pill" ? surface.pillMargin : 0)
-            + surface.barH - 4
-        readonly property real progressX: surface.span.x + surface.span.w * dayLine.frac
-        visible: dayLine.on
-
-        Repeater {
-            model: dayLine.on ? surface.visibleBlocks : []
-
-            delegate: Item {
-                id: seg
-                required property var modelData
-                x: sectionsRow.x + seg.modelData.parent.x + seg.modelData.x + dayLine.inset
-                y: dayLine.lineY
-                width: Math.max(0, seg.modelData.width - 2 * dayLine.inset)
-                height: 2
-                opacity: !seg.modelData.tabOpen && seg.modelData.pc > 0.99 ? 1 : 0
-                visible: opacity > 0.01
-                Behavior on opacity { EffectsAnim { speed: "fast" } }
-
-                Rectangle {
-                    anchors.fill: parent
-                    radius: 1
-                    color: Qt.alpha(Colors.outlineVariant, 0.6)
-                }
-
-                Rectangle {
-                    width: Math.max(0, Math.min(seg.width, dayLine.progressX - seg.x))
-                    height: 2
-                    radius: 1
-                    color: Colors.primary
-                }
-            }
-        }
-    }
-
     Item {
         id: sectionsRow
         transform: surface.isDock ? [surface.rowSlide] : []
@@ -429,10 +393,10 @@ Item {
         anchors.right:  parent.right
         anchors.top:    parent.top
         anchors.bottom: parent.bottom
-        anchors.topMargin:   !surface.far && surface.barMode === "pill" ? surface.pillMargin : 0
-        anchors.bottomMargin: surface.far && surface.barMode === "pill" ? surface.pillMargin : 0
-        anchors.leftMargin:  surface.barMode === "pill" ? surface.pillLeftMargin  : 0
-        anchors.rightMargin: surface.barMode === "pill" ? surface.pillRightMargin : 0
+        anchors.topMargin:   !surface.far ? (surface.barMode === "pill" ? surface.pillMargin : 0) + surface.borderNear : 0
+        anchors.bottomMargin: surface.far ? (surface.barMode === "pill" ? surface.pillMargin : 0) + surface.borderNear : 0
+        anchors.leftMargin:  surface.barMode === "pill" ? surface.pillLeftMargin  : surface.borderStart
+        anchors.rightMargin: surface.barMode === "pill" ? surface.pillRightMargin : surface.borderEnd
 
         Behavior on anchors.topMargin   { enabled: BarLayout.settled; SpatialAnim { speed: "default" } }
         Behavior on anchors.bottomMargin { enabled: BarLayout.settled; SpatialAnim { speed: "default" } }

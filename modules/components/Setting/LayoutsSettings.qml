@@ -208,8 +208,6 @@ Item {
             RowLayout {
                 Layout.fillWidth: true
                 spacing: 8
-                MaterialIconSymbol { content: "dashboard_customize"; iconSize: 20 }
-                CustomText { content: "Layouts"; size: 20; customColor: Colors.primary }
                 Item { Layout.fillWidth: true }
                 Pill { icon: "folder_open"; onClicked: Quickshell.execDetached(["xdg-open", root.dir]) }
                 Pill {

@@ -37,6 +37,8 @@ Colours and wallpaper
   nebula wallpaper current         print the current wallpaper
   nebula scheme set [--mode M] [--variant V]   change light/dark or scheme and recolour
   nebula scheme show               print the current palette
+  nebula scheme seeds [image]      list a wallpaper's candidate seed colours
+  nebula scheme seed <image> <n>   use candidate n for that wallpaper (0 = auto)
   nebula scheme apply              re-write app colour files from the current palette
   nebula apps                      list apps Nebula can theme and which are picked
   nebula apps enable|disable <id>...   choose which apps follow the palette
@@ -149,6 +151,21 @@ def cmd_scheme(a) -> int:
 
     if a.action == "show":
         return _show_palette(a.json)
+
+    if a.action in ("seeds", "seed"):
+        import json
+        import os
+        from nebula import scheme, wallpaper as wp
+        image = a.image or wp.current()
+        if not image or not os.path.isfile(image):
+            print(f"nebula: no such image: {image}", file=sys.stderr)
+            return 1
+        if a.action == "seed":
+            scheme.set_seed(image, a.index)
+            return 0
+        d = wp.defaults()
+        print(json.dumps(scheme.seeds_report(image, a.variant or d["scheme"], a.mode or d["mode"])))
+        return 0
 
     if a.action == "set":
         from nebula import settings, wallpaper as wp
@@ -342,12 +359,52 @@ def cmd_start(a) -> int:
                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode
 
 
+def _instance_pids(qs: str) -> list:
+    r = subprocess.run([qs, "list", "-j", "-p", str(SHELL_DIR / "shell.qml")],
+                       capture_output=True, text=True)
+    try:
+        return [int(i["pid"]) for i in json.loads(r.stdout or "[]")]
+    except Exception:
+        return []
+
+
+def _descendants(roots: list) -> set:
+    from pathlib import Path
+    children = {}
+    for stat in Path("/proc").glob("[0-9]*/stat"):
+        try:
+            fields = stat.read_text().rsplit(")", 1)[1].split()
+            children.setdefault(int(fields[1]), []).append(int(stat.parent.name))
+        except (OSError, IndexError, ValueError):
+            continue
+    found = set()
+    todo = list(roots)
+    while todo:
+        pid = todo.pop()
+        if pid in found:
+            continue
+        found.add(pid)
+        todo.extend(children.get(pid, []))
+    return found
+
+
 def cmd_stop(a) -> int:
+    import signal
     qs = _qs_bin()
     if not qs:
         return 1
-    return subprocess.run([qs, "kill", "-p", str(SHELL_DIR / "shell.qml")],
-                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode
+    roots = _instance_pids(qs)
+    if not roots:
+        print("nebula: the shell isn't running", file=sys.stderr)
+        return 1
+    procs = _descendants(roots)
+    for sig in (signal.SIGSTOP, signal.SIGKILL):
+        for pid in procs:
+            try:
+                os.kill(pid, sig)
+            except (ProcessLookupError, PermissionError):
+                pass
+    return 0
 
 
 def _shell_up(qs: str) -> bool:
@@ -420,6 +477,13 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--keep-icon-theme", action="store_true")
     sh = ss.add_parser("show")
     sh.add_argument("--json", action="store_true")
+    sd = ss.add_parser("seeds", help="candidate seed colours for a wallpaper, as JSON")
+    sd.add_argument("image", nargs="?")
+    sd.add_argument("--variant")
+    sd.add_argument("--mode", choices=["dark", "light"])
+    sp = ss.add_parser("seed", help="remember which seed colour a wallpaper uses (0 = auto)")
+    sp.add_argument("image")
+    sp.add_argument("index", type=int)
     st = ss.add_parser("set")
     st.add_argument("--mode", choices=["dark", "light"])
     st.add_argument("--variant", help="content, tonalspot, vibrant, expressive, fidelity, fruitsalad, rainbow, neutral, monochrome")

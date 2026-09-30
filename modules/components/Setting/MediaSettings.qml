@@ -76,12 +76,6 @@ Item {
             spacing: 0
 
             // ── Page header ──────────────────────────────────────
-            RowLayout {
-                spacing: 10
-                MaterialIconSymbol { content: "perm_media"; iconSize: 20 }
-                CustomText { content: "Media"; size: 20; customColor: Colors.primary }
-            }
-
             // ════════════════════════════════════════════════════
             // RECORDING
             // ════════════════════════════════════════════════════

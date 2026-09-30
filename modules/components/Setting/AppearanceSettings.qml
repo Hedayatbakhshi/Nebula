@@ -53,12 +53,6 @@ Item {
             spacing: 0
 
             // ── Page header ──────────────────────────────────────────────
-            RowLayout {
-                spacing: 10
-                MaterialIconSymbol { content: "brush"; iconSize: 20 }
-                CustomText { content: "Appearance"; size: 20; customColor: Colors.primary }
-            }
-
             // ── Profile ──────────────────────────────────────────────────
             CustomText { Layout.topMargin: 24; content: "Profile"; size: 13; customColor: Colors.primary }
 
@@ -77,6 +71,7 @@ Item {
                         MaterialShapes.ShapeCanvas {
                             id: artMask
                             anchors.fill: parent
+                            layer.enabled: true
                             roundedPolygon: MaterialShapeFn.getPill()
                             color: Colors.primaryContainer
                         }
@@ -105,9 +100,48 @@ Item {
                         Layout.alignment: Qt.AlignVCenter
                         spacing: 6
 
-                        CustomText { content: "St3el"; size: 16; weight: 700 }
+                        Rectangle {
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: 36
+                            radius: 16
+                            color: Colors.surfaceContainerHighest
+                            border.width: nameInput.activeFocus ? 2 : 0
+                            border.color: Colors.primary
+
+                            TextInput {
+                                id: nameInput
+                                anchors.fill: parent
+                                anchors.leftMargin: 12
+                                anchors.rightMargin: 12
+                                verticalAlignment: TextInput.AlignVCenter
+                                text: SettingsConfig.general.displayName ?? ""
+                                color: Colors.surfaceText
+                                font.pixelSize: 15
+                                font.weight: 700
+                                font.family: SettingsConfig.general.defaultFont ?? "Rubik"
+                                maximumLength: 32
+                                selectByMouse: true
+                                clip: true
+                                onEditingFinished: {
+                                    const n = text.trim()
+                                    if (n !== (SettingsConfig.general.displayName ?? ""))
+                                        SettingsConfig.general = Object.assign({}, SettingsConfig.general, { displayName: n })
+                                }
+                                onAccepted: focus = false
+
+                                CustomText {
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    visible: nameInput.text === ""
+                                    content: SettingsConfig.loginName
+                                    size: 15
+                                    weight: 700
+                                    customColor: Colors.outline
+                                }
+                            }
+                        }
                         CustomText {
-                            content: "Shown in overview and lock screen"
+                            Layout.fillWidth: true
+                            content: "Shown on the dashboard. Empty uses your login name."
                             size: 12; customColor: Colors.outline
                         }
 

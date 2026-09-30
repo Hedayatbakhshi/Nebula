@@ -36,8 +36,9 @@ from pathlib import Path
 from materialyoucolor.dislike.dislike_analyzer import DislikeAnalyzer
 from materialyoucolor.dynamiccolor.material_dynamic_colors import MaterialDynamicColors
 from materialyoucolor.hct import Hct
-from materialyoucolor.quantize import ImageQuantizeCelebi
+from materialyoucolor.quantize import ImageQuantizeCelebi, QuantizeCelebi
 from materialyoucolor.scheme.scheme_content import SchemeContent
+from materialyoucolor.score.score import Score, ScoreOptions
 from materialyoucolor.scheme.scheme_expressive import SchemeExpressive
 from materialyoucolor.scheme.scheme_fidelity import SchemeFidelity
 from materialyoucolor.scheme.scheme_fruit_salad import SchemeFruitSalad
@@ -683,8 +684,27 @@ def _image_hash(path: str) -> str:
     return h.hexdigest()[:24]
 
 
+_QUANTIZE_AREA = 384 * 384
+
+
+def _quantize(image_path: str) -> dict:
+    try:
+        from PIL import Image
+        with Image.open(image_path) as im:
+            w, h = im.size
+            s = min(1.0, (_QUANTIZE_AREA / (w * h)) ** 0.5)
+            nw, nh = max(1, round(w * s)), max(1, round(h * s))
+            im.draft("RGB", (nw * 2, nh * 2))
+            small = im.convert("RGB").resize((nw, nh), Image.Resampling.BOX)
+            pixels = getattr(small, "get_flattened_data", small.getdata)()
+            return QuantizeCelebi(list(pixels), 128)
+    except Exception as e:
+        print(f"[gen_colors] downsample failed ({e}) — quantizing full image", file=sys.stderr)
+        return ImageQuantizeCelebi(image_path, 1, 128)
+
+
 def _quantize_and_score(image_path: str) -> Hct:
-    quantized = ImageQuantizeCelebi(image_path, 1, 128)
+    quantized = _quantize(image_path)
 
     colors_hct = []
     hue_population = [0] * 360
@@ -714,6 +734,85 @@ def _quantize_and_score(image_path: str) -> Hct:
             if hct.chroma > cutoff and hct.tone > cutoff * 3:
                 return DislikeAnalyzer.fix_if_disliked(hct)
     return DislikeAnalyzer.fix_if_disliked(scored[0][1])
+
+
+_FALLBACK_SEED = 0xFF4285F4
+_MAX_SEEDS = 4
+
+
+def _cache_base(img_hash: str) -> Path:
+    return CACHE_DIR / "color_cache" / img_hash
+
+
+def _chosen_seed(img_hash: str) -> int:
+    try:
+        return max(0, int((_cache_base(img_hash) / "seed.txt").read_text().strip()))
+    except Exception:
+        return 0
+
+
+def _auto_primary(image_path: str, img_hash: str) -> Hct:
+    score_cache = _cache_base(img_hash) / "score.txt"
+    try:
+        return Hct.from_int(int(score_cache.read_text()))
+    except Exception:
+        pass
+    primary = _quantize_and_score(image_path)
+    score_cache.parent.mkdir(parents=True, exist_ok=True)
+    score_cache.write_text(str(primary.to_int()))
+    return primary
+
+
+def _seeds(image_path: str, img_hash: str) -> list:
+    seeds_cache = _cache_base(img_hash) / "seeds.json"
+    try:
+        return [int(x) for x in json.loads(seeds_cache.read_text())]
+    except Exception:
+        pass
+    out = [_auto_primary(image_path, img_hash).to_int()]
+    for argb in Score.score(_quantize(image_path), ScoreOptions(desired=8)):
+        if argb == _FALLBACK_SEED:
+            continue
+        h = DislikeAnalyzer.fix_if_disliked(Hct.from_int(argb))
+        if h.chroma < 24 or not 30 <= h.tone <= 80:
+            continue
+        if all(_hue_gap(h.hue, Hct.from_int(o).hue) >= 20 for o in out):
+            out.append(h.to_int())
+        if len(out) == _MAX_SEEDS:
+            break
+    seeds_cache.parent.mkdir(parents=True, exist_ok=True)
+    seeds_cache.write_text(json.dumps(out))
+    return out
+
+
+def seed_primary(image_path: str, img_hash: str, idx: int):
+    if idx <= 0:
+        return None
+    seeds = _seeds(image_path, img_hash)
+    return Hct.from_int(seeds[idx]) if idx < len(seeds) else None
+
+
+def seeds_report(image_path: str, variant: str, mode: str) -> dict:
+    variant = variant.removeprefix("scheme-")
+    img_hash = _image_hash(image_path)
+    seeds = _seeds(image_path, img_hash)
+    chosen = _chosen_seed(img_hash)
+    is_dark = mode.lower() != "light"
+    rows = []
+    for argb in seeds:
+        sc = _build_scheme(Hct.from_int(argb), variant, is_dark)
+        rows.append({"seed": "#%06x" % (argb & 0xFFFFFF), "primary": sc["primary"],
+                     "secondaryContainer": sc["secondaryContainer"], "tertiary": sc["tertiary"]})
+    return {"chosen": chosen if chosen < len(seeds) else 0, "seeds": rows}
+
+
+def set_seed(image_path: str, idx: int) -> None:
+    f = _cache_base(_image_hash(image_path)) / "seed.txt"
+    if idx <= 0:
+        f.unlink(missing_ok=True)
+        return
+    f.parent.mkdir(parents=True, exist_ok=True)
+    f.write_text(str(idx))
 
 
 def _build_scheme(primary: Hct, variant: str, is_dark: bool) -> dict:
@@ -999,9 +1098,10 @@ def main() -> None:
         variant = "palette"
     else:
         img_hash = _image_hash(image_path)
+    seed_idx    = 0 if palette else _chosen_seed(img_hash)
     cache_base  = CACHE_DIR / "color_cache" / img_hash
     score_cache = cache_base / "score.txt"
-    color_cache = cache_base / f"{variant}_{mode}.json"
+    color_cache = cache_base / (f"{variant}_{mode}_s{seed_idx}.json" if seed_idx else f"{variant}_{mode}.json")
 
     # ── Fast path: full colors cached ─────────────────────────────────────
     if color_cache.exists():
@@ -1052,6 +1152,11 @@ def main() -> None:
         print(f"[gen_colors] quantize+score: {(time.time()-t0)*1000:.0f}ms", flush=True)
         cache_base.mkdir(parents=True, exist_ok=True)
         score_cache.write_text(str(primary.to_int()))
+
+    chosen = seed_primary(image_path, img_hash, seed_idx)
+    if chosen is not None:
+        primary = chosen
+        print(f"[gen_colors] using seed {seed_idx}: #{primary.to_int() & 0xFFFFFF:06x}", flush=True)
 
     # ── Generate scheme ────────────────────────────────────────────────────
     t0 = time.time()

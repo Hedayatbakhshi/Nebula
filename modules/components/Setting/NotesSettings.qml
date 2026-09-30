@@ -85,8 +85,6 @@ Item {
             RowLayout {
                 Layout.fillWidth: true
                 spacing: 10
-                MaterialIconSymbol { content: "sticky_note_2"; iconSize: 20 }
-                CustomText { content: "Sticky Notes"; size: 20; customColor: Colors.primary }
                 Item { Layout.fillWidth: true }
 
                 Rectangle {

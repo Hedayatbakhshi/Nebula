@@ -250,12 +250,16 @@ Singleton {
         { id: "clipboard",     label: "Clipboard",     icon: "content_paste",        group: "Launchers",
           options: [root.showLabelOpt,
                     { key: "style", label: "Panel style", type: "choice", setting: "clipboardStyle", default: "list",
-                      choices: [{ value: "list", label: "List + preview", icon: "view_list" }, { value: "fan", label: "Card fan", icon: "style" }] }] },
+                      choices: [{ value: "list", label: "List + preview", icon: "view_list" }, { value: "fan", label: "Card fan", icon: "style" }, { value: "board", label: "Board", icon: "dashboard" }] },
+                    { key: "place", label: "Opens as", type: "choice", setting: "clipboardPanelMode", default: "dock",
+                      choices: [{ value: "dock", label: "From the dock", icon: "dock_to_bottom" }, { value: "center", label: "Centre panel", icon: "center_focus_strong" }] }] },
         { id: "tools",         label: "Tools",         icon: "screenshot_monitor",   group: "Launchers", options: [root.showLabelOpt] },
         { id: "wallpaper",     label: "Wallpaper",     icon: "wallpaper",            group: "Launchers",
           options: [root.showLabelOpt,
                     { key: "style", label: "Panel style", type: "grid", setting: "wallpaperStyle", default: "classic",
-                      choices: ServiceWallpaper.panelStyles.map(x => ({ value: x.value, label: x.label, icon: x.icon })) }] },
+                      choices: ServiceWallpaper.panelStyles.map(x => ({ value: x.value, label: x.label, icon: x.icon })) },
+                    { key: "place", label: "Opens as", type: "choice", setting: "wallpaperPanelMode", default: "dock",
+                      choices: [{ value: "dock", label: "From the dock", icon: "dock_to_bottom" }, { value: "center", label: "Centre panel", icon: "center_focus_strong" }] }] },
         { id: "overview",      label: "Overview",      icon: "grid_view",            group: "Launchers", options: [root.showLabelOpt] },
         { id: "settings",      label: "Settings",      icon: "settings",             group: "Launchers", options: [root.showLabelOpt] },
         { id: "power",         label: "Power",         icon: "power_settings_new",   group: "Launchers", options: [root.showLabelOpt] },
@@ -839,7 +843,7 @@ Singleton {
     readonly property var panelSpecs: ({
         "calendar":  { "label": "Calendar",  "minW": 320, "maxW": 640, "defW": 400, "minH": 300, "maxH": 560,  "defH": 400 },
         "weather":   { "label": "Weather",   "minW": 300, "maxW": 720, "defW": 340, "minH": 360, "maxH": 1600, "defH": -1 },
-        "dashboard": { "label": "Dashboard", "minW": 280, "maxW": 1200, "defW": 320, "minH": 280, "maxH": 1600, "defH": -1 },
+        "dashboard": { "label": "Dashboard", "minW": 280, "maxW": 1200, "defW": 320, "minH": 280, "maxH": 1600, "defH": 1020, "autoH": true },
         "launcher":  { "label": "Launcher", "minW": ServiceLauncher.minWidth, "maxW": ServiceLauncher.maxWidth,
                        "defW": ServiceLauncher.defaultWidth, "minH": ServiceLauncher.minHeight,
                        "maxH": ServiceLauncher.maxHeight, "defH": ServiceLauncher.defaultHeight }
@@ -919,8 +923,11 @@ Singleton {
         const d = root.panelDraft
         if (d && d.kind === kind) return d.h
         const own = root.panelSizes[kind]
-        return own && typeof own.h === "number" ? root.clampPanelH(kind, own.h) : s.defH
+        return own && typeof own.h === "number" ? root.clampPanelH(kind, own.h)
+            : s.defH > 0 ? Math.min(s.defH, root.panelCapH) : s.defH
     }
+
+    readonly property int panelCapH: Math.max(280, Quickshell.screens.reduce((m, sc) => Math.min(m, sc.height), 100000) - 60)
 
     function floatPanelW(kind) {
         if (kind === "dashboard" && !root.panelSizes.dashboard && !(root.panelDraft && root.panelDraft.kind === kind))
@@ -1033,6 +1040,13 @@ Singleton {
         const o = {}
         o[key] = value
         root._patch(o)
+    }
+
+    readonly property var screenBorder: Object.assign({ on: false, size: 8, radius: 20, top: true, right: true, bottom: true, left: true },
+                                                      SettingsConfig.bar?.border ?? {})
+
+    function setBorder(patch) {
+        root._patch({ border: Object.assign({}, root.screenBorder, patch) })
     }
 
     function dockSize(key, def) {

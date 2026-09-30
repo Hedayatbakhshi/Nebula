@@ -87,6 +87,77 @@ Singleton {
     readonly property real radius: (root._g.launcherRadius ?? -1) < 0
         ? ((SettingsConfig.bar ?? {}).radius ?? 18) : root._g.launcherRadius
     readonly property int iconSize: root._g.launcherIconSize ?? 30
+
+    readonly property var _styleIconSizes: ({
+        spotlight: [60, 32], rail: [root.iconSize + 12, 28], bento: [40, 32, 28], folders: [34],
+        list: [root.iconSize], expressive: [48, root.iconSize + 10], hearth: [root.iconSize + 2, 42]
+    })
+    property var _iconSizes: []
+    property var _iconQueue: []
+    property var _iconKept: ({})
+
+    function noteIconSize(size) {
+        const s = Math.round(size)
+        if (s <= 0 || root._iconSizes.indexOf(s) >= 0)
+            return
+        root._iconSizes.push(s)
+        root._queueIcons(s)
+    }
+
+    function _queueIcons(size) {
+        const apps = DesktopEntries.applications.values
+        for (let i = 0; i < apps.length; i++) {
+            const icon = apps[i].icon ?? ""
+            if (icon !== "" && !root._iconKept[icon + "@" + size])
+                root._iconQueue.push({ icon: icon, size: size })
+        }
+        if (root._iconQueue.length > 0)
+            iconTimer.start()
+    }
+
+    Item { id: iconShelf }
+
+    Component {
+        id: iconKeeper
+        Image { visible: false }
+    }
+
+    Timer {
+        id: iconTimer
+        interval: 40
+        repeat: true
+        onTriggered: {
+            const job = root._iconQueue.shift()
+            if (!job) {
+                iconTimer.stop()
+                return
+            }
+            const key = job.icon + "@" + job.size
+            if (root._iconKept[key])
+                return
+            root._iconKept[key] = iconKeeper.createObject(iconShelf, {
+                source: IconUtil.getIconPath(job.icon),
+                sourceSize: Qt.size(job.size, job.size)
+            })
+        }
+    }
+
+    Timer {
+        id: iconWarmup
+        interval: 4000
+        running: true
+        onTriggered: {
+            const sizes = (root._styleIconSizes[root.style] ?? [root.iconSize + 8]).concat(root._iconSizes)
+            root._iconSizes = []
+            for (let i = 0; i < sizes.length; i++)
+                root.noteIconSize(sizes[i])
+        }
+    }
+
+    Connections {
+        target: DesktopEntries.applications
+        function onValuesChanged() { iconWarmup.restart() }
+    }
     readonly property string sortMode: root._g.launcherSort ?? "az"
     readonly property var enabledModes: root.modes.filter(m => root._g[m.key] ?? true)
     readonly property string hint: "Search apps" + root.enabledModes.map(m => "   " + m.prefix + "\u2009" + m.label.toLowerCase()).join("")

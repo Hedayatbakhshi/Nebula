@@ -326,19 +326,4 @@ Item {
     Pass { area: sdf.pieces[1] ?? sdf.none }
     Pass { area: sdf.pieces[2] ?? sdf.none }
     Pass { area: sdf.pieces[3] ?? sdf.none }
-
-    Pass {
-        id: recStroke
-        readonly property bool on: !!sdf.bar && sdf.bar.recEdgeOn
-        area: recStroke.on ? sdf.areaA : sdf.none
-        strokeW: 2
-        strokeColor: Colors.error
-
-        SequentialAnimation on opacity {
-            running: recStroke.on
-            loops: Animation.Infinite
-            NumberAnimation { to: 0.35; duration: 900; easing.type: Easing.InOutSine }
-            NumberAnimation { to: 1; duration: 900; easing.type: Easing.InOutSine }
-        }
-    }
 }

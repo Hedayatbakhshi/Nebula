@@ -46,8 +46,6 @@ Item {
 
             RowLayout {
                 spacing: 10
-                MaterialIconSymbol { content: "hard_drive"; iconSize: 20 }
-                CustomText { content: "Storage"; size: 20; customColor: Colors.primary }
 
                 Item { Layout.fillWidth: true }
 

@@ -1243,66 +1243,6 @@ ColumnLayout {
     visible: true
     spacing: 8
     EditRow {
-        id: drawerBlockDayLine
-        autoRadius: false
-        visible: true
-        topRadius: drawer.edgeRadius(drawerBlockDayLine, -1)
-        bottomRadius: drawer.edgeRadius(drawerBlockDayLine, 1)
-                                RowLayout {
-                                    Layout.fillWidth: true
-                                    spacing: 10
-
-                                    ColumnLayout {
-                                        Layout.fillWidth: true
-                                        Layout.maximumWidth: 100000
-                                        spacing: 1
-
-                                        CustomText { content: "Day progress line"; size: 13 }
-                                        CustomText {
-                                            content: "A thin line along the bar's bottom edge fills as the day passes"
-                                            size: 11
-                                            customColor: Colors.outline
-                                        }
-                                    }
-
-                                    CustomToogle {
-                                        isToggleOn: (SettingsConfig.general.barDayLine ?? false)
-                                        onToggled: state => SettingsConfig.general =
-                                            Object.assign({}, SettingsConfig.general, { barDayLine: state })
-                                    }
-                                }
-    }
-    EditRow {
-        id: drawerBlockRecEdge
-        autoRadius: false
-        visible: true
-        topRadius: drawer.edgeRadius(drawerBlockRecEdge, -1)
-        bottomRadius: drawer.edgeRadius(drawerBlockRecEdge, 1)
-                                RowLayout {
-                                    Layout.fillWidth: true
-                                    spacing: 10
-
-                                    ColumnLayout {
-                                        Layout.fillWidth: true
-                                        Layout.maximumWidth: 100000
-                                        spacing: 1
-
-                                        CustomText { content: "Recording outline"; size: 13 }
-                                        CustomText {
-                                            content: "Outline the bar in red while the screen is being recorded"
-                                            size: 11
-                                            customColor: Colors.outline
-                                        }
-                                    }
-
-                                    CustomToogle {
-                                        isToggleOn: (SettingsConfig.general.barRecordEdge ?? true)
-                                        onToggled: state => SettingsConfig.general =
-                                            Object.assign({}, SettingsConfig.general, { barRecordEdge: state })
-                                    }
-                                }
-    }
-    EditRow {
         id: drawerBlock19
         autoRadius: false
         visible: true
@@ -1428,6 +1368,134 @@ ColumnLayout {
                                             content: sizeRow.isAuto ? "Auto" : sizeRow.value + "px"
                                             size: 12
                                             customColor: Colors.outline
+                                        }
+                                    }
+                                }
+    }
+}
+
+EditHeading {
+    Layout.fillWidth: true
+    Layout.topMargin: 10
+    visible: true
+    content: "Screen border"
+    size: 13
+    customColor: Colors.primary
+}
+ColumnLayout {
+    id: drawerGroupBorder
+    Layout.fillWidth: true
+    visible: true
+    spacing: 8
+    EditRow {
+        id: drawerBlockBorderOn
+        autoRadius: false
+        visible: true
+        topRadius: drawer.edgeRadius(drawerBlockBorderOn, -1)
+        bottomRadius: drawer.edgeRadius(drawerBlockBorderOn, 1)
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 10
+
+                                    ColumnLayout {
+                                        Layout.fillWidth: true
+                                        Layout.maximumWidth: 100000
+                                        spacing: 1
+
+                                        CustomText { content: "Border around the screen"; size: 13 }
+                                        CustomText {
+                                            content: "A frame in the bar colour; the bar and panels curve into it"
+                                            size: 11
+                                            customColor: Colors.outline
+                                        }
+                                    }
+
+                                    CustomToogle {
+                                        isToggleOn: BarLayout.screenBorder.on === true
+                                        onToggled: state => BarLayout.setBorder({ on: state })
+                                    }
+                                }
+    }
+    EditRow {
+        id: drawerBlockBorderSize
+        autoRadius: false
+        visible: BarLayout.screenBorder.on === true
+        topRadius: drawer.edgeRadius(drawerBlockBorderSize, -1)
+        bottomRadius: drawer.edgeRadius(drawerBlockBorderSize, 1)
+                                Repeater {
+                                    model: [
+                                        { key: "size",   label: "Thickness",     min: 2, max: 32, step: 2 },
+                                        { key: "radius", label: "Corner radius", min: 0, max: 40, step: 2 }
+                                    ]
+
+                                    delegate: RowLayout {
+                                        id: borderRow
+                                        required property var modelData
+                                        readonly property real value: Number(BarLayout.screenBorder[borderRow.modelData.key])
+
+                                        Layout.fillWidth: true
+                                        spacing: 12
+
+                                        CustomText {
+                                            Layout.preferredWidth: 110
+                                            content: borderRow.modelData.label
+                                            size: 12
+                                        }
+                                        M3Slider {
+                                            Layout.fillWidth: true
+                                            Layout.preferredHeight: 30
+                                            stepCount: Math.round((borderRow.modelData.max - borderRow.modelData.min) / borderRow.modelData.step) + 1
+                                            currentStep: Math.round((borderRow.value - borderRow.modelData.min) / borderRow.modelData.step)
+                                            valueText: String(borderRow.modelData.min + currentStep * borderRow.modelData.step)
+                                            onStepChanged: s => {
+                                                const v = borderRow.modelData.min + s * borderRow.modelData.step
+                                                if (v !== borderRow.value) {
+                                                    const o = {}
+                                                    o[borderRow.modelData.key] = v
+                                                    BarLayout.setBorder(o)
+                                                }
+                                            }
+                                        }
+                                        CustomText {
+                                            Layout.preferredWidth: 40
+                                            horizontalAlignment: Text.AlignRight
+                                            content: borderRow.value + "px"
+                                            size: 12
+                                            customColor: Colors.outline
+                                        }
+                                    }
+                                }
+    }
+    EditRow {
+        id: drawerBlockBorderSides
+        autoRadius: false
+        visible: BarLayout.screenBorder.on === true
+        topRadius: drawer.edgeRadius(drawerBlockBorderSides, -1)
+        bottomRadius: drawer.edgeRadius(drawerBlockBorderSides, 1)
+                                ColumnLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 8
+
+                                    CustomText { Layout.fillWidth: true; content: "Sides"; size: 13; weight: 600; customColor: Colors.surfaceVariantText }
+                                    M3ButtonGroup {
+                                        Layout.fillWidth: true
+                                        Layout.preferredHeight: 38
+                                        fillWidth: true
+                                        iconSize: 16
+                                        textSize: 12
+                                        activeColor: Colors.secondaryContainer
+                                        activeTextColor: Colors.secondaryContainerText
+                                        model: [
+                                            { value: "top",    label: "Top",    icon: "border_top" },
+                                            { value: "bottom", label: "Bottom", icon: "border_bottom" },
+                                            { value: "left",   label: "Left",   icon: "border_left" },
+                                            { value: "right",  label: "Right",  icon: "border_right" }
+                                        ]
+                                        activeCheck: function(value) { return BarLayout.screenBorder[value] !== false }
+                                        onSegmentClicked: function(value) {
+                                            const o = {}
+                                            o[value] = BarLayout.screenBorder[value] === false
+                                            BarLayout.setBorder(o)
                                         }
                                     }
                                 }

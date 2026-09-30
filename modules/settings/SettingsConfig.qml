@@ -26,6 +26,15 @@ Singleton {
 
     property bool greeterMode: false
 
+    readonly property string loginName: {
+        const u = Quickshell.env("USER") ?? ""
+        return u.length > 0 ? u.charAt(0).toUpperCase() + u.slice(1) : "user"
+    }
+    readonly property string profileName: {
+        const n = (root.general?.displayName ?? "").trim()
+        return n !== "" ? n : root.loginName
+    }
+
     Timer {
         id: writeTimer
         interval: 100
@@ -61,6 +70,9 @@ Singleton {
                 dock: true,
                 dockAutoHide: true,
                 desktopRipple: false,
+                wallpaperGlide: true,
+                wallpaperPanelMode: "dock",
+                clipboardPanelMode: "dock",
                 desktopRippleStrength: "normal",
                 desktopRippleDrag: true,
                 dockMusicPlayer: true,
@@ -68,6 +80,8 @@ Singleton {
                 pinnedApps: [],
                 musicVisOn: true,
                 profile: "",
+                displayName: "",
+                settingsSections: true,
                 defaultFont: "Rubik",
                 displayFont: "Titan One",
                 notesSide: "L",
@@ -101,6 +115,9 @@ Singleton {
                 dock: true,
                 dockAutoHide: true,
                 desktopRipple: false,
+                wallpaperGlide: true,
+                wallpaperPanelMode: "dock",
+                clipboardPanelMode: "dock",
                 desktopRippleStrength: "normal",
                 desktopRippleDrag: true,
                 dockMusicPlayer: true,
@@ -108,6 +125,8 @@ Singleton {
                 pinnedApps: [],
                 musicVisOn: true,
                 profile: "",
+                displayName: "",
+                settingsSections: true,
                 defaultFont: "Rubik",
                 displayFont: "Titan One",
                 notesSide: "L",
@@ -154,7 +173,7 @@ Singleton {
                 firstColor: "#ffffff",
                 secondColor: "#ffffff",
                 thirdColor: "#ffffff",
-                transitionType: "fade",
+                transitionType: "ink",
                 gowallTheme: "off",
                 gowallIcons: false,
                 gowallInvert: false,
@@ -167,7 +186,7 @@ Singleton {
                 firstColor: "#ffffff",
                 secondColor: "#ffffff",
                 thirdColor: "#ffffff",
-                transitionType: "fade",
+                transitionType: "ink",
                 gowallTheme: "off",
                 gowallIcons: false,
                 gowallInvert: false,
@@ -486,7 +505,21 @@ Singleton {
                 notifications: true,
                 calendar: true,
                 order: ["profile", "controls", "quickActions", "notifications", "calendar"],
-                options: ({})
+                gridColumns: 4,
+                rowHeight: 48,
+                fitRows: true,
+                options: ({
+                    "profile": { showClose: false, showReload: true, showSettings: true },
+                    "slider": { background: false },
+                    "slider-2": { background: false, color: "primary", target: "brightness" },
+                    "toggle": { which: "network" },
+                    "toggle-2": { which: "bluetooth" },
+                    "toggle-3": { which: "dnd" },
+                    "toggle-4": { which: "gameMode" },
+                    "toggle-5": { which: "awake" },
+                    "toggle-6": { which: "recording" },
+                    "power": { background: false, style: "button" }
+                })
             })
 
             property var dashboard: ({
@@ -496,7 +529,21 @@ Singleton {
                 notifications: true,
                 calendar: true,
                 order: ["profile", "controls", "quickActions", "notifications", "calendar"],
-                options: ({})
+                gridColumns: 4,
+                rowHeight: 48,
+                fitRows: true,
+                options: ({
+                    "profile": { showClose: false, showReload: true, showSettings: true },
+                    "slider": { background: false },
+                    "slider-2": { background: false, color: "primary", target: "brightness" },
+                    "toggle": { which: "network" },
+                    "toggle-2": { which: "bluetooth" },
+                    "toggle-3": { which: "dnd" },
+                    "toggle-4": { which: "gameMode" },
+                    "toggle-5": { which: "awake" },
+                    "toggle-6": { which: "recording" },
+                    "power": { background: false, style: "button" }
+                })
             })
 
             onDashboardChanged: {
@@ -506,8 +553,14 @@ Singleton {
                 for (const k in d) {
                     if (cur[k] === undefined) { needsPatch = true; break }
                 }
-                if (needsPatch)
-                    dashboard = Object.assign({}, d, cur)
+                if (needsPatch) {
+                    const merged = Object.assign({}, d)
+                    for (const k in cur) {
+                        if (cur[k] !== undefined)
+                            merged[k] = cur[k]
+                    }
+                    dashboard = merged
+                }
             }
 
             readonly property var _sleepDefaults: ({

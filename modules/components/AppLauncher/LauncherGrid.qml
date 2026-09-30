@@ -127,9 +127,13 @@ GridView {
             }
         }
 
-        CustomToolTip {
-            content: cell.modelData.name
-            visible: !grid.showLabels && area.containsMouse
+        Loader {
+            anchors.fill: parent
+            active: !grid.showLabels
+            sourceComponent: CustomToolTip {
+                content: cell.modelData.name
+                visible: area.containsMouse
+            }
         }
     }
 }

@@ -8,6 +8,7 @@ import qs.modules.utils
 import qs.modules.settings
 import qs.modules.services
 import qs.modules.customComponents
+import qs.modules.components.WallpaperSelector
 import QtQuick.Controls
 
 Item {
@@ -47,12 +48,6 @@ Item {
             spacing: 0
 
             // ── Page header ──────────────────────────────────────────────
-            RowLayout {
-                spacing: 10
-                MaterialIconSymbol { content: "palette"; iconSize: 20 }
-                CustomText { content: "Theme"; size: 20; customColor: Colors.primary }
-            }
-
             // ── Current theme reference ──────────────────────────────────
             // Read-only summary of what the shell is actually rendering with:
             // the wallpaper the palette came from, and the key roles it
@@ -287,10 +282,31 @@ Item {
                         M3ButtonGroup {
                             model: Settings.themeModes.map(m => ({ value: m.name.toLowerCase(), label: m.name, icon: m.icon }))
                             activeCheck: function(v) { return SettingsConfig.theme.matugenTheme === v }
-                            onSegmentClicked: function(v) {
-                                SettingsConfig.theme = Object.assign({}, SettingsConfig.theme, { matugenTheme: v })
-                                ServiceWallpaper.applyTheme()
+                            onSegmentClicked: function(v) { ServiceWallpaper.flipMode(v) }
+                        }
+                    }
+                }
+
+                CustomCard {
+                    autoRadius: false; topRadius: 5; bottomRadius: 5
+                    visible: !ServiceWallpaper.gowallActive
+                    RowLayout {
+                        Layout.fillWidth: true
+                        ColumnLayout {
+                            spacing: 2
+                            CustomText { content: "Wallpaper Colours"; size: 14 }
+                            CustomText {
+                                content: themeSeeds.seeds.length > 1
+                                    ? "Other themes hiding in this wallpaper — the first is picked automatically"
+                                    : "This wallpaper has one clear colour"
+                                size: 12; customColor: Colors.outline
                             }
+                        }
+                        Item { Layout.fillWidth: true }
+                        SeedSwatches {
+                            id: themeSeeds
+                            path: ServiceWallpaper.currentSource
+                            disc: 28
                         }
                     }
                 }
@@ -338,7 +354,7 @@ Item {
                             Layout.preferredHeight: 30
                             color: Colors.surfaceContainerHighest
                             list: Settings.transitionTypes
-                            Component.onCompleted: currentVal = SettingsConfig.theme.transitionType ?? "fade"
+                            Component.onCompleted: currentVal = Settings.transitionOrDefault(SettingsConfig.theme.transitionType)
                             onCurrentValChanged: {
                                 if (currentVal && currentVal !== SettingsConfig.theme.transitionType) {
                                     SettingsConfig.theme = Object.assign({}, SettingsConfig.theme, { transitionType: currentVal })

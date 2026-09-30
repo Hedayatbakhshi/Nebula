@@ -22,6 +22,7 @@ import qs.modules.components.CheatSheet
 import qs.modules.components.Overview
 import qs.modules.components.PieMenu
 import qs.modules.components.EdgeLight
+import qs.modules.components.ThemeFlip
 import qs.modules.components.Ripple
 import qs.modules.components.Wallpaper
 import qs.modules.components.EdgeNotes
@@ -129,6 +130,8 @@ ShellRoot{
     PieMenu {}
 
     EdgeLight {}
+    ThemeFlip {}
+    CenterPanels {}
 
     DesktopRipple { id: desktopRipple }
 

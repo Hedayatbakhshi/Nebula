@@ -31,7 +31,9 @@ Rectangle {
         anchors.fill: parent
 
         sourceComponent: ServiceWallpaper.panelStyle === "hearth" ? hearthComp
-            : ServiceWallpaper.panelStyle === "seat" ? seatComp : classicComp
+            : ServiceWallpaper.panelStyle === "seat" ? seatComp
+            : ServiceWallpaper.panelStyle === "gallery" ? galleryComp
+            : ServiceWallpaper.panelStyle === "stage" ? stageComp : classicComp
     }
 
     Component {
@@ -42,6 +44,14 @@ Rectangle {
     Component {
         id: seatComp
         WallpaperSeat {}
+    }
+    Component {
+        id: galleryComp
+        WallpaperGallery {}
+    }
+    Component {
+        id: stageComp
+        WallpaperStage {}
     }
 
     Component {

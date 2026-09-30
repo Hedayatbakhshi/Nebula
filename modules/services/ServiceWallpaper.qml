@@ -183,19 +183,16 @@ Singleton {
     }
 
     // ── Wallpaper application queue ────────────────────────────────────────
-    // We use execDetached (fire-and-forget) and reload colors after a fixed
-    // 1.5s window — no Process re-use state to get stuck.
-    // Rapid clicks: only the latest path within the 1.5s window is applied.
     property string _pendingPath: ""
     property bool   _applying: false
+    property double _applyStartedAt: 0
 
-    Timer {
-        id: applyTimer
-        interval: 3000
-        repeat: false
-        onTriggered: {
+    Process {
+        id: applyProc
+        onExited: code => {
+            applyWatchdog.stop()
             const elapsed = (Date.now() - root._applyStartedAt).toFixed(0)
-            console.log("[ServiceWallpaper] applyTimer fired at", elapsed + "ms — calling reloadColors()")
+            console.log("[ServiceWallpaper] apply finished in", elapsed + "ms (exit", code + ")")
             WallpaperTheme.reloadColors()
             root._applying = false
             const next = root._pendingPath
@@ -207,20 +204,30 @@ Singleton {
         }
     }
 
-    property double _applyStartedAt: 0
+    Timer {
+        id: applyWatchdog
+        interval: 60000
+        onTriggered: {
+            console.warn("[ServiceWallpaper] apply still running after 60s — stopping it")
+            applyProc.running = false
+        }
+    }
 
     function _startApply(path) {
         _applying = true
         _pendingPath = ""
         _applyStartedAt = Date.now()
         console.log("[ServiceWallpaper] _startApply →", path, "| mode:", root.theme, "| t=0ms")
-        Quickshell.execDetached([root.cli, "wallpaper", "set", path,
-                                 "--scheme", root.scheme, "--mode", root.theme,
-                                 "--gowall", root.gowallTheme,
-                                 "--gowall-icons", root.gowallIcons ? "on" : "off",
-                                 "--invert", root.gowallInvert ? "on" : "off",
-                                 "--gowall-shell", root.gowallShell ? "on" : "off"])
-        applyTimer.restart()
+        if (!root.gowallActive && !root.gowallInvert)
+            WallpaperTheme.showNow(path)
+        applyProc.command = [root.cli, "wallpaper", "set", path,
+                             "--scheme", root.scheme, "--mode", root.theme,
+                             "--gowall", root.gowallTheme,
+                             "--gowall-icons", root.gowallIcons ? "on" : "off",
+                             "--invert", root.gowallInvert ? "on" : "off",
+                             "--gowall-shell", root.gowallShell ? "on" : "off"]
+        applyProc.running = true
+        applyWatchdog.restart()
     }
 
     function _enqueue(path) {
@@ -265,19 +272,89 @@ Singleton {
             return
         }
         console.log("[ServiceWallpaper] applyTheme → mode:", root.theme, "wallpaper:", wp)
-        Quickshell.execDetached([root.cli, "scheme", "generate", wp, root.scheme, root.theme])
-        themeTimer.restart()
-        console.log("[ServiceWallpaper] execDetached done, timer started (fires in 2000ms)")
+        const cmd = [root.cli, "scheme", "generate", wp, root.scheme, root.theme]
+        if (themeProc.running) {
+            themeProc.next = cmd
+            return
+        }
+        themeProc.command = cmd
+        themeProc.running = true
     }
 
-    // 2s covers worst-case cold gen (~615ms) plus plenty of margin
+    property bool flipAvailable: false
+    property int flipPhase: 0
+    property var flipPoint: null
+    property string _flipMode: ""
+
+    function flipMode(mode) {
+        if (!mode || mode === root.theme) return
+        if (!root.flipAvailable || root.flipPhase !== 0) {
+            SettingsConfig.theme = Object.assign({}, SettingsConfig.theme, { matugenTheme: mode })
+            root.applyTheme()
+            return
+        }
+        root._flipMode = mode
+        root.flipPoint = null
+        flipCursorProc.running = true
+    }
+
+    function flipCaptured() {
+        if (root.flipPhase !== 1) return
+        root.flipPhase = 2
+        SettingsConfig.theme = Object.assign({}, SettingsConfig.theme, { matugenTheme: root._flipMode })
+        root.applyTheme()
+        flipTimeout.restart()
+    }
+
+    function flipDone() {
+        flipTimeout.stop()
+        root.flipPhase = 0
+    }
+
+    Process {
+        id: flipCursorProc
+        command: ["hyprctl", "cursorpos", "-j"]
+        stdout: StdioCollector { id: flipCursorOut }
+        onExited: {
+            try {
+                const c = JSON.parse(flipCursorOut.text)
+                root.flipPoint = Qt.point(c.x, c.y)
+            } catch (e) {
+                root.flipPoint = null
+            }
+            root.flipPhase = 1
+        }
+    }
+
+    Connections {
+        target: WallpaperTheme
+        function onApplied() {
+            if (root.flipPhase === 2) flipSettle.restart()
+        }
+    }
+
     Timer {
-        id: themeTimer
-        interval: 2000
-        repeat: false
-        onTriggered: {
-            console.log("[ServiceWallpaper] themeTimer fired — calling reloadColors()")
+        id: flipSettle
+        interval: 180
+        onTriggered: if (root.flipPhase === 2) root.flipPhase = 3
+    }
+
+    Timer {
+        id: flipTimeout
+        interval: 6000
+        onTriggered: if (root.flipPhase === 2) root.flipPhase = 3
+    }
+
+    Process {
+        id: themeProc
+        property var next: null
+        onExited: {
             WallpaperTheme.reloadColors()
+            if (themeProc.next) {
+                themeProc.command = themeProc.next
+                themeProc.next = null
+                themeProc.running = true
+            }
         }
     }
     // ── End queue ──────────────────────────────────────────────────────────
@@ -582,8 +659,20 @@ Singleton {
         return have
     }
 
+    property bool _rescanPending: false
+
+    function _pointsAt(model, dir) {
+        const strip = s => s.replace(/\/+$/, "")
+        return strip(decodeURIComponent(model.folder.toString())) === strip("file://" + dir)
+    }
+
     function generateThumbnails() {
-        if (root.isProcessing) return
+        if (!root._pointsAt(folderModel, root.wallpaperDir)) return
+        if (!root._pointsAt(cacheModel, root.cacheDir)) return
+        if (root.isProcessing) {
+            root._rescanPending = true
+            return
+        }
         if (folderModel.count === 0) return
         if (folderModel.status !== FolderListModel.Ready) return
         if (cacheModel.status !== FolderListModel.Ready) return
@@ -619,6 +708,10 @@ Singleton {
     function processNextThumbnail() {
         if (root.thumbQueue.length === 0) {
             root.isProcessing = false
+            if (root._rescanPending) {
+                root._rescanPending = false
+                root.generateThumbnails()
+            }
             root.updateWallpapersList()
             return
         }
@@ -658,8 +751,10 @@ Singleton {
 
     function updateWallpapersList() {
         const entries = []
+        const names = {}
         for (let i = 0; i < folderModel.count; i++) {
             const originalPath = folderModel.get(i, "filePath")
+            names[folderModel.get(i, "fileName")] = originalPath
             const cachePath = root.cacheDir + "/" + Qt.md5(originalPath) + ".jpg"
             if (root.wallpaperMap[cachePath]) {
                 entries.push({
@@ -678,6 +773,7 @@ Singleton {
             })
         }
         console.log("[ServiceWallpaper] Total wallpapers available:", entries.length)
+        root.localNames = names
         root.wallpapers = entries.map(e => e.cachePath)
     }
 
@@ -880,18 +976,145 @@ Singleton {
     // ── End File management ──────────────────────────────────────────────────
 
     readonly property var panelStyles: [
-        { value: "classic", label: "Classic",     icon: "grid_view",     height: 520 },
-        { value: "hearth",  label: "Hearth",      icon: "fireplace",     height: 520 },
-        { value: "seat",    label: "Window seat", icon: "view_carousel", height: 400 }
+        { value: "classic", label: "Classic",     icon: "grid_view",     height: 520, width: 1560 },
+        { value: "hearth",  label: "Hearth",      icon: "fireplace",     height: 520, width: 1560 },
+        { value: "seat",    label: "Window seat", icon: "view_carousel", height: 400, width: 1560 },
+        { value: "gallery", label: "Gallery",     icon: "photo_library", height: 600, width: 1480 },
+        { value: "stage",   label: "Stage",       icon: "theaters",      height: 700, width: 1040 }
     ]
     readonly property string panelStyle: {
         const s = SettingsConfig.general.wallpaperStyle ?? "classic"
         return root.panelStyles.some(x => x.value === s) ? s : "classic"
     }
     readonly property int panelHeight: root.panelStyles.find(x => x.value === root.panelStyle).height
+    readonly property int panelWidth: root.panelStyles.find(x => x.value === root.panelStyle).width
 
     readonly property string currentCachePath: root.currentSource
         ? root.cacheDir + "/" + Qt.md5(root.currentSource) + ".jpg" : ""
+
+    property var localNames: ({})
+
+    function localFor(item) {
+        if (!item || typeof item !== "object" || !item.fullUrl) return ""
+        const ext = item.fullUrl.split('.').pop().split('?')[0] || "jpg"
+        return root.localNames[item.id + "." + ext] || ""
+    }
+
+    function applyFile(path) {
+        _enqueue(path)
+    }
+
+    property var seedInfo: ({})
+    property string _seedNext: ""
+
+    function _seedKey(path) {
+        return path + "|" + root.scheme + "|" + root.theme
+    }
+
+    function seedsFor(path) {
+        return path ? root.seedInfo[root._seedKey(path)] || null : null
+    }
+
+    function requestSeeds(path) {
+        if (!path || root.seedInfo[root._seedKey(path)]) return
+        if (seedProc.running) {
+            root._seedNext = path
+            return
+        }
+        seedProc.key = root._seedKey(path)
+        seedProc.command = [root.cli, "scheme", "seeds", path, "--variant", root.scheme, "--mode", root.theme]
+        seedProc.running = true
+    }
+
+    function chooseSeed(path, index) {
+        const info = root.seedsFor(path)
+        if (!info || info.chosen === index || seedSetProc.running) return
+        const next = Object.assign({}, root.seedInfo)
+        for (const k in next)
+            if (k.startsWith(path + "|")) next[k] = Object.assign({}, next[k], { chosen: index })
+        root.seedInfo = next
+        seedSetProc.path = path
+        seedSetProc.command = [root.cli, "scheme", "seed", path, String(index)]
+        seedSetProc.running = true
+    }
+
+    Process {
+        id: seedProc
+        property string key: ""
+        stdout: StdioCollector { id: seedOut }
+        onExited: code => {
+            if (code === 0) {
+                try {
+                    const next = Object.assign({}, root.seedInfo)
+                    next[seedProc.key] = JSON.parse(seedOut.text)
+                    root.seedInfo = next
+                } catch (e) {
+                    console.warn("[ServiceWallpaper] seeds parse failed:", e)
+                }
+            }
+            const queued = root._seedNext
+            root._seedNext = ""
+            if (queued) root.requestSeeds(queued)
+        }
+    }
+
+    Process {
+        id: seedSetProc
+        property string path: ""
+        onExited: {
+            const cachePath = root.cacheDir + "/" + Qt.md5(seedSetProc.path) + ".jpg"
+            const next = Object.assign({}, root.previewColors)
+            for (const k in next)
+                if (k.startsWith(cachePath + "|")) delete next[k]
+            root.previewColors = next
+            root.requestPreview(cachePath)
+            if (seedSetProc.path === root.currentSource) root.reapply()
+        }
+    }
+
+    property var imageInfo: ({})
+    property string _infoNext: ""
+
+    function infoFor(path) {
+        return path ? root.imageInfo[path] || null : null
+    }
+
+    function requestInfo(path) {
+        if (!path || root.imageInfo[path]) return
+        if (infoProc.running) {
+            root._infoNext = path
+            return
+        }
+        infoProc.target = path
+        infoProc.command = ["sh", "-c", "magick identify -ping -format '%w %h\\n' \"$1[0]\"; stat -c %s \"$1\"", "_", path]
+        infoProc.running = true
+    }
+
+    function formatBytes(n) {
+        if (!n || n <= 0) return ""
+        if (n >= 1048576) return (n / 1048576).toFixed(1) + " MB"
+        return Math.max(1, Math.round(n / 1024)) + " KB"
+    }
+
+    Process {
+        id: infoProc
+        property string target: ""
+        stdout: StdioCollector { id: infoOut }
+        onExited: {
+            const lines = infoOut.text.trim().split("\n")
+            const dims = (lines[0] || "").trim().split(" ")
+            const w = parseInt(dims[0]), h = parseInt(dims[1])
+            const bytes = parseInt(lines[lines.length - 1])
+            if (w > 0 && h > 0) {
+                const next = Object.assign({}, root.imageInfo)
+                next[infoProc.target] = { width: w, height: h, bytes: bytes > 0 ? bytes : 0 }
+                root.imageInfo = next
+            }
+            const queued = root._infoNext
+            root._infoNext = ""
+            if (queued) root.requestInfo(queued)
+        }
+    }
 
     readonly property bool previewUsable: !(root.gowallActive && root.gowallShell
                                             && (root.gowallTheme ?? "").toLowerCase() !== "match")

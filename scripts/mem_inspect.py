@@ -25,7 +25,7 @@ CYAN   = "\033[96m"
 DIM    = "\033[2m"
 
 
-def find_pid(name="quickshell"):
+def find_pid(name="qs"):
     try:
         out = subprocess.check_output(["pgrep", "-x", name], text=True).strip()
         pids = out.splitlines()

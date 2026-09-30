@@ -107,8 +107,6 @@ Item {
             RowLayout {
                 Layout.fillWidth: true
                 spacing: 10
-                MaterialIconSymbol { content: "widgets"; iconSize: 20 }
-                CustomText { content: "Widgets"; size: 20; customColor: Colors.primary }
 
                 Item { Layout.fillWidth: true }
 

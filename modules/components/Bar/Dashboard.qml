@@ -63,7 +63,7 @@ Item{
     }
 
     opacity: 0
-    scale: root.isPill ? 1 : 0.8
+    scale: 1
 
     NumberAnimation on opacity {
         from: 0; to: 1; duration: 400; running: true

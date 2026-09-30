@@ -35,12 +35,21 @@ Singleton {
         return g[key] ?? (side === "top" && root.barSide === "top" ? 0 : 5)
     }
 
+    readonly property var screenBorder: SettingsConfig.bar?.border ?? ({})
+    readonly property bool borderOn: !root.zeroed && root.screenBorder.on === true
+    readonly property int borderSize: Math.max(0, Math.round(Number(root.screenBorder.size ?? 8)))
+    readonly property int borderRadius: Math.max(0, Math.round(Number(root.screenBorder.radius ?? 20)))
+
+    function borderFor(side) {
+        return root.borderOn && root.screenBorder[side] !== false ? root.borderSize : 0
+    }
+
     function reserveFor(side) {
         if (root.zeroed)
             return 0
-        return (root.barSide === side ? root.barReserve : 0)
-             + (root.dockSide === side ? root.dockReserve : 0)
-             + root.extraFor(side)
+        const bar = root.barSide === side ? root.barReserve : 0
+        const dock = root.dockSide === side ? root.dockReserve : 0
+        return bar + dock + (bar > 0 ? 0 : root.borderFor(side)) + root.extraFor(side)
     }
 
     readonly property int topFinal: root.reserveFor("top")

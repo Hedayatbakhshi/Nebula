@@ -172,21 +172,24 @@ Singleton{
     ]
 
     property var transitionTypes: [
-        { name: "fade" },
-        { name: "simple" },
-        { name: "none" },
-        { name: "left" },
-        { name: "right" },
-        { name: "top" },
-        { name: "bottom" },
-        { name: "wipe" },
-        { name: "wave" },
-        { name: "grow" },
-        { name: "center" },
-        { name: "any" },
-        { name: "outer" },
-        { name: "random" }
+        { name: "ink" },
+        { name: "ember" },
+        { name: "shatter" },
+        { name: "hex" },
+        { name: "shockwave" },
+        { name: "vortex" },
+        { name: "light" },
+        { name: "melt" },
+        { name: "blinds" },
+        { name: "glitch" },
+        { name: "mosaic" },
+        { name: "random" },
+        { name: "none" }
     ]
+
+    function transitionOrDefault(t) {
+        return settings.transitionTypes.some(x => x.name === t) ? t : "ink"
+    }
 
     property var matugen:[
         {

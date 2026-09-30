@@ -34,12 +34,6 @@ Item {
             spacing: 0
 
             // ── Page header ──────────────────────────────────────
-            RowLayout {
-                spacing: 10
-                MaterialIconSymbol { content: "partly_cloudy_day"; iconSize: 20 }
-                CustomText { content: "Weather"; size: 20; customColor: Colors.primary }
-            }
-
             // ── Location ─────────────────────────────────────────
             CustomText { Layout.topMargin: 24; content: "Location"; size: 13; customColor: Colors.primary }
 

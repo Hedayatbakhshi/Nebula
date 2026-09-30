@@ -53,12 +53,6 @@ Item {
             spacing: 0
 
             // ── Page header ──────────────────────────────────────────────
-            RowLayout {
-                spacing: 10
-                MaterialIconSymbol { content: "bedtime"; iconSize: 20 }
-                CustomText { content: "Sleep"; size: 20; customColor: Colors.primary }
-            }
-
             CustomText {
                 Layout.topMargin: 6
                 Layout.fillWidth: true

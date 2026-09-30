@@ -76,8 +76,8 @@ function sdfShape(bs, o, out) {
         entry.push(Math.min(rMax, Math.max(0, bot(i) - lines[i]) / 2, reach[i], share[i]))
     }
 
-    const sideTouch = px => Math.max(clamp(1 - px / rMax, 0, 1),
-                                     clamp(1 - (o.screenW - px) / rMax, 0, 1))
+    const sideTouch = px => Math.max(clamp(1 - (px - L) / rMax, 0, 1),
+                                     clamp(1 - (R - px) / rMax, 0, 1))
 
     const factor = (edgeTouch, b, px, melt) => {
         const fE = edgeFlare * edgeTouch

@@ -82,16 +82,10 @@ Item {
             anchors { leftMargin: 5; rightMargin: 5; topMargin: 5 }
             spacing: 0
 
-            RowLayout {
-                Layout.fillWidth: true
-                spacing: 10
-                MaterialIconSymbol { content: "lock"; iconSize: 20 }
-                CustomText { content: "Lock Screen"; size: 20; customColor: Colors.primary }
-                Item { Layout.fillWidth: true }
-            }
-
             CustomText {
                 Layout.topMargin: 6
+                Layout.fillWidth: true
+                wrapMode: Text.WordWrap
                 content: "Each style brings its own backdrop, clock and animations. Choose style opens a full-screen picker with a live preview."
                 size: 12
                 customColor: Colors.outline

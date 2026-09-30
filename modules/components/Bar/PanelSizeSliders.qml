@@ -17,7 +17,7 @@ ColumnLayout {
     Repeater {
         model: sizes.spec ? [
             { key: "w", label: "Width", min: sizes.spec.minW, max: sizes.spec.maxW, auto: false },
-            { key: "h", label: "Height", min: sizes.spec.minH, auto: sizes.spec.defH < 0,
+            { key: "h", label: "Height", min: sizes.spec.minH, auto: sizes.spec.autoH === true || sizes.spec.defH < 0,
               max: Math.max(sizes.spec.minH, Math.min(sizes.spec.maxH, sizes.screenH)) }
         ] : []
 
